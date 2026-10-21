@@ -1,0 +1,1 @@
+export function CustomSetupSteps(){return <p className="text-sm text-muted-foreground">Custom policy/provider configuration is intentionally completed in Settings after the safe full or minimal seed.</p>}

@@ -1,0 +1,19 @@
+{
+  "full": {
+    "fleet": "Harbor Independent Mobility",
+    "services": ["Independent Standard", "Accessible Ride"],
+    "driver": "Maya R.",
+    "vehicle": "Blue 2022 Hybrid",
+    "serviceArea": "Harbor City central neighborhoods",
+    "farePolicy": "Transparent fixed fare with dynamic pricing disabled",
+    "providers": ["Manual route estimate", "Manual development ledger", "Console notifications"],
+    "disclosure": "Demonstration evidence only; no legal, insurance, licensing, identity, inspection, or background-check approval is claimed."
+  },
+  "minimal": {
+    "fleet": "Harbor Independent Mobility",
+    "services": ["Independent Standard"],
+    "driver": "Maya R.",
+    "vehicle": "Blue 2022 Hybrid",
+    "serviceArea": "Harbor City central neighborhoods"
+  }
+}

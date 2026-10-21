@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "openfront.rideshare.service/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["category", "passengerCapacity", "wheelchairAccessible", "serviceAreas"],
+  "properties": {
+    "category": { "type": "string" },
+    "passengerCapacity": { "type": "integer", "minimum": 1 },
+    "wheelchairAccessible": { "type": "boolean" },
+    "serviceAreas": { "type": "array", "items": { "type": "string", "maxLength": 120 } }
+  }
+}

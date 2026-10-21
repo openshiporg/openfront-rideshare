@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "openfront.marketplace.source/v1",
+  "type": "object",
+  "required": ["schemaVersion", "platform", "verticals", "transport", "discovery", "actions", "controlBoundary"],
+  "properties": {
+    "schemaVersion": { "const": "openfront.marketplace.source/v1" },
+    "platform": { "const": "openfront-rideshare" },
+    "verticals": { "type": "array", "contains": { "const": "rideshare" } },
+    "transport": { "type": "object", "required": ["graphqlPath"] },
+    "discovery": { "type": "object", "required": ["capability", "vertical", "resultKind", "extensionSchema", "query"] },
+    "actions": { "type": "array", "minItems": 3 },
+    "controlBoundary": { "type": "object" }
+  }
+}

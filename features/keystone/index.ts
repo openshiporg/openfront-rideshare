@@ -1,97 +1,38 @@
-import { createAuth } from "@keystone-6/auth";
-import { config } from "@keystone-6/core";
-import "dotenv/config";
-import { models } from "./models";
-import { statelessSessions } from "@keystone-6/core/session";
-import { extendGraphqlSchema } from "./mutations";
-import { sendPasswordResetEmail } from "./lib/mail";
+import { createAuth } from '@keystone-6/auth'
+import { config } from '@keystone-6/core'
+import { statelessSessions } from '@keystone-6/core/session'
+import 'dotenv/config'
+import { models } from './models'
+import { extendGraphqlSchema } from './mutations'
+import { sendPasswordResetEmail } from './lib/mail'
+import { permissionNames, permissions } from './access'
 
-const databaseURL = process.env.DATABASE_URL || "file:./keystone.db";
+const production = process.env.NODE_ENV === 'production'
+const databaseURL = process.env.DATABASE_URL || 'postgresql://localhost/openfront_rideshare'
+const sessionSecret = process.env.SESSION_SECRET || 'development-only-session-secret-change-me-now'
+if (production && (!process.env.DATABASE_URL || !process.env.SESSION_SECRET || sessionSecret.length < 32)) throw new Error('DATABASE_URL and SESSION_SECRET of at least 32 characters are required in production.')
 
-const sessionConfig = {
-  maxAge: 60 * 60 * 24 * 360, // How long they stay signed in?
-  secret:
-    process.env.SESSION_SECRET || "this secret should only be used in testing",
-};
-
-const {
-  S3_BUCKET_NAME: bucketName = "keystone-test",
-  S3_REGION: region = "ap-southeast-2",
-  S3_ACCESS_KEY_ID: accessKeyId = "keystone",
-  S3_SECRET_ACCESS_KEY: secretAccessKey = "keystone",
-  S3_ENDPOINT: endpoint = "https://sfo3.digitaloceanspaces.com",
-} = process.env;
-
+const session = statelessSessions({ maxAge: 60 * 60 * 24 * 30, secret: sessionSecret })
 const { withAuth } = createAuth({
-  listKey: "User",
-  identityField: "email",
-  secretField: "password",
+  listKey: 'User', identityField: 'email', secretField: 'password',
   initFirstItem: {
-    fields: ["name", "email", "password"],
-    itemData: {
-      role: {
-        create: {
-          name: "Admin",
-          canCreateTodos: true,
-          canManageAllTodos: true,
-          canSeeOtherPeople: true,
-          canEditOtherPeople: true,
-          canManagePeople: true,
-          canManageRoles: true,
-          canAccessDashboard: true,
-        },
-      },
-    },
+    fields: ['name', 'email', 'password'],
+    itemData: { role: { create: { name: 'Admin', ...Object.fromEntries(permissionNames.map(name => [name, true])) } } },
   },
-  passwordResetLink: {
-    async sendToken(args) {
-      // send the email
-      await sendPasswordResetEmail(args.token, args.identity);
-    },
-  },
-  sessionData: `
-    name
-    email
-    role {
-      id
-      name
-      canCreateTodos
-      canManageAllTodos
-      canSeeOtherPeople
-      canEditOtherPeople
-      canManagePeople
-      canManageRoles
-      canAccessDashboard
-    }
-  `,
-});
+  passwordResetLink: { async sendToken(args) { await sendPasswordResetEmail(args.token, args.identity) } },
+  sessionData: `id name email role { id name ${permissionNames.join(' ')} }`,
+})
 
-export default withAuth(
-  config({
-    db: {
-      provider: "postgresql",
-      url: databaseURL,
-    },
-    lists: models,
-    storage: {
-      my_images: {
-        kind: "s3",
-        type: "image",
-        bucketName,
-        region,
-        accessKeyId,
-        secretAccessKey,
-        endpoint,
-        signed: { expiry: 5000 },
-        forcePathStyle: true,
-      },
-    },
-    ui: {
-      isAccessAllowed: ({ session }) => session?.data.role?.canAccessDashboard ?? false,
-    },
-    session: statelessSessions(sessionConfig),
-    graphql: {
-      extendGraphqlSchema,
-    },
-  })
-);
+const storage = process.env.S3_BUCKET_NAME ? {
+  my_images: {
+    kind: 's3' as const, type: 'image' as const, bucketName: process.env.S3_BUCKET_NAME,
+    region: process.env.S3_REGION || 'auto', accessKeyId: process.env.S3_ACCESS_KEY_ID || '', secretAccessKey: process.env.S3_SECRET_ACCESS_KEY || '',
+    endpoint: process.env.S3_ENDPOINT, forcePathStyle: true, signed: { expiry: 5000 },
+  },
+} : undefined
+
+export default withAuth(config({
+  db: { provider: 'postgresql', url: databaseURL }, lists: models, session,
+  graphql: { extendGraphqlSchema }, storage,
+  ui: { isAccessAllowed: context => permissions.canAccessDashboard({ context, session: context.session }) },
+}))

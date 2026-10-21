@@ -12,15 +12,9 @@ export const VIEW_ORDER = [
   "text",
   "password",
   "relationship",
+  "select",
   "timestamp",
   "checkbox",
-  "document",
-  "select",
-  "integer",
-  "multiselect",
-  "float",
-  "decimal",
-  "bigInt",
   "json",
-  "image"
+  "integer"
 ];

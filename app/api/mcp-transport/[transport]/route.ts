@@ -29,6 +29,8 @@ function getSimpleTypeName(type: any): string {
 async function executeGraphQL(query: string, graphqlEndpoint: string, cookie: string): Promise<any> {
   const response = await fetch(graphqlEndpoint, {
     method: 'POST',
+    redirect: 'error',
+    signal: AbortSignal.timeout(10_000),
     headers: {
       'Content-Type': 'application/json',
       'Cookie': cookie,
@@ -38,7 +40,7 @@ async function executeGraphQL(query: string, graphqlEndpoint: string, cookie: st
 
   const result = await response.json();
   if (result.errors) {
-    throw new Error(`GraphQL execution failed: ${JSON.stringify(result.errors)}`);
+    throw new Error('GraphQL command outcome is unconfirmed. Reconcile the original command before retrying.');
   }
   return result;
 }
@@ -47,6 +49,8 @@ async function executeGraphQL(query: string, graphqlEndpoint: string, cookie: st
 async function getGraphQLSchema(graphqlEndpoint: string, cookie: string): Promise<GraphQLSchema> {
   const response = await fetch(graphqlEndpoint, {
     method: 'POST',
+    redirect: 'error',
+    signal: AbortSignal.timeout(10_000),
     headers: { 
       'Content-Type': 'application/json',
       'Cookie': cookie,
@@ -60,7 +64,7 @@ async function getGraphQLSchema(graphqlEndpoint: string, cookie: string): Promis
   
   const result = await response.json();
   if (result.errors) {
-    throw new Error(`GraphQL introspection failed: ${JSON.stringify(result.errors)}`);
+    throw new Error('Schema discovery is unavailable.');
   }
   
   return buildClientSchema(result.data);
@@ -132,7 +136,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
           properties: {
             operation: {
               type: 'string',
-              description: 'The GraphQL operation name (e.g., "users", "todos", "roles")'
+              description: 'The GraphQL operation name (e.g., "users", "trips", "roles")'
             },
             fields: {
               type: 'string',
@@ -149,7 +153,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
           properties: {
             searchTerm: {
               type: 'string',
-              description: 'The search term to find models (e.g., "User", "Todo", "Role")'
+              description: 'The search term to find models (e.g., "User", "Trip", "Role")'
             }
           },
           required: ['searchTerm']
@@ -162,7 +166,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
           properties: {
             typeName: {
               type: 'string',
-              description: 'The GraphQL type name to get fields for (e.g., "User", "Todo", "Role")'
+              description: 'The GraphQL type name to get fields for (e.g., "User", "Trip", "Role")'
             }
           },
           required: ['typeName']
@@ -175,7 +179,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
           properties: {
             inputTypeName: {
               type: 'string',
-              description: 'The GraphQL input type name (e.g., "UserCreateInput", "TodoUpdateInput")'
+              description: 'The GraphQL input type name (e.g., "UserCreateInput", "TripUpdateInput")'
             }
           },
           required: ['inputTypeName']
@@ -188,7 +192,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
           properties: {
             operation: {
               type: 'string',
-              description: 'The GraphQL create mutation name (e.g., "createUser", "createTodo")'
+              description: 'The GraphQL create mutation name (e.g., "createUser", "createFleet")'
             },
             data: {
               type: 'string',
@@ -209,7 +213,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
           properties: {
             operation: {
               type: 'string',
-              description: 'The GraphQL update mutation name (e.g., "updateUser", "updateTodo")'
+              description: 'The GraphQL update mutation name (e.g., "updateUser", "updateFleet")'
             },
             where: {
               type: 'string',
@@ -234,7 +238,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
           properties: {
             operation: {
               type: 'string',
-              description: 'The GraphQL delete mutation name (e.g., "deleteUser", "deleteTodo")'
+              description: 'The GraphQL delete mutation name (e.g., "deleteUser", "deleteFleet")'
             },
             where: {
               type: 'string',
@@ -255,7 +259,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
           properties: {
             modelName: {
               type: 'string',
-              description: 'The model name to search (e.g., "Product", "User", "Todo"). Will be automatically converted to the correct GraphQL operation name.'
+              description: 'The model name to search (e.g., "Trip", "User", "Vehicle"). Will be automatically converted to the correct GraphQL operation name.'
             },
             searchQuery: {
               type: 'string',
@@ -881,7 +885,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
           result: {
             content: [{
               type: 'text',
-              text: `Error executing ${name}: ${error}`,
+              text: 'The command outcome is unconfirmed. Reconcile the original operation before retrying.',
             }],
           }
         }), {
@@ -906,7 +910,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
       error: { 
         code: -32603, 
         message: 'Internal error',
-        data: error instanceof Error ? error.message : String(error)
+        data: 'The request could not be completed.'
       }
     }), {
       status: 500,

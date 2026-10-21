@@ -1,0 +1,35 @@
+{
+  "$schema": "./schemas/source-manifest.schema.json",
+  "schemaVersion": "openfront.marketplace.source/v1",
+  "platform": "openfront-rideshare",
+  "verticals": ["rideshare"],
+  "sourceIdentity": {
+    "idEnvironmentVariable": "OPENFRONT_MARKETPLACE_SOURCE_ID",
+    "baseUrlEnvironmentVariable": "PUBLIC_BASE_URL",
+    "ownership": "source-deployment"
+  },
+  "transport": { "graphqlPath": "/api/graphql" },
+  "discovery": {
+    "capability": { "id": "marketplace.discovery", "version": 1 },
+    "vertical": "rideshare",
+    "resultKind": "rideshare.service",
+    "extensionSchema": "openfront.rideshare.service/v1",
+    "query": "marketplaceRideshareServices",
+    "criteriaSchema": "./schemas/rideshare-discovery.schema.json",
+    "publicFieldsOnly": true
+  },
+  "actions": [
+    { "id": "rideshare.quote", "mutation": "marketplaceRideshareQuote", "ownershipProof": "source-signed-expiring" },
+    { "id": "rideshare.request", "mutation": "requestRide", "ownershipProof": "quote-proof" },
+    { "id": "rideshare.trip.view", "query": "publicRideshareTrip", "ownershipProof": "source-signed-expiring" }
+  ],
+  "controlBoundary": {
+    "marketplaceStoresAuthoritativeTrip": false,
+    "marketplaceProcessesPayment": false,
+    "sourceOwnsPricing": true,
+    "sourceOwnsAvailability": true,
+    "sourceOwnsRiderRelationship": true,
+    "sourceOwnsPaymentAndPayoutRecords": true
+  },
+  "sensitiveDataExcluded": ["precise coordinates", "driver legal identity", "rider contact details", "compliance document files", "incident details", "payment credentials", "provider secrets"]
+}

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "openfront.rideshare.discovery-criteria/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "category": { "enum": ["standard", "comfort", "xl", "accessible", "pet_friendly", "scheduled"] },
+    "passengerCount": { "type": "integer", "minimum": 1, "maximum": 50 },
+    "wheelchairAccessible": { "type": "boolean" },
+    "scheduledFor": { "type": "string", "format": "date-time" }
+  }
+}

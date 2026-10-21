@@ -6,9 +6,21 @@ type User {
   name: String
   email: String
   password: PasswordState
+  phone: String
   role: Role
-  tasks(where: TodoWhereInput! = {}, orderBy: [TodoOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: TodoWhereUniqueInput): [Todo!]
-  tasksCount(where: TodoWhereInput! = {}): Int
+  onboardingStatus: String
+  fleetMemberships(where: FleetMembershipWhereInput! = {}, orderBy: [FleetMembershipOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: FleetMembershipWhereUniqueInput): [FleetMembership!]
+  fleetMembershipsCount(where: FleetMembershipWhereInput! = {}): Int
+  driverProfile: DriverProfile
+  riderProfile: RiderProfile
+  requestedRides(where: RideRequestWhereInput! = {}, orderBy: [RideRequestOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: RideRequestWhereUniqueInput): [RideRequest!]
+  requestedRidesCount(where: RideRequestWhereInput! = {}): Int
+  trips(where: TripWhereInput! = {}, orderBy: [TripOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: TripWhereUniqueInput): [Trip!]
+  tripsCount(where: TripWhereInput! = {}): Int
+  reviews(where: ReviewWhereInput! = {}, orderBy: [ReviewOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: ReviewWhereUniqueInput): [Review!]
+  reviewsCount(where: ReviewWhereInput! = {}): Int
+  createdAt: DateTime
+  updatedAt: DateTime
   passwordResetToken: PasswordState
   passwordResetIssuedAt: DateTime
   passwordResetRedeemedAt: DateTime
@@ -22,6 +34,9 @@ scalar DateTime @specifiedBy(url: "https://datatracker.ietf.org/doc/html/rfc3339
 
 input UserWhereUniqueInput {
   id: ID
+  email: String
+  driverProfile: DriverProfileWhereUniqueInput
+  riderProfile: RiderProfileWhereUniqueInput
 }
 
 input UserWhereInput {
@@ -30,8 +45,18 @@ input UserWhereInput {
   NOT: [UserWhereInput!]
   id: IDFilter
   name: StringFilter
+  email: StringFilter
+  phone: StringFilter
   role: RoleWhereInput
-  tasks: TodoManyRelationFilter
+  onboardingStatus: StringNullableFilter
+  fleetMemberships: FleetMembershipManyRelationFilter
+  driverProfile: DriverProfileWhereInput
+  riderProfile: RiderProfileWhereInput
+  requestedRides: RideRequestManyRelationFilter
+  trips: TripManyRelationFilter
+  reviews: ReviewManyRelationFilter
+  createdAt: DateTimeNullableFilter
+  updatedAt: DateTimeNullableFilter
   passwordResetToken: PasswordFilter
   passwordResetIssuedAt: DateTimeNullableFilter
   passwordResetRedeemedAt: DateTimeNullableFilter
@@ -82,14 +107,43 @@ input NestedStringFilter {
   not: NestedStringFilter
 }
 
-input TodoManyRelationFilter {
-  every: TodoWhereInput
-  some: TodoWhereInput
-  none: TodoWhereInput
+input StringNullableFilter {
+  equals: String
+  in: [String!]
+  notIn: [String!]
+  lt: String
+  lte: String
+  gt: String
+  gte: String
+  contains: String
+  startsWith: String
+  endsWith: String
+  mode: QueryMode
+  not: StringNullableFilter
 }
 
-input PasswordFilter {
-  isSet: Boolean!
+input FleetMembershipManyRelationFilter {
+  every: FleetMembershipWhereInput
+  some: FleetMembershipWhereInput
+  none: FleetMembershipWhereInput
+}
+
+input RideRequestManyRelationFilter {
+  every: RideRequestWhereInput
+  some: RideRequestWhereInput
+  none: RideRequestWhereInput
+}
+
+input TripManyRelationFilter {
+  every: TripWhereInput
+  some: TripWhereInput
+  none: TripWhereInput
+}
+
+input ReviewManyRelationFilter {
+  every: ReviewWhereInput
+  some: ReviewWhereInput
+  none: ReviewWhereInput
 }
 
 input DateTimeNullableFilter {
@@ -103,9 +157,18 @@ input DateTimeNullableFilter {
   not: DateTimeNullableFilter
 }
 
+input PasswordFilter {
+  isSet: Boolean!
+}
+
 input UserOrderByInput {
   id: OrderDirection
   name: OrderDirection
+  email: OrderDirection
+  phone: OrderDirection
+  onboardingStatus: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
   passwordResetIssuedAt: OrderDirection
   passwordResetRedeemedAt: OrderDirection
 }
@@ -119,8 +182,17 @@ input UserUpdateInput {
   name: String
   email: String
   password: String
+  phone: String
   role: RoleRelateToOneForUpdateInput
-  tasks: TodoRelateToManyForUpdateInput
+  onboardingStatus: String
+  fleetMemberships: FleetMembershipRelateToManyForUpdateInput
+  driverProfile: DriverProfileRelateToOneForUpdateInput
+  riderProfile: RiderProfileRelateToOneForUpdateInput
+  requestedRides: RideRequestRelateToManyForUpdateInput
+  trips: TripRelateToManyForUpdateInput
+  reviews: ReviewRelateToManyForUpdateInput
+  createdAt: DateTime
+  updatedAt: DateTime
   passwordResetToken: String
   passwordResetIssuedAt: DateTime
   passwordResetRedeemedAt: DateTime
@@ -132,11 +204,44 @@ input RoleRelateToOneForUpdateInput {
   disconnect: Boolean
 }
 
-input TodoRelateToManyForUpdateInput {
-  disconnect: [TodoWhereUniqueInput!]
-  set: [TodoWhereUniqueInput!]
-  create: [TodoCreateInput!]
-  connect: [TodoWhereUniqueInput!]
+input FleetMembershipRelateToManyForUpdateInput {
+  disconnect: [FleetMembershipWhereUniqueInput!]
+  set: [FleetMembershipWhereUniqueInput!]
+  create: [FleetMembershipCreateInput!]
+  connect: [FleetMembershipWhereUniqueInput!]
+}
+
+input DriverProfileRelateToOneForUpdateInput {
+  create: DriverProfileCreateInput
+  connect: DriverProfileWhereUniqueInput
+  disconnect: Boolean
+}
+
+input RiderProfileRelateToOneForUpdateInput {
+  create: RiderProfileCreateInput
+  connect: RiderProfileWhereUniqueInput
+  disconnect: Boolean
+}
+
+input RideRequestRelateToManyForUpdateInput {
+  disconnect: [RideRequestWhereUniqueInput!]
+  set: [RideRequestWhereUniqueInput!]
+  create: [RideRequestCreateInput!]
+  connect: [RideRequestWhereUniqueInput!]
+}
+
+input TripRelateToManyForUpdateInput {
+  disconnect: [TripWhereUniqueInput!]
+  set: [TripWhereUniqueInput!]
+  create: [TripCreateInput!]
+  connect: [TripWhereUniqueInput!]
+}
+
+input ReviewRelateToManyForUpdateInput {
+  disconnect: [ReviewWhereUniqueInput!]
+  set: [ReviewWhereUniqueInput!]
+  create: [ReviewCreateInput!]
+  connect: [ReviewWhereUniqueInput!]
 }
 
 input UserUpdateArgs {
@@ -148,8 +253,17 @@ input UserCreateInput {
   name: String
   email: String
   password: String
+  phone: String
   role: RoleRelateToOneForCreateInput
-  tasks: TodoRelateToManyForCreateInput
+  onboardingStatus: String
+  fleetMemberships: FleetMembershipRelateToManyForCreateInput
+  driverProfile: DriverProfileRelateToOneForCreateInput
+  riderProfile: RiderProfileRelateToOneForCreateInput
+  requestedRides: RideRequestRelateToManyForCreateInput
+  trips: TripRelateToManyForCreateInput
+  reviews: ReviewRelateToManyForCreateInput
+  createdAt: DateTime
+  updatedAt: DateTime
   passwordResetToken: String
   passwordResetIssuedAt: DateTime
   passwordResetRedeemedAt: DateTime
@@ -160,27 +274,58 @@ input RoleRelateToOneForCreateInput {
   connect: RoleWhereUniqueInput
 }
 
-input TodoRelateToManyForCreateInput {
-  create: [TodoCreateInput!]
-  connect: [TodoWhereUniqueInput!]
+input FleetMembershipRelateToManyForCreateInput {
+  create: [FleetMembershipCreateInput!]
+  connect: [FleetMembershipWhereUniqueInput!]
+}
+
+input DriverProfileRelateToOneForCreateInput {
+  create: DriverProfileCreateInput
+  connect: DriverProfileWhereUniqueInput
+}
+
+input RiderProfileRelateToOneForCreateInput {
+  create: RiderProfileCreateInput
+  connect: RiderProfileWhereUniqueInput
+}
+
+input RideRequestRelateToManyForCreateInput {
+  create: [RideRequestCreateInput!]
+  connect: [RideRequestWhereUniqueInput!]
+}
+
+input TripRelateToManyForCreateInput {
+  create: [TripCreateInput!]
+  connect: [TripWhereUniqueInput!]
+}
+
+input ReviewRelateToManyForCreateInput {
+  create: [ReviewCreateInput!]
+  connect: [ReviewWhereUniqueInput!]
 }
 
 type Role {
   id: ID!
   name: String
-  canCreateTodos: Boolean
-  canManageAllTodos: Boolean
-  canSeeOtherPeople: Boolean
-  canEditOtherPeople: Boolean
+  canAccessDashboard: Boolean
   canManagePeople: Boolean
   canManageRoles: Boolean
-  canAccessDashboard: Boolean
+  canManageFleet: Boolean
+  canDispatchRides: Boolean
+  canManageDrivers: Boolean
+  canManageFinance: Boolean
+  canManageSafety: Boolean
+  canManageIntegrations: Boolean
+  canManageOnboarding: Boolean
   assignedTo(where: UserWhereInput! = {}, orderBy: [UserOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: UserWhereUniqueInput): [User!]
   assignedToCount(where: UserWhereInput! = {}): Int
+  createdAt: DateTime
+  updatedAt: DateTime
 }
 
 input RoleWhereUniqueInput {
   id: ID
+  name: String
 }
 
 input RoleWhereInput {
@@ -189,14 +334,19 @@ input RoleWhereInput {
   NOT: [RoleWhereInput!]
   id: IDFilter
   name: StringFilter
-  canCreateTodos: BooleanFilter
-  canManageAllTodos: BooleanFilter
-  canSeeOtherPeople: BooleanFilter
-  canEditOtherPeople: BooleanFilter
+  canAccessDashboard: BooleanFilter
   canManagePeople: BooleanFilter
   canManageRoles: BooleanFilter
-  canAccessDashboard: BooleanFilter
+  canManageFleet: BooleanFilter
+  canDispatchRides: BooleanFilter
+  canManageDrivers: BooleanFilter
+  canManageFinance: BooleanFilter
+  canManageSafety: BooleanFilter
+  canManageIntegrations: BooleanFilter
+  canManageOnboarding: BooleanFilter
   assignedTo: UserManyRelationFilter
+  createdAt: DateTimeNullableFilter
+  updatedAt: DateTimeNullableFilter
 }
 
 input BooleanFilter {
@@ -213,25 +363,35 @@ input UserManyRelationFilter {
 input RoleOrderByInput {
   id: OrderDirection
   name: OrderDirection
-  canCreateTodos: OrderDirection
-  canManageAllTodos: OrderDirection
-  canSeeOtherPeople: OrderDirection
-  canEditOtherPeople: OrderDirection
+  canAccessDashboard: OrderDirection
   canManagePeople: OrderDirection
   canManageRoles: OrderDirection
-  canAccessDashboard: OrderDirection
+  canManageFleet: OrderDirection
+  canDispatchRides: OrderDirection
+  canManageDrivers: OrderDirection
+  canManageFinance: OrderDirection
+  canManageSafety: OrderDirection
+  canManageIntegrations: OrderDirection
+  canManageOnboarding: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
 }
 
 input RoleUpdateInput {
   name: String
-  canCreateTodos: Boolean
-  canManageAllTodos: Boolean
-  canSeeOtherPeople: Boolean
-  canEditOtherPeople: Boolean
+  canAccessDashboard: Boolean
   canManagePeople: Boolean
   canManageRoles: Boolean
-  canAccessDashboard: Boolean
+  canManageFleet: Boolean
+  canDispatchRides: Boolean
+  canManageDrivers: Boolean
+  canManageFinance: Boolean
+  canManageSafety: Boolean
+  canManageIntegrations: Boolean
+  canManageOnboarding: Boolean
   assignedTo: UserRelateToManyForUpdateInput
+  createdAt: DateTime
+  updatedAt: DateTime
 }
 
 input UserRelateToManyForUpdateInput {
@@ -248,14 +408,19 @@ input RoleUpdateArgs {
 
 input RoleCreateInput {
   name: String
-  canCreateTodos: Boolean
-  canManageAllTodos: Boolean
-  canSeeOtherPeople: Boolean
-  canEditOtherPeople: Boolean
+  canAccessDashboard: Boolean
   canManagePeople: Boolean
   canManageRoles: Boolean
-  canAccessDashboard: Boolean
+  canManageFleet: Boolean
+  canDispatchRides: Boolean
+  canManageDrivers: Boolean
+  canManageFinance: Boolean
+  canManageSafety: Boolean
+  canManageIntegrations: Boolean
+  canManageOnboarding: Boolean
   assignedTo: UserRelateToManyForCreateInput
+  createdAt: DateTime
+  updatedAt: DateTime
 }
 
 input UserRelateToManyForCreateInput {
@@ -263,87 +428,810 @@ input UserRelateToManyForCreateInput {
   connect: [UserWhereUniqueInput!]
 }
 
-type Todo {
+type FleetBrandingChange {
   id: ID!
-  label: String
-  description: Todo_description_Document
-  isComplete: Boolean
+  fleet: Fleet
+  actor: User
+  idempotencyKey: String
+  command: JSON
+  result: JSON
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input FleetBrandingChangeWhereUniqueInput {
+  id: ID
+  idempotencyKey: String
+}
+
+input FleetBrandingChangeWhereInput {
+  AND: [FleetBrandingChangeWhereInput!]
+  OR: [FleetBrandingChangeWhereInput!]
+  NOT: [FleetBrandingChangeWhereInput!]
+  id: IDFilter
+  fleet: FleetWhereInput
+  actor: UserWhereInput
+  idempotencyKey: StringFilter
+  createdAt: DateTimeNullableFilter
+  updatedAt: DateTimeNullableFilter
+}
+
+input FleetBrandingChangeOrderByInput {
+  id: OrderDirection
+  idempotencyKey: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input FleetBrandingChangeUpdateInput {
+  fleet: FleetRelateToOneForUpdateInput
+  actor: UserRelateToOneForUpdateInput
+  idempotencyKey: String
+  command: JSON
+  result: JSON
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input FleetRelateToOneForUpdateInput {
+  create: FleetCreateInput
+  connect: FleetWhereUniqueInput
+  disconnect: Boolean
+}
+
+input UserRelateToOneForUpdateInput {
+  create: UserCreateInput
+  connect: UserWhereUniqueInput
+  disconnect: Boolean
+}
+
+input FleetBrandingChangeUpdateArgs {
+  where: FleetBrandingChangeWhereUniqueInput!
+  data: FleetBrandingChangeUpdateInput!
+}
+
+input FleetBrandingChangeCreateInput {
+  fleet: FleetRelateToOneForCreateInput
+  actor: UserRelateToOneForCreateInput
+  idempotencyKey: String
+  command: JSON
+  result: JSON
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input FleetRelateToOneForCreateInput {
+  create: FleetCreateInput
+  connect: FleetWhereUniqueInput
+}
+
+input UserRelateToOneForCreateInput {
+  create: UserCreateInput
+  connect: UserWhereUniqueInput
+}
+
+type Fleet {
+  id: ID!
+  name: String
+  slug: String
   status: String
-  priority: Int
-  tags: [String!]
-  dueDate: DateTime
-  weight: Float
-  budget: Decimal
-  isPrivate: Boolean
-  largeNumber: BigInt
-  metadata: JSON
-  secretNote: PasswordState
-  coverImage: ImageFieldOutput
-  todoImages(where: TodoImageWhereInput! = {}, orderBy: [TodoImageOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: TodoImageWhereUniqueInput): [TodoImage!]
-  todoImagesCount(where: TodoImageWhereInput! = {}): Int
-  assignedTo: User
+  publicDescription: String
+  publicCity: String
+  countryCode: String
+  currencyCode: String
+  timezone: String
+  supportEmail: String
+  supportPhone: String
+  logoIcon: String
+  logoColor: String
+  preciseLocationRetentionDays: String
+  memberships(where: FleetMembershipWhereInput! = {}, orderBy: [FleetMembershipOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: FleetMembershipWhereUniqueInput): [FleetMembership!]
+  membershipsCount(where: FleetMembershipWhereInput! = {}): Int
+  drivers(where: DriverProfileWhereInput! = {}, orderBy: [DriverProfileOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: DriverProfileWhereUniqueInput): [DriverProfile!]
+  driversCount(where: DriverProfileWhereInput! = {}): Int
+  riders(where: RiderProfileWhereInput! = {}, orderBy: [RiderProfileOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: RiderProfileWhereUniqueInput): [RiderProfile!]
+  ridersCount(where: RiderProfileWhereInput! = {}): Int
+  vehicles(where: VehicleWhereInput! = {}, orderBy: [VehicleOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: VehicleWhereUniqueInput): [Vehicle!]
+  vehiclesCount(where: VehicleWhereInput! = {}): Int
+  serviceAreas(where: ServiceAreaWhereInput! = {}, orderBy: [ServiceAreaOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: ServiceAreaWhereUniqueInput): [ServiceArea!]
+  serviceAreasCount(where: ServiceAreaWhereInput! = {}): Int
+  services(where: RideServiceWhereInput! = {}, orderBy: [RideServiceOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: RideServiceWhereUniqueInput): [RideService!]
+  servicesCount(where: RideServiceWhereInput! = {}): Int
+  fareRules(where: FareRuleWhereInput! = {}, orderBy: [FareRuleOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: FareRuleWhereUniqueInput): [FareRule!]
+  fareRulesCount(where: FareRuleWhereInput! = {}): Int
+  rides(where: RideRequestWhereInput! = {}, orderBy: [RideRequestOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: RideRequestWhereUniqueInput): [RideRequest!]
+  ridesCount(where: RideRequestWhereInput! = {}): Int
+  trips(where: TripWhereInput! = {}, orderBy: [TripOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: TripWhereUniqueInput): [Trip!]
+  tripsCount(where: TripWhereInput! = {}): Int
+  policies(where: PolicyWhereInput! = {}, orderBy: [PolicyOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: PolicyWhereUniqueInput): [Policy!]
+  policiesCount(where: PolicyWhereInput! = {}): Int
+  providers(where: ProviderConnectionWhereInput! = {}, orderBy: [ProviderConnectionOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: ProviderConnectionWhereUniqueInput): [ProviderConnection!]
+  providersCount(where: ProviderConnectionWhereInput! = {}): Int
+  marketplaceRegistration: MarketplaceRegistration
+  createdAt: DateTime
+  updatedAt: DateTime
 }
 
-type Todo_description_Document {
-  document(hydrateRelationships: Boolean! = false): JSON!
+input FleetWhereUniqueInput {
+  id: ID
+  slug: String
+  marketplaceRegistration: MarketplaceRegistrationWhereUniqueInput
 }
 
-scalar Decimal
+input FleetWhereInput {
+  AND: [FleetWhereInput!]
+  OR: [FleetWhereInput!]
+  NOT: [FleetWhereInput!]
+  id: IDFilter
+  name: StringFilter
+  slug: StringFilter
+  status: StringNullableFilter
+  publicDescription: StringFilter
+  publicCity: StringFilter
+  countryCode: StringFilter
+  currencyCode: StringFilter
+  timezone: StringFilter
+  supportEmail: StringFilter
+  supportPhone: StringFilter
+  logoIcon: StringFilter
+  logoColor: StringFilter
+  preciseLocationRetentionDays: StringFilter
+  memberships: FleetMembershipManyRelationFilter
+  drivers: DriverProfileManyRelationFilter
+  riders: RiderProfileManyRelationFilter
+  vehicles: VehicleManyRelationFilter
+  serviceAreas: ServiceAreaManyRelationFilter
+  services: RideServiceManyRelationFilter
+  fareRules: FareRuleManyRelationFilter
+  rides: RideRequestManyRelationFilter
+  trips: TripManyRelationFilter
+  policies: PolicyManyRelationFilter
+  providers: ProviderConnectionManyRelationFilter
+  marketplaceRegistration: MarketplaceRegistrationWhereInput
+  createdAt: DateTimeNullableFilter
+  updatedAt: DateTimeNullableFilter
+}
 
-scalar BigInt
+input DriverProfileManyRelationFilter {
+  every: DriverProfileWhereInput
+  some: DriverProfileWhereInput
+  none: DriverProfileWhereInput
+}
 
-type ImageFieldOutput {
+input RiderProfileManyRelationFilter {
+  every: RiderProfileWhereInput
+  some: RiderProfileWhereInput
+  none: RiderProfileWhereInput
+}
+
+input VehicleManyRelationFilter {
+  every: VehicleWhereInput
+  some: VehicleWhereInput
+  none: VehicleWhereInput
+}
+
+input ServiceAreaManyRelationFilter {
+  every: ServiceAreaWhereInput
+  some: ServiceAreaWhereInput
+  none: ServiceAreaWhereInput
+}
+
+input RideServiceManyRelationFilter {
+  every: RideServiceWhereInput
+  some: RideServiceWhereInput
+  none: RideServiceWhereInput
+}
+
+input FareRuleManyRelationFilter {
+  every: FareRuleWhereInput
+  some: FareRuleWhereInput
+  none: FareRuleWhereInput
+}
+
+input PolicyManyRelationFilter {
+  every: PolicyWhereInput
+  some: PolicyWhereInput
+  none: PolicyWhereInput
+}
+
+input ProviderConnectionManyRelationFilter {
+  every: ProviderConnectionWhereInput
+  some: ProviderConnectionWhereInput
+  none: ProviderConnectionWhereInput
+}
+
+input FleetOrderByInput {
+  id: OrderDirection
+  name: OrderDirection
+  slug: OrderDirection
+  status: OrderDirection
+  publicDescription: OrderDirection
+  publicCity: OrderDirection
+  countryCode: OrderDirection
+  currencyCode: OrderDirection
+  timezone: OrderDirection
+  supportEmail: OrderDirection
+  supportPhone: OrderDirection
+  logoIcon: OrderDirection
+  logoColor: OrderDirection
+  preciseLocationRetentionDays: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input FleetUpdateInput {
+  name: String
+  slug: String
+  status: String
+  publicDescription: String
+  publicCity: String
+  countryCode: String
+  currencyCode: String
+  timezone: String
+  supportEmail: String
+  supportPhone: String
+  logoIcon: String
+  logoColor: String
+  preciseLocationRetentionDays: String
+  memberships: FleetMembershipRelateToManyForUpdateInput
+  drivers: DriverProfileRelateToManyForUpdateInput
+  riders: RiderProfileRelateToManyForUpdateInput
+  vehicles: VehicleRelateToManyForUpdateInput
+  serviceAreas: ServiceAreaRelateToManyForUpdateInput
+  services: RideServiceRelateToManyForUpdateInput
+  fareRules: FareRuleRelateToManyForUpdateInput
+  rides: RideRequestRelateToManyForUpdateInput
+  trips: TripRelateToManyForUpdateInput
+  policies: PolicyRelateToManyForUpdateInput
+  providers: ProviderConnectionRelateToManyForUpdateInput
+  marketplaceRegistration: MarketplaceRegistrationRelateToOneForUpdateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input DriverProfileRelateToManyForUpdateInput {
+  disconnect: [DriverProfileWhereUniqueInput!]
+  set: [DriverProfileWhereUniqueInput!]
+  create: [DriverProfileCreateInput!]
+  connect: [DriverProfileWhereUniqueInput!]
+}
+
+input RiderProfileRelateToManyForUpdateInput {
+  disconnect: [RiderProfileWhereUniqueInput!]
+  set: [RiderProfileWhereUniqueInput!]
+  create: [RiderProfileCreateInput!]
+  connect: [RiderProfileWhereUniqueInput!]
+}
+
+input VehicleRelateToManyForUpdateInput {
+  disconnect: [VehicleWhereUniqueInput!]
+  set: [VehicleWhereUniqueInput!]
+  create: [VehicleCreateInput!]
+  connect: [VehicleWhereUniqueInput!]
+}
+
+input ServiceAreaRelateToManyForUpdateInput {
+  disconnect: [ServiceAreaWhereUniqueInput!]
+  set: [ServiceAreaWhereUniqueInput!]
+  create: [ServiceAreaCreateInput!]
+  connect: [ServiceAreaWhereUniqueInput!]
+}
+
+input RideServiceRelateToManyForUpdateInput {
+  disconnect: [RideServiceWhereUniqueInput!]
+  set: [RideServiceWhereUniqueInput!]
+  create: [RideServiceCreateInput!]
+  connect: [RideServiceWhereUniqueInput!]
+}
+
+input FareRuleRelateToManyForUpdateInput {
+  disconnect: [FareRuleWhereUniqueInput!]
+  set: [FareRuleWhereUniqueInput!]
+  create: [FareRuleCreateInput!]
+  connect: [FareRuleWhereUniqueInput!]
+}
+
+input PolicyRelateToManyForUpdateInput {
+  disconnect: [PolicyWhereUniqueInput!]
+  set: [PolicyWhereUniqueInput!]
+  create: [PolicyCreateInput!]
+  connect: [PolicyWhereUniqueInput!]
+}
+
+input ProviderConnectionRelateToManyForUpdateInput {
+  disconnect: [ProviderConnectionWhereUniqueInput!]
+  set: [ProviderConnectionWhereUniqueInput!]
+  create: [ProviderConnectionCreateInput!]
+  connect: [ProviderConnectionWhereUniqueInput!]
+}
+
+input MarketplaceRegistrationRelateToOneForUpdateInput {
+  create: MarketplaceRegistrationCreateInput
+  connect: MarketplaceRegistrationWhereUniqueInput
+  disconnect: Boolean
+}
+
+input FleetUpdateArgs {
+  where: FleetWhereUniqueInput!
+  data: FleetUpdateInput!
+}
+
+input FleetCreateInput {
+  name: String
+  slug: String
+  status: String
+  publicDescription: String
+  publicCity: String
+  countryCode: String
+  currencyCode: String
+  timezone: String
+  supportEmail: String
+  supportPhone: String
+  logoIcon: String
+  logoColor: String
+  preciseLocationRetentionDays: String
+  memberships: FleetMembershipRelateToManyForCreateInput
+  drivers: DriverProfileRelateToManyForCreateInput
+  riders: RiderProfileRelateToManyForCreateInput
+  vehicles: VehicleRelateToManyForCreateInput
+  serviceAreas: ServiceAreaRelateToManyForCreateInput
+  services: RideServiceRelateToManyForCreateInput
+  fareRules: FareRuleRelateToManyForCreateInput
+  rides: RideRequestRelateToManyForCreateInput
+  trips: TripRelateToManyForCreateInput
+  policies: PolicyRelateToManyForCreateInput
+  providers: ProviderConnectionRelateToManyForCreateInput
+  marketplaceRegistration: MarketplaceRegistrationRelateToOneForCreateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input DriverProfileRelateToManyForCreateInput {
+  create: [DriverProfileCreateInput!]
+  connect: [DriverProfileWhereUniqueInput!]
+}
+
+input RiderProfileRelateToManyForCreateInput {
+  create: [RiderProfileCreateInput!]
+  connect: [RiderProfileWhereUniqueInput!]
+}
+
+input VehicleRelateToManyForCreateInput {
+  create: [VehicleCreateInput!]
+  connect: [VehicleWhereUniqueInput!]
+}
+
+input ServiceAreaRelateToManyForCreateInput {
+  create: [ServiceAreaCreateInput!]
+  connect: [ServiceAreaWhereUniqueInput!]
+}
+
+input RideServiceRelateToManyForCreateInput {
+  create: [RideServiceCreateInput!]
+  connect: [RideServiceWhereUniqueInput!]
+}
+
+input FareRuleRelateToManyForCreateInput {
+  create: [FareRuleCreateInput!]
+  connect: [FareRuleWhereUniqueInput!]
+}
+
+input PolicyRelateToManyForCreateInput {
+  create: [PolicyCreateInput!]
+  connect: [PolicyWhereUniqueInput!]
+}
+
+input ProviderConnectionRelateToManyForCreateInput {
+  create: [ProviderConnectionCreateInput!]
+  connect: [ProviderConnectionWhereUniqueInput!]
+}
+
+input MarketplaceRegistrationRelateToOneForCreateInput {
+  create: MarketplaceRegistrationCreateInput
+  connect: MarketplaceRegistrationWhereUniqueInput
+}
+
+type FleetMembership {
   id: ID!
-  filesize: Int!
-  width: Int!
-  height: Int!
-  extension: ImageExtension!
-  url: String!
+  fleet: Fleet
+  user: User
+  role: String
+  status: String
+  invitedAt: DateTime
+  acceptedAt: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
 }
 
-enum ImageExtension {
-  jpg
-  png
-  webp
-  gif
-}
-
-input TodoWhereUniqueInput {
+input FleetMembershipWhereUniqueInput {
   id: ID
 }
 
-input TodoWhereInput {
-  AND: [TodoWhereInput!]
-  OR: [TodoWhereInput!]
-  NOT: [TodoWhereInput!]
+input FleetMembershipWhereInput {
+  AND: [FleetMembershipWhereInput!]
+  OR: [FleetMembershipWhereInput!]
+  NOT: [FleetMembershipWhereInput!]
   id: IDFilter
-  label: StringFilter
-  isComplete: BooleanFilter
+  fleet: FleetWhereInput
+  user: UserWhereInput
+  role: StringNullableFilter
   status: StringNullableFilter
-  priority: IntNullableFilter
-  dueDate: DateTimeNullableFilter
-  weight: FloatNullableFilter
-  budget: DecimalNullableFilter
-  isPrivate: BooleanFilter
-  largeNumber: BigIntNullableFilter
-  secretNote: PasswordFilter
-  todoImages: TodoImageManyRelationFilter
-  assignedTo: UserWhereInput
+  invitedAt: DateTimeNullableFilter
+  acceptedAt: DateTimeNullableFilter
+  createdAt: DateTimeNullableFilter
+  updatedAt: DateTimeNullableFilter
 }
 
-input StringNullableFilter {
-  equals: String
-  in: [String!]
-  notIn: [String!]
-  lt: String
-  lte: String
-  gt: String
-  gte: String
-  contains: String
-  startsWith: String
-  endsWith: String
-  mode: QueryMode
-  not: StringNullableFilter
+input FleetMembershipOrderByInput {
+  id: OrderDirection
+  role: OrderDirection
+  status: OrderDirection
+  invitedAt: OrderDirection
+  acceptedAt: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input FleetMembershipUpdateInput {
+  fleet: FleetRelateToOneForUpdateInput
+  user: UserRelateToOneForUpdateInput
+  role: String
+  status: String
+  invitedAt: DateTime
+  acceptedAt: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input FleetMembershipUpdateArgs {
+  where: FleetMembershipWhereUniqueInput!
+  data: FleetMembershipUpdateInput!
+}
+
+input FleetMembershipCreateInput {
+  fleet: FleetRelateToOneForCreateInput
+  user: UserRelateToOneForCreateInput
+  role: String
+  status: String
+  invitedAt: DateTime
+  acceptedAt: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type DriverProfile {
+  id: ID!
+  user: User
+  fleet: Fleet
+  publicName: String
+  publicBio: String
+  publicPhotoUrl: String
+  status: String
+  dispatchStatus: String
+  acceptsScheduled: Boolean
+  languages: JSON
+  accessibilityTrainingEvidence: String
+  documents(where: ComplianceDocumentWhereInput! = {}, orderBy: [ComplianceDocumentOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: ComplianceDocumentWhereUniqueInput): [ComplianceDocument!]
+  documentsCount(where: ComplianceDocumentWhereInput! = {}): Int
+  vehicles(where: VehicleWhereInput! = {}, orderBy: [VehicleOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: VehicleWhereUniqueInput): [Vehicle!]
+  vehiclesCount(where: VehicleWhereInput! = {}): Int
+  availabilityRules(where: AvailabilityRuleWhereInput! = {}, orderBy: [AvailabilityRuleOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: AvailabilityRuleWhereUniqueInput): [AvailabilityRule!]
+  availabilityRulesCount(where: AvailabilityRuleWhereInput! = {}): Int
+  availabilityExceptions(where: AvailabilityExceptionWhereInput! = {}, orderBy: [AvailabilityExceptionOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: AvailabilityExceptionWhereUniqueInput): [AvailabilityException!]
+  availabilityExceptionsCount(where: AvailabilityExceptionWhereInput! = {}): Int
+  policyEvaluations(where: PolicyEvaluationWhereInput! = {}, orderBy: [PolicyEvaluationOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: PolicyEvaluationWhereUniqueInput): [PolicyEvaluation!]
+  policyEvaluationsCount(where: PolicyEvaluationWhereInput! = {}): Int
+  matchOffers(where: MatchOfferWhereInput! = {}, orderBy: [MatchOfferOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: MatchOfferWhereUniqueInput): [MatchOffer!]
+  matchOffersCount(where: MatchOfferWhereInput! = {}): Int
+  trips(where: TripWhereInput! = {}, orderBy: [TripOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: TripWhereUniqueInput): [Trip!]
+  tripsCount(where: TripWhereInput! = {}): Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input DriverProfileWhereUniqueInput {
+  id: ID
+  user: UserWhereUniqueInput
+}
+
+input DriverProfileWhereInput {
+  AND: [DriverProfileWhereInput!]
+  OR: [DriverProfileWhereInput!]
+  NOT: [DriverProfileWhereInput!]
+  id: IDFilter
+  user: UserWhereInput
+  fleet: FleetWhereInput
+  publicName: StringFilter
+  publicBio: StringFilter
+  publicPhotoUrl: StringFilter
+  status: StringNullableFilter
+  dispatchStatus: StringNullableFilter
+  acceptsScheduled: BooleanFilter
+  accessibilityTrainingEvidence: StringFilter
+  documents: ComplianceDocumentManyRelationFilter
+  vehicles: VehicleManyRelationFilter
+  availabilityRules: AvailabilityRuleManyRelationFilter
+  availabilityExceptions: AvailabilityExceptionManyRelationFilter
+  policyEvaluations: PolicyEvaluationManyRelationFilter
+  matchOffers: MatchOfferManyRelationFilter
+  trips: TripManyRelationFilter
+  createdAt: DateTimeNullableFilter
+  updatedAt: DateTimeNullableFilter
+}
+
+input ComplianceDocumentManyRelationFilter {
+  every: ComplianceDocumentWhereInput
+  some: ComplianceDocumentWhereInput
+  none: ComplianceDocumentWhereInput
+}
+
+input AvailabilityRuleManyRelationFilter {
+  every: AvailabilityRuleWhereInput
+  some: AvailabilityRuleWhereInput
+  none: AvailabilityRuleWhereInput
+}
+
+input AvailabilityExceptionManyRelationFilter {
+  every: AvailabilityExceptionWhereInput
+  some: AvailabilityExceptionWhereInput
+  none: AvailabilityExceptionWhereInput
+}
+
+input PolicyEvaluationManyRelationFilter {
+  every: PolicyEvaluationWhereInput
+  some: PolicyEvaluationWhereInput
+  none: PolicyEvaluationWhereInput
+}
+
+input MatchOfferManyRelationFilter {
+  every: MatchOfferWhereInput
+  some: MatchOfferWhereInput
+  none: MatchOfferWhereInput
+}
+
+input DriverProfileOrderByInput {
+  id: OrderDirection
+  publicName: OrderDirection
+  publicBio: OrderDirection
+  publicPhotoUrl: OrderDirection
+  status: OrderDirection
+  dispatchStatus: OrderDirection
+  acceptsScheduled: OrderDirection
+  accessibilityTrainingEvidence: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input DriverProfileUpdateInput {
+  user: UserRelateToOneForUpdateInput
+  fleet: FleetRelateToOneForUpdateInput
+  publicName: String
+  publicBio: String
+  publicPhotoUrl: String
+  status: String
+  dispatchStatus: String
+  acceptsScheduled: Boolean
+  languages: JSON
+  accessibilityTrainingEvidence: String
+  documents: ComplianceDocumentRelateToManyForUpdateInput
+  vehicles: VehicleRelateToManyForUpdateInput
+  availabilityRules: AvailabilityRuleRelateToManyForUpdateInput
+  availabilityExceptions: AvailabilityExceptionRelateToManyForUpdateInput
+  policyEvaluations: PolicyEvaluationRelateToManyForUpdateInput
+  matchOffers: MatchOfferRelateToManyForUpdateInput
+  trips: TripRelateToManyForUpdateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ComplianceDocumentRelateToManyForUpdateInput {
+  disconnect: [ComplianceDocumentWhereUniqueInput!]
+  set: [ComplianceDocumentWhereUniqueInput!]
+  create: [ComplianceDocumentCreateInput!]
+  connect: [ComplianceDocumentWhereUniqueInput!]
+}
+
+input AvailabilityRuleRelateToManyForUpdateInput {
+  disconnect: [AvailabilityRuleWhereUniqueInput!]
+  set: [AvailabilityRuleWhereUniqueInput!]
+  create: [AvailabilityRuleCreateInput!]
+  connect: [AvailabilityRuleWhereUniqueInput!]
+}
+
+input AvailabilityExceptionRelateToManyForUpdateInput {
+  disconnect: [AvailabilityExceptionWhereUniqueInput!]
+  set: [AvailabilityExceptionWhereUniqueInput!]
+  create: [AvailabilityExceptionCreateInput!]
+  connect: [AvailabilityExceptionWhereUniqueInput!]
+}
+
+input PolicyEvaluationRelateToManyForUpdateInput {
+  disconnect: [PolicyEvaluationWhereUniqueInput!]
+  set: [PolicyEvaluationWhereUniqueInput!]
+  create: [PolicyEvaluationCreateInput!]
+  connect: [PolicyEvaluationWhereUniqueInput!]
+}
+
+input MatchOfferRelateToManyForUpdateInput {
+  disconnect: [MatchOfferWhereUniqueInput!]
+  set: [MatchOfferWhereUniqueInput!]
+  create: [MatchOfferCreateInput!]
+  connect: [MatchOfferWhereUniqueInput!]
+}
+
+input DriverProfileUpdateArgs {
+  where: DriverProfileWhereUniqueInput!
+  data: DriverProfileUpdateInput!
+}
+
+input DriverProfileCreateInput {
+  user: UserRelateToOneForCreateInput
+  fleet: FleetRelateToOneForCreateInput
+  publicName: String
+  publicBio: String
+  publicPhotoUrl: String
+  status: String
+  dispatchStatus: String
+  acceptsScheduled: Boolean
+  languages: JSON
+  accessibilityTrainingEvidence: String
+  documents: ComplianceDocumentRelateToManyForCreateInput
+  vehicles: VehicleRelateToManyForCreateInput
+  availabilityRules: AvailabilityRuleRelateToManyForCreateInput
+  availabilityExceptions: AvailabilityExceptionRelateToManyForCreateInput
+  policyEvaluations: PolicyEvaluationRelateToManyForCreateInput
+  matchOffers: MatchOfferRelateToManyForCreateInput
+  trips: TripRelateToManyForCreateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ComplianceDocumentRelateToManyForCreateInput {
+  create: [ComplianceDocumentCreateInput!]
+  connect: [ComplianceDocumentWhereUniqueInput!]
+}
+
+input AvailabilityRuleRelateToManyForCreateInput {
+  create: [AvailabilityRuleCreateInput!]
+  connect: [AvailabilityRuleWhereUniqueInput!]
+}
+
+input AvailabilityExceptionRelateToManyForCreateInput {
+  create: [AvailabilityExceptionCreateInput!]
+  connect: [AvailabilityExceptionWhereUniqueInput!]
+}
+
+input PolicyEvaluationRelateToManyForCreateInput {
+  create: [PolicyEvaluationCreateInput!]
+  connect: [PolicyEvaluationWhereUniqueInput!]
+}
+
+input MatchOfferRelateToManyForCreateInput {
+  create: [MatchOfferCreateInput!]
+  connect: [MatchOfferWhereUniqueInput!]
+}
+
+type RiderProfile {
+  id: ID!
+  user: User
+  homeFleet: Fleet
+  displayName: String
+  savedPlaces: JSON
+  accessibilityPreferences: JSON
+  communicationPreferences: JSON
+  emergencyContactEncryptedRef: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input RiderProfileWhereUniqueInput {
+  id: ID
+  user: UserWhereUniqueInput
+}
+
+input RiderProfileWhereInput {
+  AND: [RiderProfileWhereInput!]
+  OR: [RiderProfileWhereInput!]
+  NOT: [RiderProfileWhereInput!]
+  id: IDFilter
+  user: UserWhereInput
+  homeFleet: FleetWhereInput
+  displayName: StringFilter
+  emergencyContactEncryptedRef: StringFilter
+  createdAt: DateTimeNullableFilter
+  updatedAt: DateTimeNullableFilter
+}
+
+input RiderProfileOrderByInput {
+  id: OrderDirection
+  displayName: OrderDirection
+  emergencyContactEncryptedRef: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input RiderProfileUpdateInput {
+  user: UserRelateToOneForUpdateInput
+  homeFleet: FleetRelateToOneForUpdateInput
+  displayName: String
+  savedPlaces: JSON
+  accessibilityPreferences: JSON
+  communicationPreferences: JSON
+  emergencyContactEncryptedRef: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input RiderProfileUpdateArgs {
+  where: RiderProfileWhereUniqueInput!
+  data: RiderProfileUpdateInput!
+}
+
+input RiderProfileCreateInput {
+  user: UserRelateToOneForCreateInput
+  homeFleet: FleetRelateToOneForCreateInput
+  displayName: String
+  savedPlaces: JSON
+  accessibilityPreferences: JSON
+  communicationPreferences: JSON
+  emergencyContactEncryptedRef: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type Vehicle {
+  id: ID!
+  fleet: Fleet
+  drivers(where: DriverProfileWhereInput! = {}, orderBy: [DriverProfileOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: DriverProfileWhereUniqueInput): [DriverProfile!]
+  driversCount(where: DriverProfileWhereInput! = {}): Int
+  label: String
+  make: String
+  model: String
+  year: Int
+  color: String
+  plateMasked: String
+  plateEncryptedRef: String
+  vinEncryptedRef: String
+  capacity: Int
+  wheelchairAccessible: Boolean
+  status: String
+  documents(where: ComplianceDocumentWhereInput! = {}, orderBy: [ComplianceDocumentOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: ComplianceDocumentWhereUniqueInput): [ComplianceDocument!]
+  documentsCount(where: ComplianceDocumentWhereInput! = {}): Int
+  policyEvaluations(where: PolicyEvaluationWhereInput! = {}, orderBy: [PolicyEvaluationOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: PolicyEvaluationWhereUniqueInput): [PolicyEvaluation!]
+  policyEvaluationsCount(where: PolicyEvaluationWhereInput! = {}): Int
+  trips(where: TripWhereInput! = {}, orderBy: [TripOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: TripWhereUniqueInput): [Trip!]
+  tripsCount(where: TripWhereInput! = {}): Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input VehicleWhereUniqueInput {
+  id: ID
+}
+
+input VehicleWhereInput {
+  AND: [VehicleWhereInput!]
+  OR: [VehicleWhereInput!]
+  NOT: [VehicleWhereInput!]
+  id: IDFilter
+  fleet: FleetWhereInput
+  drivers: DriverProfileManyRelationFilter
+  label: StringFilter
+  make: StringFilter
+  model: StringFilter
+  year: IntNullableFilter
+  color: StringFilter
+  plateMasked: StringFilter
+  plateEncryptedRef: StringFilter
+  vinEncryptedRef: StringFilter
+  capacity: IntNullableFilter
+  wheelchairAccessible: BooleanFilter
+  status: StringNullableFilter
+  documents: ComplianceDocumentManyRelationFilter
+  policyEvaluations: PolicyEvaluationManyRelationFilter
+  trips: TripManyRelationFilter
+  createdAt: DateTimeNullableFilter
+  updatedAt: DateTimeNullableFilter
 }
 
 input IntNullableFilter {
@@ -357,180 +1245,3157 @@ input IntNullableFilter {
   not: IntNullableFilter
 }
 
-input FloatNullableFilter {
-  equals: Float
-  in: [Float!]
-  notIn: [Float!]
-  lt: Float
-  lte: Float
-  gt: Float
-  gte: Float
-  not: FloatNullableFilter
-}
-
-input DecimalNullableFilter {
-  equals: Decimal
-  in: [Decimal!]
-  notIn: [Decimal!]
-  lt: Decimal
-  lte: Decimal
-  gt: Decimal
-  gte: Decimal
-  not: DecimalNullableFilter
-}
-
-input BigIntNullableFilter {
-  equals: BigInt
-  in: [BigInt!]
-  notIn: [BigInt!]
-  lt: BigInt
-  lte: BigInt
-  gt: BigInt
-  gte: BigInt
-  not: BigIntNullableFilter
-}
-
-input TodoImageManyRelationFilter {
-  every: TodoImageWhereInput
-  some: TodoImageWhereInput
-  none: TodoImageWhereInput
-}
-
-input TodoOrderByInput {
+input VehicleOrderByInput {
   id: OrderDirection
   label: OrderDirection
-  isComplete: OrderDirection
+  make: OrderDirection
+  model: OrderDirection
+  year: OrderDirection
+  color: OrderDirection
+  plateMasked: OrderDirection
+  plateEncryptedRef: OrderDirection
+  vinEncryptedRef: OrderDirection
+  capacity: OrderDirection
+  wheelchairAccessible: OrderDirection
   status: OrderDirection
-  priority: OrderDirection
-  dueDate: OrderDirection
-  weight: OrderDirection
-  budget: OrderDirection
-  isPrivate: OrderDirection
-  largeNumber: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
 }
 
-input TodoUpdateInput {
+input VehicleUpdateInput {
+  fleet: FleetRelateToOneForUpdateInput
+  drivers: DriverProfileRelateToManyForUpdateInput
   label: String
-  description: JSON
-  isComplete: Boolean
+  make: String
+  model: String
+  year: Int
+  color: String
+  plateMasked: String
+  plateEncryptedRef: String
+  vinEncryptedRef: String
+  capacity: Int
+  wheelchairAccessible: Boolean
   status: String
-  priority: Int
-  tags: [String!]
-  dueDate: DateTime
-  weight: Float
-  budget: Decimal
-  isPrivate: Boolean
-  largeNumber: BigInt
-  metadata: JSON
-  secretNote: String
-  coverImage: ImageFieldInput
-  todoImages: TodoImageRelateToManyForUpdateInput
-  assignedTo: UserRelateToOneForUpdateInput
+  documents: ComplianceDocumentRelateToManyForUpdateInput
+  policyEvaluations: PolicyEvaluationRelateToManyForUpdateInput
+  trips: TripRelateToManyForUpdateInput
+  createdAt: DateTime
+  updatedAt: DateTime
 }
 
-input ImageFieldInput {
-  upload: Upload!
+input VehicleUpdateArgs {
+  where: VehicleWhereUniqueInput!
+  data: VehicleUpdateInput!
 }
 
-"""The `Upload` scalar type represents a file upload."""
-scalar Upload
-
-input TodoImageRelateToManyForUpdateInput {
-  disconnect: [TodoImageWhereUniqueInput!]
-  set: [TodoImageWhereUniqueInput!]
-  create: [TodoImageCreateInput!]
-  connect: [TodoImageWhereUniqueInput!]
-}
-
-input UserRelateToOneForUpdateInput {
-  create: UserCreateInput
-  connect: UserWhereUniqueInput
-  disconnect: Boolean
-}
-
-input TodoUpdateArgs {
-  where: TodoWhereUniqueInput!
-  data: TodoUpdateInput!
-}
-
-input TodoCreateInput {
+input VehicleCreateInput {
+  fleet: FleetRelateToOneForCreateInput
+  drivers: DriverProfileRelateToManyForCreateInput
   label: String
-  description: JSON
-  isComplete: Boolean
+  make: String
+  model: String
+  year: Int
+  color: String
+  plateMasked: String
+  plateEncryptedRef: String
+  vinEncryptedRef: String
+  capacity: Int
+  wheelchairAccessible: Boolean
   status: String
-  priority: Int
-  tags: [String!]
-  dueDate: DateTime
-  weight: Float
-  budget: Decimal
-  isPrivate: Boolean
-  largeNumber: BigInt
-  metadata: JSON
-  secretNote: String
-  coverImage: ImageFieldInput
-  todoImages: TodoImageRelateToManyForCreateInput
-  assignedTo: UserRelateToOneForCreateInput
+  documents: ComplianceDocumentRelateToManyForCreateInput
+  policyEvaluations: PolicyEvaluationRelateToManyForCreateInput
+  trips: TripRelateToManyForCreateInput
+  createdAt: DateTime
+  updatedAt: DateTime
 }
 
-input TodoImageRelateToManyForCreateInput {
-  create: [TodoImageCreateInput!]
-  connect: [TodoImageWhereUniqueInput!]
-}
-
-input UserRelateToOneForCreateInput {
-  create: UserCreateInput
-  connect: UserWhereUniqueInput
-}
-
-type TodoImage {
+type ComplianceDocument {
   id: ID!
-  image: ImageFieldOutput
-  imagePath: String
-  altText: String
-  todos(where: TodoWhereInput! = {}, orderBy: [TodoOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: TodoWhereUniqueInput): [Todo!]
-  todosCount(where: TodoWhereInput! = {}): Int
-  metadata: JSON
+  driver: DriverProfile
+  vehicle: Vehicle
+  kind: String
+  status: String
+  issuer: String
+  referenceMasked: String
+  secureFileRef: String
+  issuedAt: DateTime
+  expiresAt: DateTime
+  reviewedAt: DateTime
+  reviewer: User
+  reviewNotes: String
+  evidenceMetadata: JSON
+  createdAt: DateTime
+  updatedAt: DateTime
 }
 
-input TodoImageWhereUniqueInput {
+input ComplianceDocumentWhereUniqueInput {
   id: ID
 }
 
-input TodoImageWhereInput {
-  AND: [TodoImageWhereInput!]
-  OR: [TodoImageWhereInput!]
-  NOT: [TodoImageWhereInput!]
+input ComplianceDocumentWhereInput {
+  AND: [ComplianceDocumentWhereInput!]
+  OR: [ComplianceDocumentWhereInput!]
+  NOT: [ComplianceDocumentWhereInput!]
   id: IDFilter
-  imagePath: StringFilter
-  altText: StringFilter
-  todos: TodoManyRelationFilter
+  driver: DriverProfileWhereInput
+  vehicle: VehicleWhereInput
+  kind: StringNullableFilter
+  status: StringNullableFilter
+  issuer: StringFilter
+  referenceMasked: StringFilter
+  secureFileRef: StringFilter
+  issuedAt: DateTimeNullableFilter
+  expiresAt: DateTimeNullableFilter
+  reviewedAt: DateTimeNullableFilter
+  reviewer: UserWhereInput
+  reviewNotes: StringFilter
+  createdAt: DateTimeNullableFilter
+  updatedAt: DateTimeNullableFilter
 }
 
-input TodoImageOrderByInput {
+input ComplianceDocumentOrderByInput {
   id: OrderDirection
-  imagePath: OrderDirection
-  altText: OrderDirection
+  kind: OrderDirection
+  status: OrderDirection
+  issuer: OrderDirection
+  referenceMasked: OrderDirection
+  secureFileRef: OrderDirection
+  issuedAt: OrderDirection
+  expiresAt: OrderDirection
+  reviewedAt: OrderDirection
+  reviewNotes: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
 }
 
-input TodoImageUpdateInput {
-  image: ImageFieldInput
-  imagePath: String
-  altText: String
-  todos: TodoRelateToManyForUpdateInput
+input ComplianceDocumentUpdateInput {
+  driver: DriverProfileRelateToOneForUpdateInput
+  vehicle: VehicleRelateToOneForUpdateInput
+  kind: String
+  status: String
+  issuer: String
+  referenceMasked: String
+  secureFileRef: String
+  issuedAt: DateTime
+  expiresAt: DateTime
+  reviewedAt: DateTime
+  reviewer: UserRelateToOneForUpdateInput
+  reviewNotes: String
+  evidenceMetadata: JSON
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input VehicleRelateToOneForUpdateInput {
+  create: VehicleCreateInput
+  connect: VehicleWhereUniqueInput
+  disconnect: Boolean
+}
+
+input ComplianceDocumentUpdateArgs {
+  where: ComplianceDocumentWhereUniqueInput!
+  data: ComplianceDocumentUpdateInput!
+}
+
+input ComplianceDocumentCreateInput {
+  driver: DriverProfileRelateToOneForCreateInput
+  vehicle: VehicleRelateToOneForCreateInput
+  kind: String
+  status: String
+  issuer: String
+  referenceMasked: String
+  secureFileRef: String
+  issuedAt: DateTime
+  expiresAt: DateTime
+  reviewedAt: DateTime
+  reviewer: UserRelateToOneForCreateInput
+  reviewNotes: String
+  evidenceMetadata: JSON
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input VehicleRelateToOneForCreateInput {
+  create: VehicleCreateInput
+  connect: VehicleWhereUniqueInput
+}
+
+type Policy {
+  id: ID!
+  fleet: Fleet
+  name: String
+  version: String
+  jurisdiction: String
+  kind: String
+  status: String
+  requirements: JSON
+  evidenceSources: JSON
+  disclaimer: String
+  evaluations(where: PolicyEvaluationWhereInput! = {}, orderBy: [PolicyEvaluationOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: PolicyEvaluationWhereUniqueInput): [PolicyEvaluation!]
+  evaluationsCount(where: PolicyEvaluationWhereInput! = {}): Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PolicyWhereUniqueInput {
+  id: ID
+}
+
+input PolicyWhereInput {
+  AND: [PolicyWhereInput!]
+  OR: [PolicyWhereInput!]
+  NOT: [PolicyWhereInput!]
+  id: IDFilter
+  fleet: FleetWhereInput
+  name: StringFilter
+  version: StringFilter
+  jurisdiction: StringFilter
+  kind: StringNullableFilter
+  status: StringNullableFilter
+  disclaimer: StringFilter
+  evaluations: PolicyEvaluationManyRelationFilter
+  createdAt: DateTimeNullableFilter
+  updatedAt: DateTimeNullableFilter
+}
+
+input PolicyOrderByInput {
+  id: OrderDirection
+  name: OrderDirection
+  version: OrderDirection
+  jurisdiction: OrderDirection
+  kind: OrderDirection
+  status: OrderDirection
+  disclaimer: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input PolicyUpdateInput {
+  fleet: FleetRelateToOneForUpdateInput
+  name: String
+  version: String
+  jurisdiction: String
+  kind: String
+  status: String
+  requirements: JSON
+  evidenceSources: JSON
+  disclaimer: String
+  evaluations: PolicyEvaluationRelateToManyForUpdateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PolicyUpdateArgs {
+  where: PolicyWhereUniqueInput!
+  data: PolicyUpdateInput!
+}
+
+input PolicyCreateInput {
+  fleet: FleetRelateToOneForCreateInput
+  name: String
+  version: String
+  jurisdiction: String
+  kind: String
+  status: String
+  requirements: JSON
+  evidenceSources: JSON
+  disclaimer: String
+  evaluations: PolicyEvaluationRelateToManyForCreateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type PolicyEvaluation {
+  id: ID!
+  policy: Policy
+  driver: DriverProfile
+  vehicle: Vehicle
+  outcome: String
+  reasons: JSON
+  evidenceSnapshot: JSON
+  evaluatedAt: DateTime
+  expiresAt: DateTime
+  evaluator: User
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PolicyEvaluationWhereUniqueInput {
+  id: ID
+}
+
+input PolicyEvaluationWhereInput {
+  AND: [PolicyEvaluationWhereInput!]
+  OR: [PolicyEvaluationWhereInput!]
+  NOT: [PolicyEvaluationWhereInput!]
+  id: IDFilter
+  policy: PolicyWhereInput
+  driver: DriverProfileWhereInput
+  vehicle: VehicleWhereInput
+  outcome: StringNullableFilter
+  evaluatedAt: DateTimeNullableFilter
+  expiresAt: DateTimeNullableFilter
+  evaluator: UserWhereInput
+  createdAt: DateTimeNullableFilter
+  updatedAt: DateTimeNullableFilter
+}
+
+input PolicyEvaluationOrderByInput {
+  id: OrderDirection
+  outcome: OrderDirection
+  evaluatedAt: OrderDirection
+  expiresAt: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input PolicyEvaluationUpdateInput {
+  policy: PolicyRelateToOneForUpdateInput
+  driver: DriverProfileRelateToOneForUpdateInput
+  vehicle: VehicleRelateToOneForUpdateInput
+  outcome: String
+  reasons: JSON
+  evidenceSnapshot: JSON
+  evaluatedAt: DateTime
+  expiresAt: DateTime
+  evaluator: UserRelateToOneForUpdateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PolicyRelateToOneForUpdateInput {
+  create: PolicyCreateInput
+  connect: PolicyWhereUniqueInput
+  disconnect: Boolean
+}
+
+input PolicyEvaluationUpdateArgs {
+  where: PolicyEvaluationWhereUniqueInput!
+  data: PolicyEvaluationUpdateInput!
+}
+
+input PolicyEvaluationCreateInput {
+  policy: PolicyRelateToOneForCreateInput
+  driver: DriverProfileRelateToOneForCreateInput
+  vehicle: VehicleRelateToOneForCreateInput
+  outcome: String
+  reasons: JSON
+  evidenceSnapshot: JSON
+  evaluatedAt: DateTime
+  expiresAt: DateTime
+  evaluator: UserRelateToOneForCreateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PolicyRelateToOneForCreateInput {
+  create: PolicyCreateInput
+  connect: PolicyWhereUniqueInput
+}
+
+type ProviderConnection {
+  id: ID!
+  fleet: Fleet
+  name: String
+  kind: String
+  adapter: String
+  status: String
+  config: JSON
+  secretReference: String
+  evidencePolicyUrl: String
+  lastVerifiedAt: DateTime
+  capabilities: JSON
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ProviderConnectionWhereUniqueInput {
+  id: ID
+}
+
+input ProviderConnectionWhereInput {
+  AND: [ProviderConnectionWhereInput!]
+  OR: [ProviderConnectionWhereInput!]
+  NOT: [ProviderConnectionWhereInput!]
+  id: IDFilter
+  fleet: FleetWhereInput
+  name: StringFilter
+  kind: StringNullableFilter
+  adapter: StringFilter
+  status: StringNullableFilter
+  secretReference: StringFilter
+  evidencePolicyUrl: StringFilter
+  lastVerifiedAt: DateTimeNullableFilter
+  createdAt: DateTimeNullableFilter
+  updatedAt: DateTimeNullableFilter
+}
+
+input ProviderConnectionOrderByInput {
+  id: OrderDirection
+  name: OrderDirection
+  kind: OrderDirection
+  adapter: OrderDirection
+  status: OrderDirection
+  secretReference: OrderDirection
+  evidencePolicyUrl: OrderDirection
+  lastVerifiedAt: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input ProviderConnectionUpdateInput {
+  fleet: FleetRelateToOneForUpdateInput
+  name: String
+  kind: String
+  adapter: String
+  status: String
+  config: JSON
+  secretReference: String
+  evidencePolicyUrl: String
+  lastVerifiedAt: DateTime
+  capabilities: JSON
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ProviderConnectionUpdateArgs {
+  where: ProviderConnectionWhereUniqueInput!
+  data: ProviderConnectionUpdateInput!
+}
+
+input ProviderConnectionCreateInput {
+  fleet: FleetRelateToOneForCreateInput
+  name: String
+  kind: String
+  adapter: String
+  status: String
+  config: JSON
+  secretReference: String
+  evidencePolicyUrl: String
+  lastVerifiedAt: DateTime
+  capabilities: JSON
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type ServiceArea {
+  id: ID!
+  fleet: Fleet
+  name: String
+  publicRegionLabel: String
+  countryCode: String
+  status: String
+  coarseBounds: JSON
+  providerGeometryRef: String
+  services(where: RideServiceWhereInput! = {}, orderBy: [RideServiceOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: RideServiceWhereUniqueInput): [RideService!]
+  servicesCount(where: RideServiceWhereInput! = {}): Int
+  fareRules(where: FareRuleWhereInput! = {}, orderBy: [FareRuleOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: FareRuleWhereUniqueInput): [FareRule!]
+  fareRulesCount(where: FareRuleWhereInput! = {}): Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ServiceAreaWhereUniqueInput {
+  id: ID
+}
+
+input ServiceAreaWhereInput {
+  AND: [ServiceAreaWhereInput!]
+  OR: [ServiceAreaWhereInput!]
+  NOT: [ServiceAreaWhereInput!]
+  id: IDFilter
+  fleet: FleetWhereInput
+  name: StringFilter
+  publicRegionLabel: StringFilter
+  countryCode: StringFilter
+  status: StringNullableFilter
+  providerGeometryRef: StringFilter
+  services: RideServiceManyRelationFilter
+  fareRules: FareRuleManyRelationFilter
+  createdAt: DateTimeNullableFilter
+  updatedAt: DateTimeNullableFilter
+}
+
+input ServiceAreaOrderByInput {
+  id: OrderDirection
+  name: OrderDirection
+  publicRegionLabel: OrderDirection
+  countryCode: OrderDirection
+  status: OrderDirection
+  providerGeometryRef: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input ServiceAreaUpdateInput {
+  fleet: FleetRelateToOneForUpdateInput
+  name: String
+  publicRegionLabel: String
+  countryCode: String
+  status: String
+  coarseBounds: JSON
+  providerGeometryRef: String
+  services: RideServiceRelateToManyForUpdateInput
+  fareRules: FareRuleRelateToManyForUpdateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ServiceAreaUpdateArgs {
+  where: ServiceAreaWhereUniqueInput!
+  data: ServiceAreaUpdateInput!
+}
+
+input ServiceAreaCreateInput {
+  fleet: FleetRelateToOneForCreateInput
+  name: String
+  publicRegionLabel: String
+  countryCode: String
+  status: String
+  coarseBounds: JSON
+  providerGeometryRef: String
+  services: RideServiceRelateToManyForCreateInput
+  fareRules: FareRuleRelateToManyForCreateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type RideService {
+  id: ID!
+  fleet: Fleet
+  name: String
+  slug: String
+  description: String
+  status: String
+  category: String
+  passengerCapacity: Int
+  wheelchairAccessible: Boolean
+  advanceBookingMinutes: Int
+  serviceAreas(where: ServiceAreaWhereInput! = {}, orderBy: [ServiceAreaOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: ServiceAreaWhereUniqueInput): [ServiceArea!]
+  serviceAreasCount(where: ServiceAreaWhereInput! = {}): Int
+  fareRules(where: FareRuleWhereInput! = {}, orderBy: [FareRuleOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: FareRuleWhereUniqueInput): [FareRule!]
+  fareRulesCount(where: FareRuleWhereInput! = {}): Int
+  quotes(where: RideQuoteWhereInput! = {}, orderBy: [RideQuoteOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: RideQuoteWhereUniqueInput): [RideQuote!]
+  quotesCount(where: RideQuoteWhereInput! = {}): Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input RideServiceWhereUniqueInput {
+  id: ID
+  slug: String
+}
+
+input RideServiceWhereInput {
+  AND: [RideServiceWhereInput!]
+  OR: [RideServiceWhereInput!]
+  NOT: [RideServiceWhereInput!]
+  id: IDFilter
+  fleet: FleetWhereInput
+  name: StringFilter
+  slug: StringFilter
+  description: StringFilter
+  status: StringNullableFilter
+  category: StringNullableFilter
+  passengerCapacity: IntNullableFilter
+  wheelchairAccessible: BooleanFilter
+  advanceBookingMinutes: IntNullableFilter
+  serviceAreas: ServiceAreaManyRelationFilter
+  fareRules: FareRuleManyRelationFilter
+  quotes: RideQuoteManyRelationFilter
+  createdAt: DateTimeNullableFilter
+  updatedAt: DateTimeNullableFilter
+}
+
+input RideQuoteManyRelationFilter {
+  every: RideQuoteWhereInput
+  some: RideQuoteWhereInput
+  none: RideQuoteWhereInput
+}
+
+input RideServiceOrderByInput {
+  id: OrderDirection
+  name: OrderDirection
+  slug: OrderDirection
+  description: OrderDirection
+  status: OrderDirection
+  category: OrderDirection
+  passengerCapacity: OrderDirection
+  wheelchairAccessible: OrderDirection
+  advanceBookingMinutes: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input RideServiceUpdateInput {
+  fleet: FleetRelateToOneForUpdateInput
+  name: String
+  slug: String
+  description: String
+  status: String
+  category: String
+  passengerCapacity: Int
+  wheelchairAccessible: Boolean
+  advanceBookingMinutes: Int
+  serviceAreas: ServiceAreaRelateToManyForUpdateInput
+  fareRules: FareRuleRelateToManyForUpdateInput
+  quotes: RideQuoteRelateToManyForUpdateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input RideQuoteRelateToManyForUpdateInput {
+  disconnect: [RideQuoteWhereUniqueInput!]
+  set: [RideQuoteWhereUniqueInput!]
+  create: [RideQuoteCreateInput!]
+  connect: [RideQuoteWhereUniqueInput!]
+}
+
+input RideServiceUpdateArgs {
+  where: RideServiceWhereUniqueInput!
+  data: RideServiceUpdateInput!
+}
+
+input RideServiceCreateInput {
+  fleet: FleetRelateToOneForCreateInput
+  name: String
+  slug: String
+  description: String
+  status: String
+  category: String
+  passengerCapacity: Int
+  wheelchairAccessible: Boolean
+  advanceBookingMinutes: Int
+  serviceAreas: ServiceAreaRelateToManyForCreateInput
+  fareRules: FareRuleRelateToManyForCreateInput
+  quotes: RideQuoteRelateToManyForCreateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input RideQuoteRelateToManyForCreateInput {
+  create: [RideQuoteCreateInput!]
+  connect: [RideQuoteWhereUniqueInput!]
+}
+
+type AvailabilityRule {
+  id: ID!
+  driver: DriverProfile
+  dayOfWeek: Int
+  startTime: String
+  endTime: String
+  timezone: String
+  effectiveFrom: DateTime
+  effectiveUntil: DateTime
+  status: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input AvailabilityRuleWhereUniqueInput {
+  id: ID
+}
+
+input AvailabilityRuleWhereInput {
+  AND: [AvailabilityRuleWhereInput!]
+  OR: [AvailabilityRuleWhereInput!]
+  NOT: [AvailabilityRuleWhereInput!]
+  id: IDFilter
+  driver: DriverProfileWhereInput
+  dayOfWeek: IntNullableFilter
+  startTime: StringFilter
+  endTime: StringFilter
+  timezone: StringFilter
+  effectiveFrom: DateTimeNullableFilter
+  effectiveUntil: DateTimeNullableFilter
+  status: StringNullableFilter
+  createdAt: DateTimeNullableFilter
+  updatedAt: DateTimeNullableFilter
+}
+
+input AvailabilityRuleOrderByInput {
+  id: OrderDirection
+  dayOfWeek: OrderDirection
+  startTime: OrderDirection
+  endTime: OrderDirection
+  timezone: OrderDirection
+  effectiveFrom: OrderDirection
+  effectiveUntil: OrderDirection
+  status: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input AvailabilityRuleUpdateInput {
+  driver: DriverProfileRelateToOneForUpdateInput
+  dayOfWeek: Int
+  startTime: String
+  endTime: String
+  timezone: String
+  effectiveFrom: DateTime
+  effectiveUntil: DateTime
+  status: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input AvailabilityRuleUpdateArgs {
+  where: AvailabilityRuleWhereUniqueInput!
+  data: AvailabilityRuleUpdateInput!
+}
+
+input AvailabilityRuleCreateInput {
+  driver: DriverProfileRelateToOneForCreateInput
+  dayOfWeek: Int
+  startTime: String
+  endTime: String
+  timezone: String
+  effectiveFrom: DateTime
+  effectiveUntil: DateTime
+  status: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type AvailabilityException {
+  id: ID!
+  driver: DriverProfile
+  startsAt: DateTime
+  endsAt: DateTime
+  kind: String
+  reason: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input AvailabilityExceptionWhereUniqueInput {
+  id: ID
+}
+
+input AvailabilityExceptionWhereInput {
+  AND: [AvailabilityExceptionWhereInput!]
+  OR: [AvailabilityExceptionWhereInput!]
+  NOT: [AvailabilityExceptionWhereInput!]
+  id: IDFilter
+  driver: DriverProfileWhereInput
+  startsAt: DateTimeFilter
+  endsAt: DateTimeFilter
+  kind: StringNullableFilter
+  reason: StringFilter
+  createdAt: DateTimeNullableFilter
+  updatedAt: DateTimeNullableFilter
+}
+
+input DateTimeFilter {
+  equals: DateTime
+  in: [DateTime!]
+  notIn: [DateTime!]
+  lt: DateTime
+  lte: DateTime
+  gt: DateTime
+  gte: DateTime
+  not: DateTimeFilter
+}
+
+input AvailabilityExceptionOrderByInput {
+  id: OrderDirection
+  startsAt: OrderDirection
+  endsAt: OrderDirection
+  kind: OrderDirection
+  reason: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input AvailabilityExceptionUpdateInput {
+  driver: DriverProfileRelateToOneForUpdateInput
+  startsAt: DateTime
+  endsAt: DateTime
+  kind: String
+  reason: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input AvailabilityExceptionUpdateArgs {
+  where: AvailabilityExceptionWhereUniqueInput!
+  data: AvailabilityExceptionUpdateInput!
+}
+
+input AvailabilityExceptionCreateInput {
+  driver: DriverProfileRelateToOneForCreateInput
+  startsAt: DateTime
+  endsAt: DateTime
+  kind: String
+  reason: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type FareRule {
+  id: ID!
+  fleet: Fleet
+  service: RideService
+  serviceArea: ServiceArea
+  name: String
+  version: Int
+  status: String
+  currencyCode: String
+  baseFareMinor: Int
+  perDistanceUnitMinor: Int
+  distanceUnit: String
+  perMinuteMinor: Int
+  bookingFeeMinor: Int
+  minimumFareMinor: Int
+  cancellationFeeMinor: Int
+  noShowFeeMinor: Int
+  maximumMultiplierBasisPoints: Int
+  rules: JSON
+  quotes(where: RideQuoteWhereInput! = {}, orderBy: [RideQuoteOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: RideQuoteWhereUniqueInput): [RideQuote!]
+  quotesCount(where: RideQuoteWhereInput! = {}): Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input FareRuleWhereUniqueInput {
+  id: ID
+}
+
+input FareRuleWhereInput {
+  AND: [FareRuleWhereInput!]
+  OR: [FareRuleWhereInput!]
+  NOT: [FareRuleWhereInput!]
+  id: IDFilter
+  fleet: FleetWhereInput
+  service: RideServiceWhereInput
+  serviceArea: ServiceAreaWhereInput
+  name: StringFilter
+  version: IntNullableFilter
+  status: StringNullableFilter
+  currencyCode: StringFilter
+  baseFareMinor: IntNullableFilter
+  perDistanceUnitMinor: IntNullableFilter
+  distanceUnit: StringNullableFilter
+  perMinuteMinor: IntNullableFilter
+  bookingFeeMinor: IntNullableFilter
+  minimumFareMinor: IntNullableFilter
+  cancellationFeeMinor: IntNullableFilter
+  noShowFeeMinor: IntNullableFilter
+  maximumMultiplierBasisPoints: IntNullableFilter
+  quotes: RideQuoteManyRelationFilter
+  createdAt: DateTimeNullableFilter
+  updatedAt: DateTimeNullableFilter
+}
+
+input FareRuleOrderByInput {
+  id: OrderDirection
+  name: OrderDirection
+  version: OrderDirection
+  status: OrderDirection
+  currencyCode: OrderDirection
+  baseFareMinor: OrderDirection
+  perDistanceUnitMinor: OrderDirection
+  distanceUnit: OrderDirection
+  perMinuteMinor: OrderDirection
+  bookingFeeMinor: OrderDirection
+  minimumFareMinor: OrderDirection
+  cancellationFeeMinor: OrderDirection
+  noShowFeeMinor: OrderDirection
+  maximumMultiplierBasisPoints: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input FareRuleUpdateInput {
+  fleet: FleetRelateToOneForUpdateInput
+  service: RideServiceRelateToOneForUpdateInput
+  serviceArea: ServiceAreaRelateToOneForUpdateInput
+  name: String
+  version: Int
+  status: String
+  currencyCode: String
+  baseFareMinor: Int
+  perDistanceUnitMinor: Int
+  distanceUnit: String
+  perMinuteMinor: Int
+  bookingFeeMinor: Int
+  minimumFareMinor: Int
+  cancellationFeeMinor: Int
+  noShowFeeMinor: Int
+  maximumMultiplierBasisPoints: Int
+  rules: JSON
+  quotes: RideQuoteRelateToManyForUpdateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input RideServiceRelateToOneForUpdateInput {
+  create: RideServiceCreateInput
+  connect: RideServiceWhereUniqueInput
+  disconnect: Boolean
+}
+
+input ServiceAreaRelateToOneForUpdateInput {
+  create: ServiceAreaCreateInput
+  connect: ServiceAreaWhereUniqueInput
+  disconnect: Boolean
+}
+
+input FareRuleUpdateArgs {
+  where: FareRuleWhereUniqueInput!
+  data: FareRuleUpdateInput!
+}
+
+input FareRuleCreateInput {
+  fleet: FleetRelateToOneForCreateInput
+  service: RideServiceRelateToOneForCreateInput
+  serviceArea: ServiceAreaRelateToOneForCreateInput
+  name: String
+  version: Int
+  status: String
+  currencyCode: String
+  baseFareMinor: Int
+  perDistanceUnitMinor: Int
+  distanceUnit: String
+  perMinuteMinor: Int
+  bookingFeeMinor: Int
+  minimumFareMinor: Int
+  cancellationFeeMinor: Int
+  noShowFeeMinor: Int
+  maximumMultiplierBasisPoints: Int
+  rules: JSON
+  quotes: RideQuoteRelateToManyForCreateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input RideServiceRelateToOneForCreateInput {
+  create: RideServiceCreateInput
+  connect: RideServiceWhereUniqueInput
+}
+
+input ServiceAreaRelateToOneForCreateInput {
+  create: ServiceAreaCreateInput
+  connect: ServiceAreaWhereUniqueInput
+}
+
+type RideQuote {
+  id: ID!
+  service: RideService
+  fareRule: FareRule
+  publicId: String
+  handoffId: String
+  status: String
+  pickupLabel: String
+  dropoffLabel: String
+  routeInputHash: String
+  routeEvidence: JSON
+  estimatedDistanceMeters: Int
+  estimatedDurationSeconds: Int
+  fareSnapshot: JSON
+  totalMinor: Int
+  currencyCode: String
+  scheduledFor: DateTime
+  expiresAt: DateTime
+  guestProofHash: String
+  rider: User
+  request: RideRequest
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input RideQuoteWhereUniqueInput {
+  id: ID
+  publicId: String
+  request: RideRequestWhereUniqueInput
+}
+
+input RideQuoteWhereInput {
+  AND: [RideQuoteWhereInput!]
+  OR: [RideQuoteWhereInput!]
+  NOT: [RideQuoteWhereInput!]
+  id: IDFilter
+  service: RideServiceWhereInput
+  fareRule: FareRuleWhereInput
+  publicId: StringFilter
+  handoffId: StringFilter
+  status: StringNullableFilter
+  pickupLabel: StringFilter
+  dropoffLabel: StringFilter
+  routeInputHash: StringFilter
+  estimatedDistanceMeters: IntNullableFilter
+  estimatedDurationSeconds: IntNullableFilter
+  totalMinor: IntNullableFilter
+  currencyCode: StringFilter
+  scheduledFor: DateTimeNullableFilter
+  expiresAt: DateTimeFilter
+  guestProofHash: StringFilter
+  rider: UserWhereInput
+  request: RideRequestWhereInput
+  createdAt: DateTimeNullableFilter
+  updatedAt: DateTimeNullableFilter
+}
+
+input RideQuoteOrderByInput {
+  id: OrderDirection
+  publicId: OrderDirection
+  handoffId: OrderDirection
+  status: OrderDirection
+  pickupLabel: OrderDirection
+  dropoffLabel: OrderDirection
+  routeInputHash: OrderDirection
+  estimatedDistanceMeters: OrderDirection
+  estimatedDurationSeconds: OrderDirection
+  totalMinor: OrderDirection
+  currencyCode: OrderDirection
+  scheduledFor: OrderDirection
+  expiresAt: OrderDirection
+  guestProofHash: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input RideQuoteUpdateInput {
+  service: RideServiceRelateToOneForUpdateInput
+  fareRule: FareRuleRelateToOneForUpdateInput
+  publicId: String
+  handoffId: String
+  status: String
+  pickupLabel: String
+  dropoffLabel: String
+  routeInputHash: String
+  routeEvidence: JSON
+  estimatedDistanceMeters: Int
+  estimatedDurationSeconds: Int
+  fareSnapshot: JSON
+  totalMinor: Int
+  currencyCode: String
+  scheduledFor: DateTime
+  expiresAt: DateTime
+  guestProofHash: String
+  rider: UserRelateToOneForUpdateInput
+  request: RideRequestRelateToOneForUpdateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input FareRuleRelateToOneForUpdateInput {
+  create: FareRuleCreateInput
+  connect: FareRuleWhereUniqueInput
+  disconnect: Boolean
+}
+
+input RideRequestRelateToOneForUpdateInput {
+  create: RideRequestCreateInput
+  connect: RideRequestWhereUniqueInput
+  disconnect: Boolean
+}
+
+input RideQuoteUpdateArgs {
+  where: RideQuoteWhereUniqueInput!
+  data: RideQuoteUpdateInput!
+}
+
+input RideQuoteCreateInput {
+  service: RideServiceRelateToOneForCreateInput
+  fareRule: FareRuleRelateToOneForCreateInput
+  publicId: String
+  handoffId: String
+  status: String
+  pickupLabel: String
+  dropoffLabel: String
+  routeInputHash: String
+  routeEvidence: JSON
+  estimatedDistanceMeters: Int
+  estimatedDurationSeconds: Int
+  fareSnapshot: JSON
+  totalMinor: Int
+  currencyCode: String
+  scheduledFor: DateTime
+  expiresAt: DateTime
+  guestProofHash: String
+  rider: UserRelateToOneForCreateInput
+  request: RideRequestRelateToOneForCreateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input FareRuleRelateToOneForCreateInput {
+  create: FareRuleCreateInput
+  connect: FareRuleWhereUniqueInput
+}
+
+input RideRequestRelateToOneForCreateInput {
+  create: RideRequestCreateInput
+  connect: RideRequestWhereUniqueInput
+}
+
+type RideRequest {
+  id: ID!
+  fleet: Fleet
+  rider: User
+  quote: RideQuote
+  requestNumber: String
+  status: String
+  requestedFor: DateTime
+  passengerCount: Int
+  accessibilityNeeds: JSON
+  riderNotes: String
+  pickupLabel: String
+  dropoffLabel: String
+  preciseRouteEncryptedRef: String
+  quoteSnapshot: JSON
+  guestProofHash: String
+  guestProofExpiresAt: DateTime
+  matchOffers(where: MatchOfferWhereInput! = {}, orderBy: [MatchOfferOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: MatchOfferWhereUniqueInput): [MatchOffer!]
+  matchOffersCount(where: MatchOfferWhereInput! = {}): Int
+  trip: Trip
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input RideRequestWhereUniqueInput {
+  id: ID
+  quote: RideQuoteWhereUniqueInput
+  requestNumber: String
+  trip: TripWhereUniqueInput
+}
+
+input RideRequestWhereInput {
+  AND: [RideRequestWhereInput!]
+  OR: [RideRequestWhereInput!]
+  NOT: [RideRequestWhereInput!]
+  id: IDFilter
+  fleet: FleetWhereInput
+  rider: UserWhereInput
+  quote: RideQuoteWhereInput
+  requestNumber: StringFilter
+  status: StringNullableFilter
+  requestedFor: DateTimeNullableFilter
+  passengerCount: IntNullableFilter
+  riderNotes: StringFilter
+  pickupLabel: StringFilter
+  dropoffLabel: StringFilter
+  preciseRouteEncryptedRef: StringFilter
+  guestProofHash: StringFilter
+  guestProofExpiresAt: DateTimeNullableFilter
+  matchOffers: MatchOfferManyRelationFilter
+  trip: TripWhereInput
+  createdAt: DateTimeNullableFilter
+  updatedAt: DateTimeNullableFilter
+}
+
+input RideRequestOrderByInput {
+  id: OrderDirection
+  requestNumber: OrderDirection
+  status: OrderDirection
+  requestedFor: OrderDirection
+  passengerCount: OrderDirection
+  riderNotes: OrderDirection
+  pickupLabel: OrderDirection
+  dropoffLabel: OrderDirection
+  preciseRouteEncryptedRef: OrderDirection
+  guestProofHash: OrderDirection
+  guestProofExpiresAt: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input RideRequestUpdateInput {
+  fleet: FleetRelateToOneForUpdateInput
+  rider: UserRelateToOneForUpdateInput
+  quote: RideQuoteRelateToOneForUpdateInput
+  requestNumber: String
+  status: String
+  requestedFor: DateTime
+  passengerCount: Int
+  accessibilityNeeds: JSON
+  riderNotes: String
+  pickupLabel: String
+  dropoffLabel: String
+  preciseRouteEncryptedRef: String
+  quoteSnapshot: JSON
+  guestProofHash: String
+  guestProofExpiresAt: DateTime
+  matchOffers: MatchOfferRelateToManyForUpdateInput
+  trip: TripRelateToOneForUpdateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input RideQuoteRelateToOneForUpdateInput {
+  create: RideQuoteCreateInput
+  connect: RideQuoteWhereUniqueInput
+  disconnect: Boolean
+}
+
+input TripRelateToOneForUpdateInput {
+  create: TripCreateInput
+  connect: TripWhereUniqueInput
+  disconnect: Boolean
+}
+
+input RideRequestUpdateArgs {
+  where: RideRequestWhereUniqueInput!
+  data: RideRequestUpdateInput!
+}
+
+input RideRequestCreateInput {
+  fleet: FleetRelateToOneForCreateInput
+  rider: UserRelateToOneForCreateInput
+  quote: RideQuoteRelateToOneForCreateInput
+  requestNumber: String
+  status: String
+  requestedFor: DateTime
+  passengerCount: Int
+  accessibilityNeeds: JSON
+  riderNotes: String
+  pickupLabel: String
+  dropoffLabel: String
+  preciseRouteEncryptedRef: String
+  quoteSnapshot: JSON
+  guestProofHash: String
+  guestProofExpiresAt: DateTime
+  matchOffers: MatchOfferRelateToManyForCreateInput
+  trip: TripRelateToOneForCreateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input RideQuoteRelateToOneForCreateInput {
+  create: RideQuoteCreateInput
+  connect: RideQuoteWhereUniqueInput
+}
+
+input TripRelateToOneForCreateInput {
+  create: TripCreateInput
+  connect: TripWhereUniqueInput
+}
+
+type RequestCancellationCommand {
+  id: ID!
+  request: RideRequest
+  idempotencyKey: String
+  command: JSON
+  result: JSON
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input RequestCancellationCommandWhereUniqueInput {
+  id: ID
+  idempotencyKey: String
+}
+
+input RequestCancellationCommandWhereInput {
+  AND: [RequestCancellationCommandWhereInput!]
+  OR: [RequestCancellationCommandWhereInput!]
+  NOT: [RequestCancellationCommandWhereInput!]
+  id: IDFilter
+  request: RideRequestWhereInput
+  idempotencyKey: StringFilter
+  createdAt: DateTimeNullableFilter
+  updatedAt: DateTimeNullableFilter
+}
+
+input RequestCancellationCommandOrderByInput {
+  id: OrderDirection
+  idempotencyKey: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input RequestCancellationCommandUpdateInput {
+  request: RideRequestRelateToOneForUpdateInput
+  idempotencyKey: String
+  command: JSON
+  result: JSON
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input RequestCancellationCommandUpdateArgs {
+  where: RequestCancellationCommandWhereUniqueInput!
+  data: RequestCancellationCommandUpdateInput!
+}
+
+input RequestCancellationCommandCreateInput {
+  request: RideRequestRelateToOneForCreateInput
+  idempotencyKey: String
+  command: JSON
+  result: JSON
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type MatchOffer {
+  id: ID!
+  request: RideRequest
+  driver: DriverProfile
+  vehicle: Vehicle
+  status: String
+  offeredAt: DateTime
+  reservationStartAt: DateTime
+  reservationReleasedAt: DateTime
+  expiresAt: DateTime
+  respondedAt: DateTime
+  declineReason: String
+  idempotencyKey: String
+  eligibilitySnapshot: JSON
+  acceptedTrip: Trip
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input MatchOfferWhereUniqueInput {
+  id: ID
+  idempotencyKey: String
+  acceptedTrip: TripWhereUniqueInput
+}
+
+input MatchOfferWhereInput {
+  AND: [MatchOfferWhereInput!]
+  OR: [MatchOfferWhereInput!]
+  NOT: [MatchOfferWhereInput!]
+  id: IDFilter
+  request: RideRequestWhereInput
+  driver: DriverProfileWhereInput
+  vehicle: VehicleWhereInput
+  status: StringNullableFilter
+  offeredAt: DateTimeNullableFilter
+  reservationStartAt: DateTimeFilter
+  reservationReleasedAt: DateTimeNullableFilter
+  expiresAt: DateTimeFilter
+  respondedAt: DateTimeNullableFilter
+  declineReason: StringFilter
+  idempotencyKey: StringFilter
+  acceptedTrip: TripWhereInput
+  createdAt: DateTimeNullableFilter
+  updatedAt: DateTimeNullableFilter
+}
+
+input MatchOfferOrderByInput {
+  id: OrderDirection
+  status: OrderDirection
+  offeredAt: OrderDirection
+  reservationStartAt: OrderDirection
+  reservationReleasedAt: OrderDirection
+  expiresAt: OrderDirection
+  respondedAt: OrderDirection
+  declineReason: OrderDirection
+  idempotencyKey: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input MatchOfferUpdateInput {
+  request: RideRequestRelateToOneForUpdateInput
+  driver: DriverProfileRelateToOneForUpdateInput
+  vehicle: VehicleRelateToOneForUpdateInput
+  status: String
+  offeredAt: DateTime
+  reservationStartAt: DateTime
+  reservationReleasedAt: DateTime
+  expiresAt: DateTime
+  respondedAt: DateTime
+  declineReason: String
+  idempotencyKey: String
+  eligibilitySnapshot: JSON
+  acceptedTrip: TripRelateToOneForUpdateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input MatchOfferUpdateArgs {
+  where: MatchOfferWhereUniqueInput!
+  data: MatchOfferUpdateInput!
+}
+
+input MatchOfferCreateInput {
+  request: RideRequestRelateToOneForCreateInput
+  driver: DriverProfileRelateToOneForCreateInput
+  vehicle: VehicleRelateToOneForCreateInput
+  status: String
+  offeredAt: DateTime
+  reservationStartAt: DateTime
+  reservationReleasedAt: DateTime
+  expiresAt: DateTime
+  respondedAt: DateTime
+  declineReason: String
+  idempotencyKey: String
+  eligibilitySnapshot: JSON
+  acceptedTrip: TripRelateToOneForCreateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type Trip {
+  id: ID!
+  fleet: Fleet
+  request: RideRequest
+  acceptedOffer: MatchOffer
+  rider: User
+  driver: DriverProfile
+  vehicle: Vehicle
+  confirmationCode: String
+  status: String
+  scheduledFor: DateTime
+  acceptedAt: DateTime
+  enRouteAt: DateTime
+  arrivedAt: DateTime
+  startedAt: DateTime
+  completedAt: DateTime
+  cancelledAt: DateTime
+  pickupLabel: String
+  dropoffLabel: String
+  bookingSnapshot: JSON
+  finalFareSnapshot: JSON
+  managementTokenHash: String
+  managementTokenExpiresAt: DateTime
+  managementTokenRevokedAt: DateTime
+  events(where: TripEventWhereInput! = {}, orderBy: [TripEventOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: TripEventWhereUniqueInput): [TripEvent!]
+  eventsCount(where: TripEventWhereInput! = {}): Int
+  locationEvents(where: LocationEventWhereInput! = {}, orderBy: [LocationEventOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: LocationEventWhereUniqueInput): [LocationEvent!]
+  locationEventsCount(where: LocationEventWhereInput! = {}): Int
+  cancellations(where: CancellationWhereInput! = {}, orderBy: [CancellationOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: CancellationWhereUniqueInput): [Cancellation!]
+  cancellationsCount(where: CancellationWhereInput! = {}): Int
+  payments(where: PaymentWhereInput! = {}, orderBy: [PaymentOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: PaymentWhereUniqueInput): [Payment!]
+  paymentsCount(where: PaymentWhereInput! = {}): Int
+  ledgerEntries(where: LedgerEntryWhereInput! = {}, orderBy: [LedgerEntryOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: LedgerEntryWhereUniqueInput): [LedgerEntry!]
+  ledgerEntriesCount(where: LedgerEntryWhereInput! = {}): Int
+  incidents(where: SafetyIncidentWhereInput! = {}, orderBy: [SafetyIncidentOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: SafetyIncidentWhereUniqueInput): [SafetyIncident!]
+  incidentsCount(where: SafetyIncidentWhereInput! = {}): Int
+  supportCases(where: SupportCaseWhereInput! = {}, orderBy: [SupportCaseOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: SupportCaseWhereUniqueInput): [SupportCase!]
+  supportCasesCount(where: SupportCaseWhereInput! = {}): Int
+  conversation: Conversation
+  reviews(where: ReviewWhereInput! = {}, orderBy: [ReviewOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: ReviewWhereUniqueInput): [Review!]
+  reviewsCount(where: ReviewWhereInput! = {}): Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input TripWhereUniqueInput {
+  id: ID
+  request: RideRequestWhereUniqueInput
+  acceptedOffer: MatchOfferWhereUniqueInput
+  confirmationCode: String
+  conversation: ConversationWhereUniqueInput
+}
+
+input TripWhereInput {
+  AND: [TripWhereInput!]
+  OR: [TripWhereInput!]
+  NOT: [TripWhereInput!]
+  id: IDFilter
+  fleet: FleetWhereInput
+  request: RideRequestWhereInput
+  acceptedOffer: MatchOfferWhereInput
+  rider: UserWhereInput
+  driver: DriverProfileWhereInput
+  vehicle: VehicleWhereInput
+  confirmationCode: StringFilter
+  status: StringNullableFilter
+  scheduledFor: DateTimeNullableFilter
+  acceptedAt: DateTimeNullableFilter
+  enRouteAt: DateTimeNullableFilter
+  arrivedAt: DateTimeNullableFilter
+  startedAt: DateTimeNullableFilter
+  completedAt: DateTimeNullableFilter
+  cancelledAt: DateTimeNullableFilter
+  pickupLabel: StringFilter
+  dropoffLabel: StringFilter
+  managementTokenHash: StringFilter
+  managementTokenExpiresAt: DateTimeNullableFilter
+  managementTokenRevokedAt: DateTimeNullableFilter
+  events: TripEventManyRelationFilter
+  locationEvents: LocationEventManyRelationFilter
+  cancellations: CancellationManyRelationFilter
+  payments: PaymentManyRelationFilter
+  ledgerEntries: LedgerEntryManyRelationFilter
+  incidents: SafetyIncidentManyRelationFilter
+  supportCases: SupportCaseManyRelationFilter
+  conversation: ConversationWhereInput
+  reviews: ReviewManyRelationFilter
+  createdAt: DateTimeNullableFilter
+  updatedAt: DateTimeNullableFilter
+}
+
+input TripEventManyRelationFilter {
+  every: TripEventWhereInput
+  some: TripEventWhereInput
+  none: TripEventWhereInput
+}
+
+input LocationEventManyRelationFilter {
+  every: LocationEventWhereInput
+  some: LocationEventWhereInput
+  none: LocationEventWhereInput
+}
+
+input CancellationManyRelationFilter {
+  every: CancellationWhereInput
+  some: CancellationWhereInput
+  none: CancellationWhereInput
+}
+
+input PaymentManyRelationFilter {
+  every: PaymentWhereInput
+  some: PaymentWhereInput
+  none: PaymentWhereInput
+}
+
+input LedgerEntryManyRelationFilter {
+  every: LedgerEntryWhereInput
+  some: LedgerEntryWhereInput
+  none: LedgerEntryWhereInput
+}
+
+input SafetyIncidentManyRelationFilter {
+  every: SafetyIncidentWhereInput
+  some: SafetyIncidentWhereInput
+  none: SafetyIncidentWhereInput
+}
+
+input SupportCaseManyRelationFilter {
+  every: SupportCaseWhereInput
+  some: SupportCaseWhereInput
+  none: SupportCaseWhereInput
+}
+
+input TripOrderByInput {
+  id: OrderDirection
+  confirmationCode: OrderDirection
+  status: OrderDirection
+  scheduledFor: OrderDirection
+  acceptedAt: OrderDirection
+  enRouteAt: OrderDirection
+  arrivedAt: OrderDirection
+  startedAt: OrderDirection
+  completedAt: OrderDirection
+  cancelledAt: OrderDirection
+  pickupLabel: OrderDirection
+  dropoffLabel: OrderDirection
+  managementTokenHash: OrderDirection
+  managementTokenExpiresAt: OrderDirection
+  managementTokenRevokedAt: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input TripUpdateInput {
+  fleet: FleetRelateToOneForUpdateInput
+  request: RideRequestRelateToOneForUpdateInput
+  acceptedOffer: MatchOfferRelateToOneForUpdateInput
+  rider: UserRelateToOneForUpdateInput
+  driver: DriverProfileRelateToOneForUpdateInput
+  vehicle: VehicleRelateToOneForUpdateInput
+  confirmationCode: String
+  status: String
+  scheduledFor: DateTime
+  acceptedAt: DateTime
+  enRouteAt: DateTime
+  arrivedAt: DateTime
+  startedAt: DateTime
+  completedAt: DateTime
+  cancelledAt: DateTime
+  pickupLabel: String
+  dropoffLabel: String
+  bookingSnapshot: JSON
+  finalFareSnapshot: JSON
+  managementTokenHash: String
+  managementTokenExpiresAt: DateTime
+  managementTokenRevokedAt: DateTime
+  events: TripEventRelateToManyForUpdateInput
+  locationEvents: LocationEventRelateToManyForUpdateInput
+  cancellations: CancellationRelateToManyForUpdateInput
+  payments: PaymentRelateToManyForUpdateInput
+  ledgerEntries: LedgerEntryRelateToManyForUpdateInput
+  incidents: SafetyIncidentRelateToManyForUpdateInput
+  supportCases: SupportCaseRelateToManyForUpdateInput
+  conversation: ConversationRelateToOneForUpdateInput
+  reviews: ReviewRelateToManyForUpdateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input MatchOfferRelateToOneForUpdateInput {
+  create: MatchOfferCreateInput
+  connect: MatchOfferWhereUniqueInput
+  disconnect: Boolean
+}
+
+input TripEventRelateToManyForUpdateInput {
+  disconnect: [TripEventWhereUniqueInput!]
+  set: [TripEventWhereUniqueInput!]
+  create: [TripEventCreateInput!]
+  connect: [TripEventWhereUniqueInput!]
+}
+
+input LocationEventRelateToManyForUpdateInput {
+  disconnect: [LocationEventWhereUniqueInput!]
+  set: [LocationEventWhereUniqueInput!]
+  create: [LocationEventCreateInput!]
+  connect: [LocationEventWhereUniqueInput!]
+}
+
+input CancellationRelateToManyForUpdateInput {
+  disconnect: [CancellationWhereUniqueInput!]
+  set: [CancellationWhereUniqueInput!]
+  create: [CancellationCreateInput!]
+  connect: [CancellationWhereUniqueInput!]
+}
+
+input PaymentRelateToManyForUpdateInput {
+  disconnect: [PaymentWhereUniqueInput!]
+  set: [PaymentWhereUniqueInput!]
+  create: [PaymentCreateInput!]
+  connect: [PaymentWhereUniqueInput!]
+}
+
+input LedgerEntryRelateToManyForUpdateInput {
+  disconnect: [LedgerEntryWhereUniqueInput!]
+  set: [LedgerEntryWhereUniqueInput!]
+  create: [LedgerEntryCreateInput!]
+  connect: [LedgerEntryWhereUniqueInput!]
+}
+
+input SafetyIncidentRelateToManyForUpdateInput {
+  disconnect: [SafetyIncidentWhereUniqueInput!]
+  set: [SafetyIncidentWhereUniqueInput!]
+  create: [SafetyIncidentCreateInput!]
+  connect: [SafetyIncidentWhereUniqueInput!]
+}
+
+input SupportCaseRelateToManyForUpdateInput {
+  disconnect: [SupportCaseWhereUniqueInput!]
+  set: [SupportCaseWhereUniqueInput!]
+  create: [SupportCaseCreateInput!]
+  connect: [SupportCaseWhereUniqueInput!]
+}
+
+input ConversationRelateToOneForUpdateInput {
+  create: ConversationCreateInput
+  connect: ConversationWhereUniqueInput
+  disconnect: Boolean
+}
+
+input TripUpdateArgs {
+  where: TripWhereUniqueInput!
+  data: TripUpdateInput!
+}
+
+input TripCreateInput {
+  fleet: FleetRelateToOneForCreateInput
+  request: RideRequestRelateToOneForCreateInput
+  acceptedOffer: MatchOfferRelateToOneForCreateInput
+  rider: UserRelateToOneForCreateInput
+  driver: DriverProfileRelateToOneForCreateInput
+  vehicle: VehicleRelateToOneForCreateInput
+  confirmationCode: String
+  status: String
+  scheduledFor: DateTime
+  acceptedAt: DateTime
+  enRouteAt: DateTime
+  arrivedAt: DateTime
+  startedAt: DateTime
+  completedAt: DateTime
+  cancelledAt: DateTime
+  pickupLabel: String
+  dropoffLabel: String
+  bookingSnapshot: JSON
+  finalFareSnapshot: JSON
+  managementTokenHash: String
+  managementTokenExpiresAt: DateTime
+  managementTokenRevokedAt: DateTime
+  events: TripEventRelateToManyForCreateInput
+  locationEvents: LocationEventRelateToManyForCreateInput
+  cancellations: CancellationRelateToManyForCreateInput
+  payments: PaymentRelateToManyForCreateInput
+  ledgerEntries: LedgerEntryRelateToManyForCreateInput
+  incidents: SafetyIncidentRelateToManyForCreateInput
+  supportCases: SupportCaseRelateToManyForCreateInput
+  conversation: ConversationRelateToOneForCreateInput
+  reviews: ReviewRelateToManyForCreateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input MatchOfferRelateToOneForCreateInput {
+  create: MatchOfferCreateInput
+  connect: MatchOfferWhereUniqueInput
+}
+
+input TripEventRelateToManyForCreateInput {
+  create: [TripEventCreateInput!]
+  connect: [TripEventWhereUniqueInput!]
+}
+
+input LocationEventRelateToManyForCreateInput {
+  create: [LocationEventCreateInput!]
+  connect: [LocationEventWhereUniqueInput!]
+}
+
+input CancellationRelateToManyForCreateInput {
+  create: [CancellationCreateInput!]
+  connect: [CancellationWhereUniqueInput!]
+}
+
+input PaymentRelateToManyForCreateInput {
+  create: [PaymentCreateInput!]
+  connect: [PaymentWhereUniqueInput!]
+}
+
+input LedgerEntryRelateToManyForCreateInput {
+  create: [LedgerEntryCreateInput!]
+  connect: [LedgerEntryWhereUniqueInput!]
+}
+
+input SafetyIncidentRelateToManyForCreateInput {
+  create: [SafetyIncidentCreateInput!]
+  connect: [SafetyIncidentWhereUniqueInput!]
+}
+
+input SupportCaseRelateToManyForCreateInput {
+  create: [SupportCaseCreateInput!]
+  connect: [SupportCaseWhereUniqueInput!]
+}
+
+input ConversationRelateToOneForCreateInput {
+  create: ConversationCreateInput
+  connect: ConversationWhereUniqueInput
+}
+
+type TripEvent {
+  id: ID!
+  trip: Trip
+  eventType: String
+  fromStatus: String
+  toStatus: String
+  actorType: String
+  actorUser: User
+  idempotencyKey: String
+  occurredAt: DateTime
   metadata: JSON
+  createdAt: DateTime
+  updatedAt: DateTime
 }
 
-input TodoImageUpdateArgs {
-  where: TodoImageWhereUniqueInput!
-  data: TodoImageUpdateInput!
+input TripEventWhereUniqueInput {
+  id: ID
+  idempotencyKey: String
 }
 
-input TodoImageCreateInput {
-  image: ImageFieldInput
-  imagePath: String
-  altText: String
-  todos: TodoRelateToManyForCreateInput
+input TripEventWhereInput {
+  AND: [TripEventWhereInput!]
+  OR: [TripEventWhereInput!]
+  NOT: [TripEventWhereInput!]
+  id: IDFilter
+  trip: TripWhereInput
+  eventType: StringFilter
+  fromStatus: StringFilter
+  toStatus: StringFilter
+  actorType: StringNullableFilter
+  actorUser: UserWhereInput
+  idempotencyKey: StringFilter
+  occurredAt: DateTimeNullableFilter
+  createdAt: DateTimeNullableFilter
+  updatedAt: DateTimeNullableFilter
+}
+
+input TripEventOrderByInput {
+  id: OrderDirection
+  eventType: OrderDirection
+  fromStatus: OrderDirection
+  toStatus: OrderDirection
+  actorType: OrderDirection
+  idempotencyKey: OrderDirection
+  occurredAt: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input TripEventUpdateInput {
+  trip: TripRelateToOneForUpdateInput
+  eventType: String
+  fromStatus: String
+  toStatus: String
+  actorType: String
+  actorUser: UserRelateToOneForUpdateInput
+  idempotencyKey: String
+  occurredAt: DateTime
   metadata: JSON
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input TripEventUpdateArgs {
+  where: TripEventWhereUniqueInput!
+  data: TripEventUpdateInput!
+}
+
+input TripEventCreateInput {
+  trip: TripRelateToOneForCreateInput
+  eventType: String
+  fromStatus: String
+  toStatus: String
+  actorType: String
+  actorUser: UserRelateToOneForCreateInput
+  idempotencyKey: String
+  occurredAt: DateTime
+  metadata: JSON
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type LocationEvent {
+  id: ID!
+  trip: Trip
+  actorType: String
+  recordedAt: DateTime
+  coarseGeohash: String
+  encryptedCoordinateRef: String
+  accuracyMeters: Int
+  providerEvidence: JSON
+  expiresAt: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input LocationEventWhereUniqueInput {
+  id: ID
+}
+
+input LocationEventWhereInput {
+  AND: [LocationEventWhereInput!]
+  OR: [LocationEventWhereInput!]
+  NOT: [LocationEventWhereInput!]
+  id: IDFilter
+  trip: TripWhereInput
+  actorType: StringNullableFilter
+  recordedAt: DateTimeFilter
+  coarseGeohash: StringFilter
+  encryptedCoordinateRef: StringFilter
+  accuracyMeters: IntNullableFilter
+  expiresAt: DateTimeNullableFilter
+  createdAt: DateTimeNullableFilter
+  updatedAt: DateTimeNullableFilter
+}
+
+input LocationEventOrderByInput {
+  id: OrderDirection
+  actorType: OrderDirection
+  recordedAt: OrderDirection
+  coarseGeohash: OrderDirection
+  encryptedCoordinateRef: OrderDirection
+  accuracyMeters: OrderDirection
+  expiresAt: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input LocationEventUpdateInput {
+  trip: TripRelateToOneForUpdateInput
+  actorType: String
+  recordedAt: DateTime
+  coarseGeohash: String
+  encryptedCoordinateRef: String
+  accuracyMeters: Int
+  providerEvidence: JSON
+  expiresAt: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input LocationEventUpdateArgs {
+  where: LocationEventWhereUniqueInput!
+  data: LocationEventUpdateInput!
+}
+
+input LocationEventCreateInput {
+  trip: TripRelateToOneForCreateInput
+  actorType: String
+  recordedAt: DateTime
+  coarseGeohash: String
+  encryptedCoordinateRef: String
+  accuracyMeters: Int
+  providerEvidence: JSON
+  expiresAt: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type Cancellation {
+  id: ID!
+  trip: Trip
+  actorType: String
+  reasonCode: String
+  reason: String
+  policySnapshot: JSON
+  feeMinor: Int
+  currencyCode: String
+  refundRequired: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input CancellationWhereUniqueInput {
+  id: ID
+}
+
+input CancellationWhereInput {
+  AND: [CancellationWhereInput!]
+  OR: [CancellationWhereInput!]
+  NOT: [CancellationWhereInput!]
+  id: IDFilter
+  trip: TripWhereInput
+  actorType: StringNullableFilter
+  reasonCode: StringFilter
+  reason: StringFilter
+  feeMinor: IntNullableFilter
+  currencyCode: StringFilter
+  refundRequired: StringNullableFilter
+  createdAt: DateTimeNullableFilter
+  updatedAt: DateTimeNullableFilter
+}
+
+input CancellationOrderByInput {
+  id: OrderDirection
+  actorType: OrderDirection
+  reasonCode: OrderDirection
+  reason: OrderDirection
+  feeMinor: OrderDirection
+  currencyCode: OrderDirection
+  refundRequired: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input CancellationUpdateInput {
+  trip: TripRelateToOneForUpdateInput
+  actorType: String
+  reasonCode: String
+  reason: String
+  policySnapshot: JSON
+  feeMinor: Int
+  currencyCode: String
+  refundRequired: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input CancellationUpdateArgs {
+  where: CancellationWhereUniqueInput!
+  data: CancellationUpdateInput!
+}
+
+input CancellationCreateInput {
+  trip: TripRelateToOneForCreateInput
+  actorType: String
+  reasonCode: String
+  reason: String
+  policySnapshot: JSON
+  feeMinor: Int
+  currencyCode: String
+  refundRequired: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type SafetyIncident {
+  id: ID!
+  trip: Trip
+  caseNumber: String
+  severity: String
+  status: String
+  category: String
+  summary: String
+  restrictedDetails: JSON
+  evidenceRefs: JSON
+  reportedBy: User
+  assignedTo: User
+  reportedAt: DateTime
+  resolvedAt: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input SafetyIncidentWhereUniqueInput {
+  id: ID
+  caseNumber: String
+}
+
+input SafetyIncidentWhereInput {
+  AND: [SafetyIncidentWhereInput!]
+  OR: [SafetyIncidentWhereInput!]
+  NOT: [SafetyIncidentWhereInput!]
+  id: IDFilter
+  trip: TripWhereInput
+  caseNumber: StringFilter
+  severity: StringNullableFilter
+  status: StringNullableFilter
+  category: StringFilter
+  summary: StringFilter
+  reportedBy: UserWhereInput
+  assignedTo: UserWhereInput
+  reportedAt: DateTimeNullableFilter
+  resolvedAt: DateTimeNullableFilter
+  createdAt: DateTimeNullableFilter
+  updatedAt: DateTimeNullableFilter
+}
+
+input SafetyIncidentOrderByInput {
+  id: OrderDirection
+  caseNumber: OrderDirection
+  severity: OrderDirection
+  status: OrderDirection
+  category: OrderDirection
+  summary: OrderDirection
+  reportedAt: OrderDirection
+  resolvedAt: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input SafetyIncidentUpdateInput {
+  trip: TripRelateToOneForUpdateInput
+  caseNumber: String
+  severity: String
+  status: String
+  category: String
+  summary: String
+  restrictedDetails: JSON
+  evidenceRefs: JSON
+  reportedBy: UserRelateToOneForUpdateInput
+  assignedTo: UserRelateToOneForUpdateInput
+  reportedAt: DateTime
+  resolvedAt: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input SafetyIncidentUpdateArgs {
+  where: SafetyIncidentWhereUniqueInput!
+  data: SafetyIncidentUpdateInput!
+}
+
+input SafetyIncidentCreateInput {
+  trip: TripRelateToOneForCreateInput
+  caseNumber: String
+  severity: String
+  status: String
+  category: String
+  summary: String
+  restrictedDetails: JSON
+  evidenceRefs: JSON
+  reportedBy: UserRelateToOneForCreateInput
+  assignedTo: UserRelateToOneForCreateInput
+  reportedAt: DateTime
+  resolvedAt: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type SupportCase {
+  id: ID!
+  trip: Trip
+  caseNumber: String
+  status: String
+  category: String
+  subject: String
+  description: String
+  priority: String
+  requester: User
+  assignedTo: User
+  resolvedAt: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input SupportCaseWhereUniqueInput {
+  id: ID
+  caseNumber: String
+}
+
+input SupportCaseWhereInput {
+  AND: [SupportCaseWhereInput!]
+  OR: [SupportCaseWhereInput!]
+  NOT: [SupportCaseWhereInput!]
+  id: IDFilter
+  trip: TripWhereInput
+  caseNumber: StringFilter
+  status: StringNullableFilter
+  category: StringFilter
+  subject: StringFilter
+  description: StringFilter
+  priority: StringNullableFilter
+  requester: UserWhereInput
+  assignedTo: UserWhereInput
+  resolvedAt: DateTimeNullableFilter
+  createdAt: DateTimeNullableFilter
+  updatedAt: DateTimeNullableFilter
+}
+
+input SupportCaseOrderByInput {
+  id: OrderDirection
+  caseNumber: OrderDirection
+  status: OrderDirection
+  category: OrderDirection
+  subject: OrderDirection
+  description: OrderDirection
+  priority: OrderDirection
+  resolvedAt: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input SupportCaseUpdateInput {
+  trip: TripRelateToOneForUpdateInput
+  caseNumber: String
+  status: String
+  category: String
+  subject: String
+  description: String
+  priority: String
+  requester: UserRelateToOneForUpdateInput
+  assignedTo: UserRelateToOneForUpdateInput
+  resolvedAt: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input SupportCaseUpdateArgs {
+  where: SupportCaseWhereUniqueInput!
+  data: SupportCaseUpdateInput!
+}
+
+input SupportCaseCreateInput {
+  trip: TripRelateToOneForCreateInput
+  caseNumber: String
+  status: String
+  category: String
+  subject: String
+  description: String
+  priority: String
+  requester: UserRelateToOneForCreateInput
+  assignedTo: UserRelateToOneForCreateInput
+  resolvedAt: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type Conversation {
+  id: ID!
+  trip: Trip
+  status: String
+  messages(where: MessageWhereInput! = {}, orderBy: [MessageOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: MessageWhereUniqueInput): [Message!]
+  messagesCount(where: MessageWhereInput! = {}): Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ConversationWhereUniqueInput {
+  id: ID
+  trip: TripWhereUniqueInput
+}
+
+input ConversationWhereInput {
+  AND: [ConversationWhereInput!]
+  OR: [ConversationWhereInput!]
+  NOT: [ConversationWhereInput!]
+  id: IDFilter
+  trip: TripWhereInput
+  status: StringNullableFilter
+  messages: MessageManyRelationFilter
+  createdAt: DateTimeNullableFilter
+  updatedAt: DateTimeNullableFilter
+}
+
+input MessageManyRelationFilter {
+  every: MessageWhereInput
+  some: MessageWhereInput
+  none: MessageWhereInput
+}
+
+input ConversationOrderByInput {
+  id: OrderDirection
+  status: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input ConversationUpdateInput {
+  trip: TripRelateToOneForUpdateInput
+  status: String
+  messages: MessageRelateToManyForUpdateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input MessageRelateToManyForUpdateInput {
+  disconnect: [MessageWhereUniqueInput!]
+  set: [MessageWhereUniqueInput!]
+  create: [MessageCreateInput!]
+  connect: [MessageWhereUniqueInput!]
+}
+
+input ConversationUpdateArgs {
+  where: ConversationWhereUniqueInput!
+  data: ConversationUpdateInput!
+}
+
+input ConversationCreateInput {
+  trip: TripRelateToOneForCreateInput
+  status: String
+  messages: MessageRelateToManyForCreateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input MessageRelateToManyForCreateInput {
+  create: [MessageCreateInput!]
+  connect: [MessageWhereUniqueInput!]
+}
+
+type Message {
+  id: ID!
+  conversation: Conversation
+  senderType: String
+  sender: User
+  body: String
+  relayProviderReference: String
+  status: String
+  sentAt: DateTime
+  metadata: JSON
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input MessageWhereUniqueInput {
+  id: ID
+}
+
+input MessageWhereInput {
+  AND: [MessageWhereInput!]
+  OR: [MessageWhereInput!]
+  NOT: [MessageWhereInput!]
+  id: IDFilter
+  conversation: ConversationWhereInput
+  senderType: StringNullableFilter
+  sender: UserWhereInput
+  body: StringFilter
+  relayProviderReference: StringFilter
+  status: StringNullableFilter
+  sentAt: DateTimeNullableFilter
+  createdAt: DateTimeNullableFilter
+  updatedAt: DateTimeNullableFilter
+}
+
+input MessageOrderByInput {
+  id: OrderDirection
+  senderType: OrderDirection
+  body: OrderDirection
+  relayProviderReference: OrderDirection
+  status: OrderDirection
+  sentAt: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input MessageUpdateInput {
+  conversation: ConversationRelateToOneForUpdateInput
+  senderType: String
+  sender: UserRelateToOneForUpdateInput
+  body: String
+  relayProviderReference: String
+  status: String
+  sentAt: DateTime
+  metadata: JSON
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input MessageUpdateArgs {
+  where: MessageWhereUniqueInput!
+  data: MessageUpdateInput!
+}
+
+input MessageCreateInput {
+  conversation: ConversationRelateToOneForCreateInput
+  senderType: String
+  sender: UserRelateToOneForCreateInput
+  body: String
+  relayProviderReference: String
+  status: String
+  sentAt: DateTime
+  metadata: JSON
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type Review {
+  id: ID!
+  trip: Trip
+  author: User
+  direction: String
+  rating: Int
+  body: String
+  status: String
+  submittedAt: DateTime
+  moderatedAt: DateTime
+  moderationReason: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ReviewWhereUniqueInput {
+  id: ID
+}
+
+input ReviewWhereInput {
+  AND: [ReviewWhereInput!]
+  OR: [ReviewWhereInput!]
+  NOT: [ReviewWhereInput!]
+  id: IDFilter
+  trip: TripWhereInput
+  author: UserWhereInput
+  direction: StringNullableFilter
+  rating: IntNullableFilter
+  body: StringFilter
+  status: StringNullableFilter
+  submittedAt: DateTimeNullableFilter
+  moderatedAt: DateTimeNullableFilter
+  moderationReason: StringFilter
+  createdAt: DateTimeNullableFilter
+  updatedAt: DateTimeNullableFilter
+}
+
+input ReviewOrderByInput {
+  id: OrderDirection
+  direction: OrderDirection
+  rating: OrderDirection
+  body: OrderDirection
+  status: OrderDirection
+  submittedAt: OrderDirection
+  moderatedAt: OrderDirection
+  moderationReason: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input ReviewUpdateInput {
+  trip: TripRelateToOneForUpdateInput
+  author: UserRelateToOneForUpdateInput
+  direction: String
+  rating: Int
+  body: String
+  status: String
+  submittedAt: DateTime
+  moderatedAt: DateTime
+  moderationReason: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ReviewUpdateArgs {
+  where: ReviewWhereUniqueInput!
+  data: ReviewUpdateInput!
+}
+
+input ReviewCreateInput {
+  trip: TripRelateToOneForCreateInput
+  author: UserRelateToOneForCreateInput
+  direction: String
+  rating: Int
+  body: String
+  status: String
+  submittedAt: DateTime
+  moderatedAt: DateTime
+  moderationReason: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type PaymentProvider {
+  id: ID!
+  name: String
+  code: String
+  isInstalled: String
+  credentialsReference: String
+  metadata: JSON
+  createPaymentFunction: String
+  capturePaymentFunction: String
+  refundPaymentFunction: String
+  getPaymentStatusFunction: String
+  handleWebhookFunction: String
+  payments(where: PaymentWhereInput! = {}, orderBy: [PaymentOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: PaymentWhereUniqueInput): [Payment!]
+  paymentsCount(where: PaymentWhereInput! = {}): Int
+  refunds(where: RefundWhereInput! = {}, orderBy: [RefundOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: RefundWhereUniqueInput): [Refund!]
+  refundsCount(where: RefundWhereInput! = {}): Int
+  payouts(where: PayoutWhereInput! = {}, orderBy: [PayoutOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: PayoutWhereUniqueInput): [Payout!]
+  payoutsCount(where: PayoutWhereInput! = {}): Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PaymentProviderWhereUniqueInput {
+  id: ID
+  code: String
+}
+
+input PaymentProviderWhereInput {
+  AND: [PaymentProviderWhereInput!]
+  OR: [PaymentProviderWhereInput!]
+  NOT: [PaymentProviderWhereInput!]
+  id: IDFilter
+  name: StringFilter
+  code: StringFilter
+  isInstalled: StringNullableFilter
+  credentialsReference: StringFilter
+  createPaymentFunction: StringFilter
+  capturePaymentFunction: StringFilter
+  refundPaymentFunction: StringFilter
+  getPaymentStatusFunction: StringFilter
+  handleWebhookFunction: StringFilter
+  payments: PaymentManyRelationFilter
+  refunds: RefundManyRelationFilter
+  payouts: PayoutManyRelationFilter
+  createdAt: DateTimeNullableFilter
+  updatedAt: DateTimeNullableFilter
+}
+
+input RefundManyRelationFilter {
+  every: RefundWhereInput
+  some: RefundWhereInput
+  none: RefundWhereInput
+}
+
+input PayoutManyRelationFilter {
+  every: PayoutWhereInput
+  some: PayoutWhereInput
+  none: PayoutWhereInput
+}
+
+input PaymentProviderOrderByInput {
+  id: OrderDirection
+  name: OrderDirection
+  code: OrderDirection
+  isInstalled: OrderDirection
+  credentialsReference: OrderDirection
+  createPaymentFunction: OrderDirection
+  capturePaymentFunction: OrderDirection
+  refundPaymentFunction: OrderDirection
+  getPaymentStatusFunction: OrderDirection
+  handleWebhookFunction: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input PaymentProviderUpdateInput {
+  name: String
+  code: String
+  isInstalled: String
+  credentialsReference: String
+  metadata: JSON
+  createPaymentFunction: String
+  capturePaymentFunction: String
+  refundPaymentFunction: String
+  getPaymentStatusFunction: String
+  handleWebhookFunction: String
+  payments: PaymentRelateToManyForUpdateInput
+  refunds: RefundRelateToManyForUpdateInput
+  payouts: PayoutRelateToManyForUpdateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input RefundRelateToManyForUpdateInput {
+  disconnect: [RefundWhereUniqueInput!]
+  set: [RefundWhereUniqueInput!]
+  create: [RefundCreateInput!]
+  connect: [RefundWhereUniqueInput!]
+}
+
+input PayoutRelateToManyForUpdateInput {
+  disconnect: [PayoutWhereUniqueInput!]
+  set: [PayoutWhereUniqueInput!]
+  create: [PayoutCreateInput!]
+  connect: [PayoutWhereUniqueInput!]
+}
+
+input PaymentProviderUpdateArgs {
+  where: PaymentProviderWhereUniqueInput!
+  data: PaymentProviderUpdateInput!
+}
+
+input PaymentProviderCreateInput {
+  name: String
+  code: String
+  isInstalled: String
+  credentialsReference: String
+  metadata: JSON
+  createPaymentFunction: String
+  capturePaymentFunction: String
+  refundPaymentFunction: String
+  getPaymentStatusFunction: String
+  handleWebhookFunction: String
+  payments: PaymentRelateToManyForCreateInput
+  refunds: RefundRelateToManyForCreateInput
+  payouts: PayoutRelateToManyForCreateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input RefundRelateToManyForCreateInput {
+  create: [RefundCreateInput!]
+  connect: [RefundWhereUniqueInput!]
+}
+
+input PayoutRelateToManyForCreateInput {
+  create: [PayoutCreateInput!]
+  connect: [PayoutWhereUniqueInput!]
+}
+
+type Payment {
+  id: ID!
+  trip: Trip
+  provider: PaymentProvider
+  amountMinor: Int
+  currencyCode: String
+  status: String
+  providerReference: String
+  idempotencyKey: String
+  providerEvidence: JSON
+  capturedAt: DateTime
+  refunds(where: RefundWhereInput! = {}, orderBy: [RefundOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: RefundWhereUniqueInput): [Refund!]
+  refundsCount(where: RefundWhereInput! = {}): Int
+  ledgerEntries(where: LedgerEntryWhereInput! = {}, orderBy: [LedgerEntryOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: LedgerEntryWhereUniqueInput): [LedgerEntry!]
+  ledgerEntriesCount(where: LedgerEntryWhereInput! = {}): Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PaymentWhereUniqueInput {
+  id: ID
+  idempotencyKey: String
+}
+
+input PaymentWhereInput {
+  AND: [PaymentWhereInput!]
+  OR: [PaymentWhereInput!]
+  NOT: [PaymentWhereInput!]
+  id: IDFilter
+  trip: TripWhereInput
+  provider: PaymentProviderWhereInput
+  amountMinor: IntNullableFilter
+  currencyCode: StringFilter
+  status: StringNullableFilter
+  providerReference: StringFilter
+  idempotencyKey: StringFilter
+  capturedAt: DateTimeNullableFilter
+  refunds: RefundManyRelationFilter
+  ledgerEntries: LedgerEntryManyRelationFilter
+  createdAt: DateTimeNullableFilter
+  updatedAt: DateTimeNullableFilter
+}
+
+input PaymentOrderByInput {
+  id: OrderDirection
+  amountMinor: OrderDirection
+  currencyCode: OrderDirection
+  status: OrderDirection
+  providerReference: OrderDirection
+  idempotencyKey: OrderDirection
+  capturedAt: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input PaymentUpdateInput {
+  trip: TripRelateToOneForUpdateInput
+  provider: PaymentProviderRelateToOneForUpdateInput
+  amountMinor: Int
+  currencyCode: String
+  status: String
+  providerReference: String
+  idempotencyKey: String
+  providerEvidence: JSON
+  capturedAt: DateTime
+  refunds: RefundRelateToManyForUpdateInput
+  ledgerEntries: LedgerEntryRelateToManyForUpdateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PaymentProviderRelateToOneForUpdateInput {
+  create: PaymentProviderCreateInput
+  connect: PaymentProviderWhereUniqueInput
+  disconnect: Boolean
+}
+
+input PaymentUpdateArgs {
+  where: PaymentWhereUniqueInput!
+  data: PaymentUpdateInput!
+}
+
+input PaymentCreateInput {
+  trip: TripRelateToOneForCreateInput
+  provider: PaymentProviderRelateToOneForCreateInput
+  amountMinor: Int
+  currencyCode: String
+  status: String
+  providerReference: String
+  idempotencyKey: String
+  providerEvidence: JSON
+  capturedAt: DateTime
+  refunds: RefundRelateToManyForCreateInput
+  ledgerEntries: LedgerEntryRelateToManyForCreateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PaymentProviderRelateToOneForCreateInput {
+  create: PaymentProviderCreateInput
+  connect: PaymentProviderWhereUniqueInput
+}
+
+type Refund {
+  id: ID!
+  payment: Payment
+  provider: PaymentProvider
+  amountMinor: Int
+  currencyCode: String
+  reason: String
+  status: String
+  providerReference: String
+  idempotencyKey: String
+  processedAt: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input RefundWhereUniqueInput {
+  id: ID
+  idempotencyKey: String
+}
+
+input RefundWhereInput {
+  AND: [RefundWhereInput!]
+  OR: [RefundWhereInput!]
+  NOT: [RefundWhereInput!]
+  id: IDFilter
+  payment: PaymentWhereInput
+  provider: PaymentProviderWhereInput
+  amountMinor: IntNullableFilter
+  currencyCode: StringFilter
+  reason: StringFilter
+  status: StringNullableFilter
+  providerReference: StringFilter
+  idempotencyKey: StringFilter
+  processedAt: DateTimeNullableFilter
+  createdAt: DateTimeNullableFilter
+  updatedAt: DateTimeNullableFilter
+}
+
+input RefundOrderByInput {
+  id: OrderDirection
+  amountMinor: OrderDirection
+  currencyCode: OrderDirection
+  reason: OrderDirection
+  status: OrderDirection
+  providerReference: OrderDirection
+  idempotencyKey: OrderDirection
+  processedAt: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input RefundUpdateInput {
+  payment: PaymentRelateToOneForUpdateInput
+  provider: PaymentProviderRelateToOneForUpdateInput
+  amountMinor: Int
+  currencyCode: String
+  reason: String
+  status: String
+  providerReference: String
+  idempotencyKey: String
+  processedAt: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PaymentRelateToOneForUpdateInput {
+  create: PaymentCreateInput
+  connect: PaymentWhereUniqueInput
+  disconnect: Boolean
+}
+
+input RefundUpdateArgs {
+  where: RefundWhereUniqueInput!
+  data: RefundUpdateInput!
+}
+
+input RefundCreateInput {
+  payment: PaymentRelateToOneForCreateInput
+  provider: PaymentProviderRelateToOneForCreateInput
+  amountMinor: Int
+  currencyCode: String
+  reason: String
+  status: String
+  providerReference: String
+  idempotencyKey: String
+  processedAt: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PaymentRelateToOneForCreateInput {
+  create: PaymentCreateInput
+  connect: PaymentWhereUniqueInput
+}
+
+type PaymentObservation {
+  id: ID!
+  payment: Payment
+  refund: Refund
+  observationKey: String
+  details: JSON
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PaymentObservationWhereUniqueInput {
+  id: ID
+  observationKey: String
+}
+
+input PaymentObservationWhereInput {
+  AND: [PaymentObservationWhereInput!]
+  OR: [PaymentObservationWhereInput!]
+  NOT: [PaymentObservationWhereInput!]
+  id: IDFilter
+  payment: PaymentWhereInput
+  refund: RefundWhereInput
+  observationKey: StringFilter
+  createdAt: DateTimeNullableFilter
+  updatedAt: DateTimeNullableFilter
+}
+
+input PaymentObservationOrderByInput {
+  id: OrderDirection
+  observationKey: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input PaymentObservationUpdateInput {
+  payment: PaymentRelateToOneForUpdateInput
+  refund: RefundRelateToOneForUpdateInput
+  observationKey: String
+  details: JSON
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input RefundRelateToOneForUpdateInput {
+  create: RefundCreateInput
+  connect: RefundWhereUniqueInput
+  disconnect: Boolean
+}
+
+input PaymentObservationUpdateArgs {
+  where: PaymentObservationWhereUniqueInput!
+  data: PaymentObservationUpdateInput!
+}
+
+input PaymentObservationCreateInput {
+  payment: PaymentRelateToOneForCreateInput
+  refund: RefundRelateToOneForCreateInput
+  observationKey: String
+  details: JSON
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input RefundRelateToOneForCreateInput {
+  create: RefundCreateInput
+  connect: RefundWhereUniqueInput
+}
+
+type LedgerEntry {
+  id: ID!
+  trip: Trip
+  payment: Payment
+  payout: Payout
+  entryKey: String
+  kind: String
+  account: String
+  direction: String
+  amountMinor: Int
+  currencyCode: String
+  effectiveAt: DateTime
+  memo: String
+  metadata: JSON
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input LedgerEntryWhereUniqueInput {
+  id: ID
+  entryKey: String
+}
+
+input LedgerEntryWhereInput {
+  AND: [LedgerEntryWhereInput!]
+  OR: [LedgerEntryWhereInput!]
+  NOT: [LedgerEntryWhereInput!]
+  id: IDFilter
+  trip: TripWhereInput
+  payment: PaymentWhereInput
+  payout: PayoutWhereInput
+  entryKey: StringFilter
+  kind: StringNullableFilter
+  account: StringFilter
+  direction: StringNullableFilter
+  amountMinor: IntNullableFilter
+  currencyCode: StringFilter
+  effectiveAt: DateTimeNullableFilter
+  memo: StringFilter
+  createdAt: DateTimeNullableFilter
+  updatedAt: DateTimeNullableFilter
+}
+
+input LedgerEntryOrderByInput {
+  id: OrderDirection
+  entryKey: OrderDirection
+  kind: OrderDirection
+  account: OrderDirection
+  direction: OrderDirection
+  amountMinor: OrderDirection
+  currencyCode: OrderDirection
+  effectiveAt: OrderDirection
+  memo: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input LedgerEntryUpdateInput {
+  trip: TripRelateToOneForUpdateInput
+  payment: PaymentRelateToOneForUpdateInput
+  payout: PayoutRelateToOneForUpdateInput
+  entryKey: String
+  kind: String
+  account: String
+  direction: String
+  amountMinor: Int
+  currencyCode: String
+  effectiveAt: DateTime
+  memo: String
+  metadata: JSON
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PayoutRelateToOneForUpdateInput {
+  create: PayoutCreateInput
+  connect: PayoutWhereUniqueInput
+  disconnect: Boolean
+}
+
+input LedgerEntryUpdateArgs {
+  where: LedgerEntryWhereUniqueInput!
+  data: LedgerEntryUpdateInput!
+}
+
+input LedgerEntryCreateInput {
+  trip: TripRelateToOneForCreateInput
+  payment: PaymentRelateToOneForCreateInput
+  payout: PayoutRelateToOneForCreateInput
+  entryKey: String
+  kind: String
+  account: String
+  direction: String
+  amountMinor: Int
+  currencyCode: String
+  effectiveAt: DateTime
+  memo: String
+  metadata: JSON
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PayoutRelateToOneForCreateInput {
+  create: PayoutCreateInput
+  connect: PayoutWhereUniqueInput
+}
+
+type Payout {
+  id: ID!
+  driver: DriverProfile
+  provider: PaymentProvider
+  amountMinor: Int
+  currencyCode: String
+  status: String
+  periodStart: DateTime
+  periodEnd: DateTime
+  providerReference: String
+  evidence: JSON
+  ledgerEntries(where: LedgerEntryWhereInput! = {}, orderBy: [LedgerEntryOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: LedgerEntryWhereUniqueInput): [LedgerEntry!]
+  ledgerEntriesCount(where: LedgerEntryWhereInput! = {}): Int
+  paidAt: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PayoutWhereUniqueInput {
+  id: ID
+}
+
+input PayoutWhereInput {
+  AND: [PayoutWhereInput!]
+  OR: [PayoutWhereInput!]
+  NOT: [PayoutWhereInput!]
+  id: IDFilter
+  driver: DriverProfileWhereInput
+  provider: PaymentProviderWhereInput
+  amountMinor: IntNullableFilter
+  currencyCode: StringFilter
+  status: StringNullableFilter
+  periodStart: DateTimeNullableFilter
+  periodEnd: DateTimeNullableFilter
+  providerReference: StringFilter
+  ledgerEntries: LedgerEntryManyRelationFilter
+  paidAt: DateTimeNullableFilter
+  createdAt: DateTimeNullableFilter
+  updatedAt: DateTimeNullableFilter
+}
+
+input PayoutOrderByInput {
+  id: OrderDirection
+  amountMinor: OrderDirection
+  currencyCode: OrderDirection
+  status: OrderDirection
+  periodStart: OrderDirection
+  periodEnd: OrderDirection
+  providerReference: OrderDirection
+  paidAt: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input PayoutUpdateInput {
+  driver: DriverProfileRelateToOneForUpdateInput
+  provider: PaymentProviderRelateToOneForUpdateInput
+  amountMinor: Int
+  currencyCode: String
+  status: String
+  periodStart: DateTime
+  periodEnd: DateTime
+  providerReference: String
+  evidence: JSON
+  ledgerEntries: LedgerEntryRelateToManyForUpdateInput
+  paidAt: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PayoutUpdateArgs {
+  where: PayoutWhereUniqueInput!
+  data: PayoutUpdateInput!
+}
+
+input PayoutCreateInput {
+  driver: DriverProfileRelateToOneForCreateInput
+  provider: PaymentProviderRelateToOneForCreateInput
+  amountMinor: Int
+  currencyCode: String
+  status: String
+  periodStart: DateTime
+  periodEnd: DateTime
+  providerReference: String
+  evidence: JSON
+  ledgerEntries: LedgerEntryRelateToManyForCreateInput
+  paidAt: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type Notification {
+  id: ID!
+  trip: Trip
+  recipient: User
+  channel: String
+  templateKey: String
+  status: String
+  payload: JSON
+  providerReference: String
+  idempotencyKey: String
+  attemptCount: Int
+  nextAttemptAt: DateTime
+  sentAt: DateTime
+  lastError: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input NotificationWhereUniqueInput {
+  id: ID
+  idempotencyKey: String
+}
+
+input NotificationWhereInput {
+  AND: [NotificationWhereInput!]
+  OR: [NotificationWhereInput!]
+  NOT: [NotificationWhereInput!]
+  id: IDFilter
+  trip: TripWhereInput
+  recipient: UserWhereInput
+  channel: StringNullableFilter
+  templateKey: StringFilter
+  status: StringNullableFilter
+  providerReference: StringFilter
+  idempotencyKey: StringFilter
+  attemptCount: IntNullableFilter
+  nextAttemptAt: DateTimeNullableFilter
+  sentAt: DateTimeNullableFilter
+  lastError: StringFilter
+  createdAt: DateTimeNullableFilter
+  updatedAt: DateTimeNullableFilter
+}
+
+input NotificationOrderByInput {
+  id: OrderDirection
+  channel: OrderDirection
+  templateKey: OrderDirection
+  status: OrderDirection
+  providerReference: OrderDirection
+  idempotencyKey: OrderDirection
+  attemptCount: OrderDirection
+  nextAttemptAt: OrderDirection
+  sentAt: OrderDirection
+  lastError: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input NotificationUpdateInput {
+  trip: TripRelateToOneForUpdateInput
+  recipient: UserRelateToOneForUpdateInput
+  channel: String
+  templateKey: String
+  status: String
+  payload: JSON
+  providerReference: String
+  idempotencyKey: String
+  attemptCount: Int
+  nextAttemptAt: DateTime
+  sentAt: DateTime
+  lastError: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input NotificationUpdateArgs {
+  where: NotificationWhereUniqueInput!
+  data: NotificationUpdateInput!
+}
+
+input NotificationCreateInput {
+  trip: TripRelateToOneForCreateInput
+  recipient: UserRelateToOneForCreateInput
+  channel: String
+  templateKey: String
+  status: String
+  payload: JSON
+  providerReference: String
+  idempotencyKey: String
+  attemptCount: Int
+  nextAttemptAt: DateTime
+  sentAt: DateTime
+  lastError: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type MarketplaceRegistration {
+  id: ID!
+  fleet: Fleet
+  sourceId: String
+  platform: String
+  status: String
+  manifestVersion: String
+  publicBaseUrl: String
+  capabilities: JSON
+  lastVerifiedAt: DateTime
+  verificationEvidence: JSON
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input MarketplaceRegistrationWhereUniqueInput {
+  id: ID
+  fleet: FleetWhereUniqueInput
+  sourceId: String
+}
+
+input MarketplaceRegistrationWhereInput {
+  AND: [MarketplaceRegistrationWhereInput!]
+  OR: [MarketplaceRegistrationWhereInput!]
+  NOT: [MarketplaceRegistrationWhereInput!]
+  id: IDFilter
+  fleet: FleetWhereInput
+  sourceId: StringFilter
+  platform: StringFilter
+  status: StringNullableFilter
+  manifestVersion: StringFilter
+  publicBaseUrl: StringFilter
+  lastVerifiedAt: DateTimeNullableFilter
+  createdAt: DateTimeNullableFilter
+  updatedAt: DateTimeNullableFilter
+}
+
+input MarketplaceRegistrationOrderByInput {
+  id: OrderDirection
+  sourceId: OrderDirection
+  platform: OrderDirection
+  status: OrderDirection
+  manifestVersion: OrderDirection
+  publicBaseUrl: OrderDirection
+  lastVerifiedAt: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input MarketplaceRegistrationUpdateInput {
+  fleet: FleetRelateToOneForUpdateInput
+  sourceId: String
+  platform: String
+  status: String
+  manifestVersion: String
+  publicBaseUrl: String
+  capabilities: JSON
+  lastVerifiedAt: DateTime
+  verificationEvidence: JSON
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input MarketplaceRegistrationUpdateArgs {
+  where: MarketplaceRegistrationWhereUniqueInput!
+  data: MarketplaceRegistrationUpdateInput!
+}
+
+input MarketplaceRegistrationCreateInput {
+  fleet: FleetRelateToOneForCreateInput
+  sourceId: String
+  platform: String
+  status: String
+  manifestVersion: String
+  publicBaseUrl: String
+  capabilities: JSON
+  lastVerifiedAt: DateTime
+  verificationEvidence: JSON
+  createdAt: DateTime
+  updatedAt: DateTime
 }
 
 """
@@ -551,23 +4416,247 @@ type Mutation {
   updateRoles(data: [RoleUpdateArgs!]!): [Role]
   deleteRole(where: RoleWhereUniqueInput!): Role
   deleteRoles(where: [RoleWhereUniqueInput!]!): [Role]
-  createTodo(data: TodoCreateInput!): Todo
-  createTodos(data: [TodoCreateInput!]!): [Todo]
-  updateTodo(where: TodoWhereUniqueInput!, data: TodoUpdateInput!): Todo
-  updateTodos(data: [TodoUpdateArgs!]!): [Todo]
-  deleteTodo(where: TodoWhereUniqueInput!): Todo
-  deleteTodos(where: [TodoWhereUniqueInput!]!): [Todo]
-  createTodoImage(data: TodoImageCreateInput!): TodoImage
-  createTodoImages(data: [TodoImageCreateInput!]!): [TodoImage]
-  updateTodoImage(where: TodoImageWhereUniqueInput!, data: TodoImageUpdateInput!): TodoImage
-  updateTodoImages(data: [TodoImageUpdateArgs!]!): [TodoImage]
-  deleteTodoImage(where: TodoImageWhereUniqueInput!): TodoImage
-  deleteTodoImages(where: [TodoImageWhereUniqueInput!]!): [TodoImage]
+  createFleetBrandingChange(data: FleetBrandingChangeCreateInput!): FleetBrandingChange
+  createFleetBrandingChanges(data: [FleetBrandingChangeCreateInput!]!): [FleetBrandingChange]
+  updateFleetBrandingChange(where: FleetBrandingChangeWhereUniqueInput!, data: FleetBrandingChangeUpdateInput!): FleetBrandingChange
+  updateFleetBrandingChanges(data: [FleetBrandingChangeUpdateArgs!]!): [FleetBrandingChange]
+  deleteFleetBrandingChange(where: FleetBrandingChangeWhereUniqueInput!): FleetBrandingChange
+  deleteFleetBrandingChanges(where: [FleetBrandingChangeWhereUniqueInput!]!): [FleetBrandingChange]
+  createFleet(data: FleetCreateInput!): Fleet
+  createFleets(data: [FleetCreateInput!]!): [Fleet]
+  updateFleet(where: FleetWhereUniqueInput!, data: FleetUpdateInput!): Fleet
+  updateFleets(data: [FleetUpdateArgs!]!): [Fleet]
+  deleteFleet(where: FleetWhereUniqueInput!): Fleet
+  deleteFleets(where: [FleetWhereUniqueInput!]!): [Fleet]
+  createFleetMembership(data: FleetMembershipCreateInput!): FleetMembership
+  createFleetMemberships(data: [FleetMembershipCreateInput!]!): [FleetMembership]
+  updateFleetMembership(where: FleetMembershipWhereUniqueInput!, data: FleetMembershipUpdateInput!): FleetMembership
+  updateFleetMemberships(data: [FleetMembershipUpdateArgs!]!): [FleetMembership]
+  deleteFleetMembership(where: FleetMembershipWhereUniqueInput!): FleetMembership
+  deleteFleetMemberships(where: [FleetMembershipWhereUniqueInput!]!): [FleetMembership]
+  createDriverProfile(data: DriverProfileCreateInput!): DriverProfile
+  createDriverProfiles(data: [DriverProfileCreateInput!]!): [DriverProfile]
+  updateDriverProfile(where: DriverProfileWhereUniqueInput!, data: DriverProfileUpdateInput!): DriverProfile
+  updateDriverProfiles(data: [DriverProfileUpdateArgs!]!): [DriverProfile]
+  deleteDriverProfile(where: DriverProfileWhereUniqueInput!): DriverProfile
+  deleteDriverProfiles(where: [DriverProfileWhereUniqueInput!]!): [DriverProfile]
+  createRiderProfile(data: RiderProfileCreateInput!): RiderProfile
+  createRiderProfiles(data: [RiderProfileCreateInput!]!): [RiderProfile]
+  updateRiderProfile(where: RiderProfileWhereUniqueInput!, data: RiderProfileUpdateInput!): RiderProfile
+  updateRiderProfiles(data: [RiderProfileUpdateArgs!]!): [RiderProfile]
+  deleteRiderProfile(where: RiderProfileWhereUniqueInput!): RiderProfile
+  deleteRiderProfiles(where: [RiderProfileWhereUniqueInput!]!): [RiderProfile]
+  createVehicle(data: VehicleCreateInput!): Vehicle
+  createVehicles(data: [VehicleCreateInput!]!): [Vehicle]
+  updateVehicle(where: VehicleWhereUniqueInput!, data: VehicleUpdateInput!): Vehicle
+  updateVehicles(data: [VehicleUpdateArgs!]!): [Vehicle]
+  deleteVehicle(where: VehicleWhereUniqueInput!): Vehicle
+  deleteVehicles(where: [VehicleWhereUniqueInput!]!): [Vehicle]
+  createComplianceDocument(data: ComplianceDocumentCreateInput!): ComplianceDocument
+  createComplianceDocuments(data: [ComplianceDocumentCreateInput!]!): [ComplianceDocument]
+  updateComplianceDocument(where: ComplianceDocumentWhereUniqueInput!, data: ComplianceDocumentUpdateInput!): ComplianceDocument
+  updateComplianceDocuments(data: [ComplianceDocumentUpdateArgs!]!): [ComplianceDocument]
+  deleteComplianceDocument(where: ComplianceDocumentWhereUniqueInput!): ComplianceDocument
+  deleteComplianceDocuments(where: [ComplianceDocumentWhereUniqueInput!]!): [ComplianceDocument]
+  createPolicy(data: PolicyCreateInput!): Policy
+  createPolicies(data: [PolicyCreateInput!]!): [Policy]
+  updatePolicy(where: PolicyWhereUniqueInput!, data: PolicyUpdateInput!): Policy
+  updatePolicies(data: [PolicyUpdateArgs!]!): [Policy]
+  deletePolicy(where: PolicyWhereUniqueInput!): Policy
+  deletePolicies(where: [PolicyWhereUniqueInput!]!): [Policy]
+  createPolicyEvaluation(data: PolicyEvaluationCreateInput!): PolicyEvaluation
+  createPolicyEvaluations(data: [PolicyEvaluationCreateInput!]!): [PolicyEvaluation]
+  updatePolicyEvaluation(where: PolicyEvaluationWhereUniqueInput!, data: PolicyEvaluationUpdateInput!): PolicyEvaluation
+  updatePolicyEvaluations(data: [PolicyEvaluationUpdateArgs!]!): [PolicyEvaluation]
+  deletePolicyEvaluation(where: PolicyEvaluationWhereUniqueInput!): PolicyEvaluation
+  deletePolicyEvaluations(where: [PolicyEvaluationWhereUniqueInput!]!): [PolicyEvaluation]
+  createProviderConnection(data: ProviderConnectionCreateInput!): ProviderConnection
+  createProviderConnections(data: [ProviderConnectionCreateInput!]!): [ProviderConnection]
+  updateProviderConnection(where: ProviderConnectionWhereUniqueInput!, data: ProviderConnectionUpdateInput!): ProviderConnection
+  updateProviderConnections(data: [ProviderConnectionUpdateArgs!]!): [ProviderConnection]
+  deleteProviderConnection(where: ProviderConnectionWhereUniqueInput!): ProviderConnection
+  deleteProviderConnections(where: [ProviderConnectionWhereUniqueInput!]!): [ProviderConnection]
+  createServiceArea(data: ServiceAreaCreateInput!): ServiceArea
+  createServiceAreas(data: [ServiceAreaCreateInput!]!): [ServiceArea]
+  updateServiceArea(where: ServiceAreaWhereUniqueInput!, data: ServiceAreaUpdateInput!): ServiceArea
+  updateServiceAreas(data: [ServiceAreaUpdateArgs!]!): [ServiceArea]
+  deleteServiceArea(where: ServiceAreaWhereUniqueInput!): ServiceArea
+  deleteServiceAreas(where: [ServiceAreaWhereUniqueInput!]!): [ServiceArea]
+  createRideService(data: RideServiceCreateInput!): RideService
+  createRideServices(data: [RideServiceCreateInput!]!): [RideService]
+  updateRideService(where: RideServiceWhereUniqueInput!, data: RideServiceUpdateInput!): RideService
+  updateRideServices(data: [RideServiceUpdateArgs!]!): [RideService]
+  deleteRideService(where: RideServiceWhereUniqueInput!): RideService
+  deleteRideServices(where: [RideServiceWhereUniqueInput!]!): [RideService]
+  createAvailabilityRule(data: AvailabilityRuleCreateInput!): AvailabilityRule
+  createAvailabilityRules(data: [AvailabilityRuleCreateInput!]!): [AvailabilityRule]
+  updateAvailabilityRule(where: AvailabilityRuleWhereUniqueInput!, data: AvailabilityRuleUpdateInput!): AvailabilityRule
+  updateAvailabilityRules(data: [AvailabilityRuleUpdateArgs!]!): [AvailabilityRule]
+  deleteAvailabilityRule(where: AvailabilityRuleWhereUniqueInput!): AvailabilityRule
+  deleteAvailabilityRules(where: [AvailabilityRuleWhereUniqueInput!]!): [AvailabilityRule]
+  createAvailabilityException(data: AvailabilityExceptionCreateInput!): AvailabilityException
+  createAvailabilityExceptions(data: [AvailabilityExceptionCreateInput!]!): [AvailabilityException]
+  updateAvailabilityException(where: AvailabilityExceptionWhereUniqueInput!, data: AvailabilityExceptionUpdateInput!): AvailabilityException
+  updateAvailabilityExceptions(data: [AvailabilityExceptionUpdateArgs!]!): [AvailabilityException]
+  deleteAvailabilityException(where: AvailabilityExceptionWhereUniqueInput!): AvailabilityException
+  deleteAvailabilityExceptions(where: [AvailabilityExceptionWhereUniqueInput!]!): [AvailabilityException]
+  createFareRule(data: FareRuleCreateInput!): FareRule
+  createFareRules(data: [FareRuleCreateInput!]!): [FareRule]
+  updateFareRule(where: FareRuleWhereUniqueInput!, data: FareRuleUpdateInput!): FareRule
+  updateFareRules(data: [FareRuleUpdateArgs!]!): [FareRule]
+  deleteFareRule(where: FareRuleWhereUniqueInput!): FareRule
+  deleteFareRules(where: [FareRuleWhereUniqueInput!]!): [FareRule]
+  createRideQuote(data: RideQuoteCreateInput!): RideQuote
+  createRideQuotes(data: [RideQuoteCreateInput!]!): [RideQuote]
+  updateRideQuote(where: RideQuoteWhereUniqueInput!, data: RideQuoteUpdateInput!): RideQuote
+  updateRideQuotes(data: [RideQuoteUpdateArgs!]!): [RideQuote]
+  deleteRideQuote(where: RideQuoteWhereUniqueInput!): RideQuote
+  deleteRideQuotes(where: [RideQuoteWhereUniqueInput!]!): [RideQuote]
+  createRideRequest(data: RideRequestCreateInput!): RideRequest
+  createRideRequests(data: [RideRequestCreateInput!]!): [RideRequest]
+  updateRideRequest(where: RideRequestWhereUniqueInput!, data: RideRequestUpdateInput!): RideRequest
+  updateRideRequests(data: [RideRequestUpdateArgs!]!): [RideRequest]
+  deleteRideRequest(where: RideRequestWhereUniqueInput!): RideRequest
+  deleteRideRequests(where: [RideRequestWhereUniqueInput!]!): [RideRequest]
+  createRequestCancellationCommand(data: RequestCancellationCommandCreateInput!): RequestCancellationCommand
+  createRequestCancellationCommands(data: [RequestCancellationCommandCreateInput!]!): [RequestCancellationCommand]
+  updateRequestCancellationCommand(where: RequestCancellationCommandWhereUniqueInput!, data: RequestCancellationCommandUpdateInput!): RequestCancellationCommand
+  updateRequestCancellationCommands(data: [RequestCancellationCommandUpdateArgs!]!): [RequestCancellationCommand]
+  deleteRequestCancellationCommand(where: RequestCancellationCommandWhereUniqueInput!): RequestCancellationCommand
+  deleteRequestCancellationCommands(where: [RequestCancellationCommandWhereUniqueInput!]!): [RequestCancellationCommand]
+  createMatchOffer(data: MatchOfferCreateInput!): MatchOffer
+  createMatchOffers(data: [MatchOfferCreateInput!]!): [MatchOffer]
+  updateMatchOffer(where: MatchOfferWhereUniqueInput!, data: MatchOfferUpdateInput!): MatchOffer
+  updateMatchOffers(data: [MatchOfferUpdateArgs!]!): [MatchOffer]
+  deleteMatchOffer(where: MatchOfferWhereUniqueInput!): MatchOffer
+  deleteMatchOffers(where: [MatchOfferWhereUniqueInput!]!): [MatchOffer]
+  createTrip(data: TripCreateInput!): Trip
+  createTrips(data: [TripCreateInput!]!): [Trip]
+  updateTrip(where: TripWhereUniqueInput!, data: TripUpdateInput!): Trip
+  updateTrips(data: [TripUpdateArgs!]!): [Trip]
+  deleteTrip(where: TripWhereUniqueInput!): Trip
+  deleteTrips(where: [TripWhereUniqueInput!]!): [Trip]
+  createTripEvent(data: TripEventCreateInput!): TripEvent
+  createTripEvents(data: [TripEventCreateInput!]!): [TripEvent]
+  updateTripEvent(where: TripEventWhereUniqueInput!, data: TripEventUpdateInput!): TripEvent
+  updateTripEvents(data: [TripEventUpdateArgs!]!): [TripEvent]
+  deleteTripEvent(where: TripEventWhereUniqueInput!): TripEvent
+  deleteTripEvents(where: [TripEventWhereUniqueInput!]!): [TripEvent]
+  createLocationEvent(data: LocationEventCreateInput!): LocationEvent
+  createLocationEvents(data: [LocationEventCreateInput!]!): [LocationEvent]
+  updateLocationEvent(where: LocationEventWhereUniqueInput!, data: LocationEventUpdateInput!): LocationEvent
+  updateLocationEvents(data: [LocationEventUpdateArgs!]!): [LocationEvent]
+  deleteLocationEvent(where: LocationEventWhereUniqueInput!): LocationEvent
+  deleteLocationEvents(where: [LocationEventWhereUniqueInput!]!): [LocationEvent]
+  createCancellation(data: CancellationCreateInput!): Cancellation
+  createCancellations(data: [CancellationCreateInput!]!): [Cancellation]
+  updateCancellation(where: CancellationWhereUniqueInput!, data: CancellationUpdateInput!): Cancellation
+  updateCancellations(data: [CancellationUpdateArgs!]!): [Cancellation]
+  deleteCancellation(where: CancellationWhereUniqueInput!): Cancellation
+  deleteCancellations(where: [CancellationWhereUniqueInput!]!): [Cancellation]
+  createSafetyIncident(data: SafetyIncidentCreateInput!): SafetyIncident
+  createSafetyIncidents(data: [SafetyIncidentCreateInput!]!): [SafetyIncident]
+  updateSafetyIncident(where: SafetyIncidentWhereUniqueInput!, data: SafetyIncidentUpdateInput!): SafetyIncident
+  updateSafetyIncidents(data: [SafetyIncidentUpdateArgs!]!): [SafetyIncident]
+  deleteSafetyIncident(where: SafetyIncidentWhereUniqueInput!): SafetyIncident
+  deleteSafetyIncidents(where: [SafetyIncidentWhereUniqueInput!]!): [SafetyIncident]
+  createSupportCase(data: SupportCaseCreateInput!): SupportCase
+  createSupportCases(data: [SupportCaseCreateInput!]!): [SupportCase]
+  updateSupportCase(where: SupportCaseWhereUniqueInput!, data: SupportCaseUpdateInput!): SupportCase
+  updateSupportCases(data: [SupportCaseUpdateArgs!]!): [SupportCase]
+  deleteSupportCase(where: SupportCaseWhereUniqueInput!): SupportCase
+  deleteSupportCases(where: [SupportCaseWhereUniqueInput!]!): [SupportCase]
+  createConversation(data: ConversationCreateInput!): Conversation
+  createConversations(data: [ConversationCreateInput!]!): [Conversation]
+  updateConversation(where: ConversationWhereUniqueInput!, data: ConversationUpdateInput!): Conversation
+  updateConversations(data: [ConversationUpdateArgs!]!): [Conversation]
+  deleteConversation(where: ConversationWhereUniqueInput!): Conversation
+  deleteConversations(where: [ConversationWhereUniqueInput!]!): [Conversation]
+  createMessage(data: MessageCreateInput!): Message
+  createMessages(data: [MessageCreateInput!]!): [Message]
+  updateMessage(where: MessageWhereUniqueInput!, data: MessageUpdateInput!): Message
+  updateMessages(data: [MessageUpdateArgs!]!): [Message]
+  deleteMessage(where: MessageWhereUniqueInput!): Message
+  deleteMessages(where: [MessageWhereUniqueInput!]!): [Message]
+  createReview(data: ReviewCreateInput!): Review
+  createReviews(data: [ReviewCreateInput!]!): [Review]
+  updateReview(where: ReviewWhereUniqueInput!, data: ReviewUpdateInput!): Review
+  updateReviews(data: [ReviewUpdateArgs!]!): [Review]
+  deleteReview(where: ReviewWhereUniqueInput!): Review
+  deleteReviews(where: [ReviewWhereUniqueInput!]!): [Review]
+  createPaymentProvider(data: PaymentProviderCreateInput!): PaymentProvider
+  createPaymentProviders(data: [PaymentProviderCreateInput!]!): [PaymentProvider]
+  updatePaymentProvider(where: PaymentProviderWhereUniqueInput!, data: PaymentProviderUpdateInput!): PaymentProvider
+  updatePaymentProviders(data: [PaymentProviderUpdateArgs!]!): [PaymentProvider]
+  deletePaymentProvider(where: PaymentProviderWhereUniqueInput!): PaymentProvider
+  deletePaymentProviders(where: [PaymentProviderWhereUniqueInput!]!): [PaymentProvider]
+  createPayment(data: PaymentCreateInput!): Payment
+  createPayments(data: [PaymentCreateInput!]!): [Payment]
+  updatePayment(where: PaymentWhereUniqueInput!, data: PaymentUpdateInput!): Payment
+  updatePayments(data: [PaymentUpdateArgs!]!): [Payment]
+  deletePayment(where: PaymentWhereUniqueInput!): Payment
+  deletePayments(where: [PaymentWhereUniqueInput!]!): [Payment]
+  createRefund(data: RefundCreateInput!): Refund
+  createRefunds(data: [RefundCreateInput!]!): [Refund]
+  updateRefund(where: RefundWhereUniqueInput!, data: RefundUpdateInput!): Refund
+  updateRefunds(data: [RefundUpdateArgs!]!): [Refund]
+  deleteRefund(where: RefundWhereUniqueInput!): Refund
+  deleteRefunds(where: [RefundWhereUniqueInput!]!): [Refund]
+  createPaymentObservation(data: PaymentObservationCreateInput!): PaymentObservation
+  createPaymentObservations(data: [PaymentObservationCreateInput!]!): [PaymentObservation]
+  updatePaymentObservation(where: PaymentObservationWhereUniqueInput!, data: PaymentObservationUpdateInput!): PaymentObservation
+  updatePaymentObservations(data: [PaymentObservationUpdateArgs!]!): [PaymentObservation]
+  deletePaymentObservation(where: PaymentObservationWhereUniqueInput!): PaymentObservation
+  deletePaymentObservations(where: [PaymentObservationWhereUniqueInput!]!): [PaymentObservation]
+  createLedgerEntry(data: LedgerEntryCreateInput!): LedgerEntry
+  createLedgerEntries(data: [LedgerEntryCreateInput!]!): [LedgerEntry]
+  updateLedgerEntry(where: LedgerEntryWhereUniqueInput!, data: LedgerEntryUpdateInput!): LedgerEntry
+  updateLedgerEntries(data: [LedgerEntryUpdateArgs!]!): [LedgerEntry]
+  deleteLedgerEntry(where: LedgerEntryWhereUniqueInput!): LedgerEntry
+  deleteLedgerEntries(where: [LedgerEntryWhereUniqueInput!]!): [LedgerEntry]
+  createPayout(data: PayoutCreateInput!): Payout
+  createPayouts(data: [PayoutCreateInput!]!): [Payout]
+  updatePayout(where: PayoutWhereUniqueInput!, data: PayoutUpdateInput!): Payout
+  updatePayouts(data: [PayoutUpdateArgs!]!): [Payout]
+  deletePayout(where: PayoutWhereUniqueInput!): Payout
+  deletePayouts(where: [PayoutWhereUniqueInput!]!): [Payout]
+  createNotification(data: NotificationCreateInput!): Notification
+  createNotifications(data: [NotificationCreateInput!]!): [Notification]
+  updateNotification(where: NotificationWhereUniqueInput!, data: NotificationUpdateInput!): Notification
+  updateNotifications(data: [NotificationUpdateArgs!]!): [Notification]
+  deleteNotification(where: NotificationWhereUniqueInput!): Notification
+  deleteNotifications(where: [NotificationWhereUniqueInput!]!): [Notification]
+  createMarketplaceRegistration(data: MarketplaceRegistrationCreateInput!): MarketplaceRegistration
+  createMarketplaceRegistrations(data: [MarketplaceRegistrationCreateInput!]!): [MarketplaceRegistration]
+  updateMarketplaceRegistration(where: MarketplaceRegistrationWhereUniqueInput!, data: MarketplaceRegistrationUpdateInput!): MarketplaceRegistration
+  updateMarketplaceRegistrations(data: [MarketplaceRegistrationUpdateArgs!]!): [MarketplaceRegistration]
+  deleteMarketplaceRegistration(where: MarketplaceRegistrationWhereUniqueInput!): MarketplaceRegistration
+  deleteMarketplaceRegistrations(where: [MarketplaceRegistrationWhereUniqueInput!]!): [MarketplaceRegistration]
   endSession: Boolean!
   authenticateUserWithPassword(email: String!, password: String!): UserAuthenticationWithPasswordResult
   createInitialUser(data: CreateInitialUserInput!): UserAuthenticationWithPasswordSuccess!
   sendUserPasswordResetLink(email: String!): Boolean!
   redeemUserPasswordResetToken(email: String!, token: String!, password: String!): RedeemUserPasswordResetTokenResult
+  marketplaceRideshareQuote(serviceId: ID!, pickupLabel: String!, dropoffLabel: String!, scheduledFor: DateTime, passengerCount: Int, wheelchairAccessible: Boolean, handoffId: String): MarketplaceRideQuote!
+  requestRide(quoteId: ID!, quoteProof: String!, passengerCount: Int, accessibilityNeeds: JSON, riderNotes: String, preciseRouteEncryptedRef: String): RideRequestReceipt!
+  resolveRideRequestIntent(quoteId: ID!, quoteProof: String!, passengerCount: Int, accessibilityNeeds: JSON, riderNotes: String, preciseRouteEncryptedRef: String): RideIntentResolution!
+  offerRideToDriver(requestId: ID!, driverId: ID!, vehicleId: ID!, expiresInSeconds: Int, idempotencyKey: String!, expectedActorId: ID!): MatchOffer!
+  respondToRideOffer(offerId: ID!, response: String!, reason: String, idempotencyKey: String!): RideOfferResponse!
+  transitionTrip(tripId: ID!, action: String!, reason: String, idempotencyKey: String!, expectedActorId: ID!, expectedAcceptedOfferId: ID!): Trip!
+  cancelRideRequest(requestId: ID!, requestProof: String, idempotencyKey: String!, expectedActorId: ID!): RideRequestCancellation!
+  cancelRide(tripId: ID!, tripToken: String, reasonCode: String!, reason: String, idempotencyKey: String!, reassign: Boolean, expectedActorId: ID!, expectedAcceptedOfferId: ID!, expectedUpdatedAt: DateTime!, expectedFeeMinor: Int!, expectedCurrencyCode: String!): Cancellation!
+  recordTripLocation(tripId: ID!, recordedAt: DateTime, coarseGeohash: String, encryptedCoordinateRef: String!, accuracyMeters: Int, providerEvidence: JSON): LocationEvent!
+  submitTripReview(tripId: ID!, tripToken: String, rating: Int!, body: String, idempotencyKey: String!): Review!
+  reportSafetyIncident(tripId: ID!, tripToken: String, severity: String, category: String, summary: String!, restrictedDetails: JSON, evidenceRefs: JSON, idempotencyKey: String!): SafetyIncident!
+  openSupportCase(tripId: ID!, tripToken: String, category: String, subject: String!, description: String!, idempotencyKey: String!): SupportCase!
+  sendTripMessage(tripId: ID!, tripToken: String, body: String!, idempotencyKey: String!): Message!
+  initiateTripPayment(tripId: ID!, providerCode: String!, idempotencyKey: String!): Payment!
+  requestTripRefund(paymentId: ID!, amountMinor: Int!, reason: String, idempotencyKey: String!): Refund!
+  saveFleetBranding(fleetId: ID!, expectedUpdatedAt: DateTime!, logoIcon: String!, logoColor: String!, idempotencyKey: String!, expectedActorId: ID!): JSON!
+  dismissRideshareOnboarding: Boolean!
+  bootstrapRideshare(mode: String!): RideshareBootstrapResult!
+  expireRideOffers(fleetId: ID!): OfferMaintenanceResult!
+  expireRequestFleetOffers(requestId: ID!): OfferMaintenanceResult!
 }
 
 union UserAuthenticationWithPasswordResult = UserAuthenticationWithPasswordSuccess | UserAuthenticationWithPasswordFailure
@@ -605,16 +4694,138 @@ type Query {
   role(where: RoleWhereUniqueInput!): Role
   roles(where: RoleWhereInput! = {}, orderBy: [RoleOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: RoleWhereUniqueInput): [Role!]
   rolesCount(where: RoleWhereInput! = {}): Int
-  todo(where: TodoWhereUniqueInput!): Todo
-  todos(where: TodoWhereInput! = {}, orderBy: [TodoOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: TodoWhereUniqueInput): [Todo!]
-  todosCount(where: TodoWhereInput! = {}): Int
-  todoImage(where: TodoImageWhereUniqueInput!): TodoImage
-  todoImages(where: TodoImageWhereInput! = {}, orderBy: [TodoImageOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: TodoImageWhereUniqueInput): [TodoImage!]
-  todoImagesCount(where: TodoImageWhereInput! = {}): Int
+  fleetBrandingChange(where: FleetBrandingChangeWhereUniqueInput!): FleetBrandingChange
+  fleetBrandingChanges(where: FleetBrandingChangeWhereInput! = {}, orderBy: [FleetBrandingChangeOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: FleetBrandingChangeWhereUniqueInput): [FleetBrandingChange!]
+  fleetBrandingChangesCount(where: FleetBrandingChangeWhereInput! = {}): Int
+  fleet(where: FleetWhereUniqueInput!): Fleet
+  fleets(where: FleetWhereInput! = {}, orderBy: [FleetOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: FleetWhereUniqueInput): [Fleet!]
+  fleetsCount(where: FleetWhereInput! = {}): Int
+  fleetMembership(where: FleetMembershipWhereUniqueInput!): FleetMembership
+  fleetMemberships(where: FleetMembershipWhereInput! = {}, orderBy: [FleetMembershipOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: FleetMembershipWhereUniqueInput): [FleetMembership!]
+  fleetMembershipsCount(where: FleetMembershipWhereInput! = {}): Int
+  driverProfile(where: DriverProfileWhereUniqueInput!): DriverProfile
+  driverProfiles(where: DriverProfileWhereInput! = {}, orderBy: [DriverProfileOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: DriverProfileWhereUniqueInput): [DriverProfile!]
+  driverProfilesCount(where: DriverProfileWhereInput! = {}): Int
+  riderProfile(where: RiderProfileWhereUniqueInput!): RiderProfile
+  riderProfiles(where: RiderProfileWhereInput! = {}, orderBy: [RiderProfileOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: RiderProfileWhereUniqueInput): [RiderProfile!]
+  riderProfilesCount(where: RiderProfileWhereInput! = {}): Int
+  vehicle(where: VehicleWhereUniqueInput!): Vehicle
+  vehicles(where: VehicleWhereInput! = {}, orderBy: [VehicleOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: VehicleWhereUniqueInput): [Vehicle!]
+  vehiclesCount(where: VehicleWhereInput! = {}): Int
+  complianceDocument(where: ComplianceDocumentWhereUniqueInput!): ComplianceDocument
+  complianceDocuments(where: ComplianceDocumentWhereInput! = {}, orderBy: [ComplianceDocumentOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: ComplianceDocumentWhereUniqueInput): [ComplianceDocument!]
+  complianceDocumentsCount(where: ComplianceDocumentWhereInput! = {}): Int
+  policy(where: PolicyWhereUniqueInput!): Policy
+  policies(where: PolicyWhereInput! = {}, orderBy: [PolicyOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: PolicyWhereUniqueInput): [Policy!]
+  policiesCount(where: PolicyWhereInput! = {}): Int
+  policyEvaluation(where: PolicyEvaluationWhereUniqueInput!): PolicyEvaluation
+  policyEvaluations(where: PolicyEvaluationWhereInput! = {}, orderBy: [PolicyEvaluationOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: PolicyEvaluationWhereUniqueInput): [PolicyEvaluation!]
+  policyEvaluationsCount(where: PolicyEvaluationWhereInput! = {}): Int
+  providerConnection(where: ProviderConnectionWhereUniqueInput!): ProviderConnection
+  providerConnections(where: ProviderConnectionWhereInput! = {}, orderBy: [ProviderConnectionOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: ProviderConnectionWhereUniqueInput): [ProviderConnection!]
+  providerConnectionsCount(where: ProviderConnectionWhereInput! = {}): Int
+  serviceArea(where: ServiceAreaWhereUniqueInput!): ServiceArea
+  serviceAreas(where: ServiceAreaWhereInput! = {}, orderBy: [ServiceAreaOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: ServiceAreaWhereUniqueInput): [ServiceArea!]
+  serviceAreasCount(where: ServiceAreaWhereInput! = {}): Int
+  rideService(where: RideServiceWhereUniqueInput!): RideService
+  rideServices(where: RideServiceWhereInput! = {}, orderBy: [RideServiceOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: RideServiceWhereUniqueInput): [RideService!]
+  rideServicesCount(where: RideServiceWhereInput! = {}): Int
+  availabilityRule(where: AvailabilityRuleWhereUniqueInput!): AvailabilityRule
+  availabilityRules(where: AvailabilityRuleWhereInput! = {}, orderBy: [AvailabilityRuleOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: AvailabilityRuleWhereUniqueInput): [AvailabilityRule!]
+  availabilityRulesCount(where: AvailabilityRuleWhereInput! = {}): Int
+  availabilityException(where: AvailabilityExceptionWhereUniqueInput!): AvailabilityException
+  availabilityExceptions(where: AvailabilityExceptionWhereInput! = {}, orderBy: [AvailabilityExceptionOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: AvailabilityExceptionWhereUniqueInput): [AvailabilityException!]
+  availabilityExceptionsCount(where: AvailabilityExceptionWhereInput! = {}): Int
+  fareRule(where: FareRuleWhereUniqueInput!): FareRule
+  fareRules(where: FareRuleWhereInput! = {}, orderBy: [FareRuleOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: FareRuleWhereUniqueInput): [FareRule!]
+  fareRulesCount(where: FareRuleWhereInput! = {}): Int
+  rideQuote(where: RideQuoteWhereUniqueInput!): RideQuote
+  rideQuotes(where: RideQuoteWhereInput! = {}, orderBy: [RideQuoteOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: RideQuoteWhereUniqueInput): [RideQuote!]
+  rideQuotesCount(where: RideQuoteWhereInput! = {}): Int
+  rideRequest(where: RideRequestWhereUniqueInput!): RideRequest
+  rideRequests(where: RideRequestWhereInput! = {}, orderBy: [RideRequestOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: RideRequestWhereUniqueInput): [RideRequest!]
+  rideRequestsCount(where: RideRequestWhereInput! = {}): Int
+  requestCancellationCommand(where: RequestCancellationCommandWhereUniqueInput!): RequestCancellationCommand
+  requestCancellationCommands(where: RequestCancellationCommandWhereInput! = {}, orderBy: [RequestCancellationCommandOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: RequestCancellationCommandWhereUniqueInput): [RequestCancellationCommand!]
+  requestCancellationCommandsCount(where: RequestCancellationCommandWhereInput! = {}): Int
+  matchOffer(where: MatchOfferWhereUniqueInput!): MatchOffer
+  matchOffers(where: MatchOfferWhereInput! = {}, orderBy: [MatchOfferOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: MatchOfferWhereUniqueInput): [MatchOffer!]
+  matchOffersCount(where: MatchOfferWhereInput! = {}): Int
+  trip(where: TripWhereUniqueInput!): Trip
+  trips(where: TripWhereInput! = {}, orderBy: [TripOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: TripWhereUniqueInput): [Trip!]
+  tripsCount(where: TripWhereInput! = {}): Int
+  tripEvent(where: TripEventWhereUniqueInput!): TripEvent
+  tripEvents(where: TripEventWhereInput! = {}, orderBy: [TripEventOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: TripEventWhereUniqueInput): [TripEvent!]
+  tripEventsCount(where: TripEventWhereInput! = {}): Int
+  locationEvent(where: LocationEventWhereUniqueInput!): LocationEvent
+  locationEvents(where: LocationEventWhereInput! = {}, orderBy: [LocationEventOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: LocationEventWhereUniqueInput): [LocationEvent!]
+  locationEventsCount(where: LocationEventWhereInput! = {}): Int
+  cancellation(where: CancellationWhereUniqueInput!): Cancellation
+  cancellations(where: CancellationWhereInput! = {}, orderBy: [CancellationOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: CancellationWhereUniqueInput): [Cancellation!]
+  cancellationsCount(where: CancellationWhereInput! = {}): Int
+  safetyIncident(where: SafetyIncidentWhereUniqueInput!): SafetyIncident
+  safetyIncidents(where: SafetyIncidentWhereInput! = {}, orderBy: [SafetyIncidentOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: SafetyIncidentWhereUniqueInput): [SafetyIncident!]
+  safetyIncidentsCount(where: SafetyIncidentWhereInput! = {}): Int
+  supportCase(where: SupportCaseWhereUniqueInput!): SupportCase
+  supportCases(where: SupportCaseWhereInput! = {}, orderBy: [SupportCaseOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: SupportCaseWhereUniqueInput): [SupportCase!]
+  supportCasesCount(where: SupportCaseWhereInput! = {}): Int
+  conversation(where: ConversationWhereUniqueInput!): Conversation
+  conversations(where: ConversationWhereInput! = {}, orderBy: [ConversationOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: ConversationWhereUniqueInput): [Conversation!]
+  conversationsCount(where: ConversationWhereInput! = {}): Int
+  message(where: MessageWhereUniqueInput!): Message
+  messages(where: MessageWhereInput! = {}, orderBy: [MessageOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: MessageWhereUniqueInput): [Message!]
+  messagesCount(where: MessageWhereInput! = {}): Int
+  review(where: ReviewWhereUniqueInput!): Review
+  reviews(where: ReviewWhereInput! = {}, orderBy: [ReviewOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: ReviewWhereUniqueInput): [Review!]
+  reviewsCount(where: ReviewWhereInput! = {}): Int
+  paymentProvider(where: PaymentProviderWhereUniqueInput!): PaymentProvider
+  paymentProviders(where: PaymentProviderWhereInput! = {}, orderBy: [PaymentProviderOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: PaymentProviderWhereUniqueInput): [PaymentProvider!]
+  paymentProvidersCount(where: PaymentProviderWhereInput! = {}): Int
+  payment(where: PaymentWhereUniqueInput!): Payment
+  payments(where: PaymentWhereInput! = {}, orderBy: [PaymentOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: PaymentWhereUniqueInput): [Payment!]
+  paymentsCount(where: PaymentWhereInput! = {}): Int
+  refund(where: RefundWhereUniqueInput!): Refund
+  refunds(where: RefundWhereInput! = {}, orderBy: [RefundOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: RefundWhereUniqueInput): [Refund!]
+  refundsCount(where: RefundWhereInput! = {}): Int
+  paymentObservation(where: PaymentObservationWhereUniqueInput!): PaymentObservation
+  paymentObservations(where: PaymentObservationWhereInput! = {}, orderBy: [PaymentObservationOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: PaymentObservationWhereUniqueInput): [PaymentObservation!]
+  paymentObservationsCount(where: PaymentObservationWhereInput! = {}): Int
+  ledgerEntry(where: LedgerEntryWhereUniqueInput!): LedgerEntry
+  ledgerEntries(where: LedgerEntryWhereInput! = {}, orderBy: [LedgerEntryOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: LedgerEntryWhereUniqueInput): [LedgerEntry!]
+  ledgerEntriesCount(where: LedgerEntryWhereInput! = {}): Int
+  payout(where: PayoutWhereUniqueInput!): Payout
+  payouts(where: PayoutWhereInput! = {}, orderBy: [PayoutOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: PayoutWhereUniqueInput): [Payout!]
+  payoutsCount(where: PayoutWhereInput! = {}): Int
+  notification(where: NotificationWhereUniqueInput!): Notification
+  notifications(where: NotificationWhereInput! = {}, orderBy: [NotificationOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: NotificationWhereUniqueInput): [Notification!]
+  notificationsCount(where: NotificationWhereInput! = {}): Int
+  marketplaceRegistration(where: MarketplaceRegistrationWhereUniqueInput!): MarketplaceRegistration
+  marketplaceRegistrations(where: MarketplaceRegistrationWhereInput! = {}, orderBy: [MarketplaceRegistrationOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: MarketplaceRegistrationWhereUniqueInput): [MarketplaceRegistration!]
+  marketplaceRegistrationsCount(where: MarketplaceRegistrationWhereInput! = {}): Int
   keystone: KeystoneMeta!
   authenticatedItem: AuthenticatedItem
   validateUserPasswordResetToken(email: String!, token: String!): ValidateUserPasswordResetTokenResult
   redirectToInit: Boolean
+  marketplaceRideshareServices(query: String, location: String, limit: Int, after: String): [MarketplaceRideshareService!]!
+  marketplaceRideshareService(id: ID!): MarketplaceRideshareService
+  marketplaceRideshareServiceAreas(serviceId: ID!, after: ID): PublicServiceAreaPage!
+  publicRideshareTrip(confirmationCode: String!, tripToken: String, requestId: ID, requestProof: String): PublicRideshareTrip
+  riderRequestStatus(requestId: ID!, requestProof: String): PublicRideshareRequest
+  myRideshareRequests(cursor: ID): RiderRequestHistory!
+  operatorTripHandoff(tripId: ID!, cursor: String): OperatorTripHandoff
+  publicRideshareRequest(requestId: ID!, requestProof: String!): PublicRideshareRequest
+  myDriverWorkspace(offersCursor: String, tripsCursor: String): DriverWorkspace!
+  myRideshareTrips: [RiderTripSummary!]!
+  safetyQueueScope: Boolean!
+  financeQueueScope: Boolean!
+  rideshareCapabilities: JSON!
+  riderAccountOptions: JSON!
+  fleetBranding(fleetId: ID!): JSON
+  tripCancellationPreview(tripId: ID!): JSON
+  riderRequestCancellationPreview(requestId: ID!, requestProof: String): JSON
+  riderTripHistory(requestId: ID!, requestProof: String, kind: String!, cursor: String): JSON
+  dispatchCandidatePage(requestId: ID!, cursor: String, query: String): JSON
+  dispatchQueueScope: Boolean!
 }
 
 union AuthenticatedItem = User
@@ -753,4 +4964,293 @@ type KeystoneAdminUISort {
 enum KeystoneAdminUISortDirection {
   ASC
   DESC
+}
+
+type MarketplaceFleet {
+  logoIcon: String
+  logoColor: String
+  id: ID!
+  name: String!
+  publicDescription: String
+  publicCity: String
+  countryCode: String
+}
+
+type RideshareExtension {
+  schema: String!
+  value: JSON!
+}
+
+type RideReadiness {
+  bookingEnabled: Boolean!
+  mode: String!
+  reason: String!
+}
+
+type OfferMaintenanceResult {
+  releasedCount: Int!
+  hasMore: Boolean!
+}
+
+type PublicServiceArea {
+  id: ID!
+  name: String!
+  publicRegionLabel: String!
+  countryCode: String
+}
+
+type PublicServiceAreaPage {
+  items: [PublicServiceArea!]!
+  nextCursor: ID
+}
+
+type MarketplaceRideshareService {
+  nextCursor: String
+  areasTruncated: Boolean!
+  id: ID!
+  title: String!
+  description: String
+  category: String!
+  passengerCapacity: Int!
+  wheelchairAccessible: Boolean!
+  advanceBookingMinutes: Int!
+  publicRegionLabels: [String!]!
+  fleet: MarketplaceFleet!
+  startingFareMinor: Int
+  currencyCode: String!
+  extension: RideshareExtension!
+  readiness: RideReadiness!
+}
+
+type FareBreakdown {
+  currencyCode: String!
+  baseFareMinor: Int!
+  distanceMinor: Int!
+  durationMinor: Int!
+  bookingFeeMinor: Int!
+  multiplierBasisPoints: Int!
+  subtotalMinor: Int!
+  totalMinor: Int!
+}
+
+type MarketplaceRideQuote {
+  quoteId: ID!
+  quoteProof: String!
+  expiresAt: DateTime!
+  pickupLabel: String!
+  dropoffLabel: String!
+  scheduledFor: DateTime
+  estimatedDistanceMeters: Int!
+  estimatedDurationSeconds: Int!
+  cancellationFeeMinor: Int!
+  noShowFeeMinor: Int!
+  fare: FareBreakdown!
+  estimateDisclosure: String!
+  sourceCheckoutPath: String!
+}
+
+type RideRequestReceipt {
+  requestId: ID!
+  requestNumber: String!
+  status: String!
+  requestProof: String!
+  replayed: Boolean!
+}
+
+type RideIntentResolution {
+  kind: String!
+  quoteId: ID!
+  receipt: RideRequestReceipt
+}
+
+type RideRequestCancellation {
+  requestId: ID!
+  status: String!
+  replayed: Boolean!
+  alreadyCancelled: Boolean!
+}
+
+type PublicRequestTrip {
+  fleetBrand: JSON
+  id: ID!
+  historyTruncated: Boolean!
+  confirmationCode: String!
+  status: String!
+  scheduledFor: DateTime
+  acceptedAt: DateTime
+  enRouteAt: DateTime
+  arrivedAt: DateTime
+  startedAt: DateTime
+  completedAt: DateTime
+  cancelledAt: DateTime
+  pickupLabel: String
+  dropoffLabel: String
+  bookingSnapshot: JSON!
+  finalFareSnapshot: JSON
+  events: [PublicTripEvent!]!
+  payments: [PublicTripPayment!]!
+  reviews: [PublicTripReview!]!
+}
+
+type PublicRideshareRequest {
+  fleetBrand: JSON
+  requestId: ID!
+  requestNumber: String!
+  status: String!
+  requestedFor: DateTime
+  pickupLabel: String
+  dropoffLabel: String
+  createdAt: DateTime!
+  handoffState: String!
+  trip: PublicRequestTrip
+}
+
+type RiderRequestHistory {
+  items: [PublicRideshareRequest!]!
+  nextCursor: ID
+}
+
+type OperatorTripHandoff {
+  available: Boolean!
+  tripId: ID!
+  status: String!
+  requestId: ID
+  requestNumber: String
+  requestStatus: String
+  acceptedOfferId: ID
+  historyTruncated: Boolean!
+  events: [PublicTripEvent!]!
+  nextCursor: String
+}
+
+type RideOfferResponse {
+  accepted: Boolean!
+  requestId: ID!
+  tripId: ID
+  confirmationCode: String
+  tripToken: String
+}
+
+type RideshareBootstrapResult {
+  fleetId: ID!
+  created: Boolean!
+  summary: JSON!
+}
+
+type PublicTripEvent {
+  eventType: String!
+  fromStatus: String
+  toStatus: String
+  occurredAt: DateTime!
+}
+
+type PublicTripPayment {
+  amountMinor: Int
+  currencyCode: String
+  status: String
+}
+
+type PublicTripReview {
+  direction: String
+  rating: Int
+  body: String
+  status: String
+  submittedAt: DateTime
+}
+
+type PublicRideshareTrip {
+  requestId: ID!
+  fleetBrand: JSON
+  id: ID!
+  historyTruncated: Boolean!
+  confirmationCode: String!
+  status: String!
+  scheduledFor: DateTime
+  acceptedAt: DateTime
+  enRouteAt: DateTime
+  arrivedAt: DateTime
+  startedAt: DateTime
+  completedAt: DateTime
+  cancelledAt: DateTime
+  pickupLabel: String
+  dropoffLabel: String
+  bookingSnapshot: JSON!
+  finalFareSnapshot: JSON
+  events: [PublicTripEvent!]!
+  payments: [PublicTripPayment!]!
+  reviews: [PublicTripReview!]!
+}
+
+type DriverWorkspaceDriver {
+  id: ID!
+  publicName: String!
+  status: String
+  dispatchStatus: String
+}
+
+type DriverWorkspaceRequest {
+  id: ID!
+  requestNumber: String!
+  requestedFor: DateTime
+  passengerCount: Int
+  pickupLabel: String
+  dropoffLabel: String
+}
+
+type DriverWorkspaceVehicle {
+  id: ID!
+  label: String!
+  make: String
+  model: String
+  color: String
+  plateMasked: String
+}
+
+type DriverWorkspaceOffer {
+  id: ID!
+  status: String!
+  offeredAt: DateTime
+  expiresAt: DateTime!
+  request: DriverWorkspaceRequest
+  vehicle: DriverWorkspaceVehicle
+}
+
+type DriverWorkspaceTripVehicle {
+  id: ID!
+  label: String!
+  plateMasked: String
+}
+
+type DriverWorkspaceTrip {
+  acceptedOfferId: ID
+  id: ID!
+  confirmationCode: String!
+  status: String!
+  scheduledFor: DateTime
+  pickupLabel: String
+  dropoffLabel: String
+  vehicle: DriverWorkspaceTripVehicle
+}
+
+type DriverWorkspace {
+  actorId: ID!
+  offersNextCursor: String
+  tripsNextCursor: String
+  driver: DriverWorkspaceDriver
+  offers: [DriverWorkspaceOffer!]!
+  trips: [DriverWorkspaceTrip!]!
+  actionsEnabled: Boolean!
+  actionsBlockedReason: String
+}
+
+type RiderTripSummary {
+  id: ID!
+  confirmationCode: String!
+  status: String!
+  scheduledFor: DateTime
+  pickupLabel: String
+  dropoffLabel: String
+  bookingSnapshot: JSON!
+  finalFareSnapshot: JSON
+  createdAt: DateTime!
 }

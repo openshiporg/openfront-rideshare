@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { AiConfigProvider } from '../hooks/use-ai-config'
 import { QueryProvider } from '../providers/QueryProvider'
+import OnboardingDialog from '@/features/platform/onboarding/components/OnboardingDialog'
 
 // Shared Message type
 interface Message {
@@ -81,14 +82,25 @@ function FloatingChatButton() {
 }
 
 function DashboardLayoutContent({ children, adminMeta, authenticatedItem }: DashboardLayoutProps) {
+  const [isOnboardingDialogOpen, setIsOnboardingDialogOpen] = React.useState(false)
+
   return (
     <>
-      <Sidebar adminMeta={adminMeta} user={authenticatedItem} />
+      <Sidebar
+        adminMeta={adminMeta}
+        user={authenticatedItem}
+        onOpenDialog={() => setIsOnboardingDialogOpen(true)}
+      />      
       <SidebarInset className="min-w-0">
         {children}
       </SidebarInset>
       <RightSidebar side="right" />
       <FloatingChatButton />
+      {/* Onboarding Dialog - Now at layout level, not hidden by sidebar */}
+      <OnboardingDialog
+        isOpen={isOnboardingDialogOpen}
+        onClose={() => setIsOnboardingDialogOpen(false)}
+      />
     </>
   )
 }

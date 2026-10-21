@@ -1,12 +1,15 @@
 {
-  "name": "weekday-keystone",
+  "name": "openfront-rideshare",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "keystone build --no-ui && npm run migrate && next dev",
-    "build": "keystone build --no-ui && npm run migrate && next build",
+    "build": "keystone build --no-ui && next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "audit": "tsx scripts/audit.ts",
     "migrate:gen": "keystone build --no-ui && tsx features/keystone/view-order/generate-view-order.ts && keystone prisma migrate dev",
     "migrate": "prisma migrate deploy"
   },
