@@ -1,3 +1,4 @@
+import { s3ForcePathStyle } from "./lib/s3-storage";
 import { createAuth } from '@keystone-6/auth'
 import { config } from '@keystone-6/core'
 import { statelessSessions } from '@keystone-6/core/session'
@@ -27,7 +28,7 @@ const storage = process.env.S3_BUCKET_NAME ? {
   my_images: {
     kind: 's3' as const, type: 'image' as const, bucketName: process.env.S3_BUCKET_NAME,
     region: process.env.S3_REGION || 'auto', accessKeyId: process.env.S3_ACCESS_KEY_ID || '', secretAccessKey: process.env.S3_SECRET_ACCESS_KEY || '',
-    endpoint: process.env.S3_ENDPOINT, forcePathStyle: true, signed: { expiry: 5000 },
+    endpoint: process.env.S3_ENDPOINT, forcePathStyle: s3ForcePathStyle(process.env.S3_ENDPOINT), signed: { expiry: 5000 },
   },
 } : undefined
 
