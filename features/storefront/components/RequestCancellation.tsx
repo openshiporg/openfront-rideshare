@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
+import { RiderButton, RiderTrack } from './RiderPills'
+import { statusLabel } from '@/features/platform/lib/statusTone'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 type Intent = { v: 1; requestId: string; requestProof: string | null; actorId: string; key: string; phase: 'pending' | 'resolved' }
@@ -34,7 +35,7 @@ export function RequestCancellation({ requestId, requestProof = null, status, on
   const flight = useRef(false)
   useEffect(() => {
     try { setIntent(readIntent(sessionStorage.getItem(storageKey(requestId)), requestId)); setReady(true) }
-    catch { setReady(false); setError('Saved cancellation is unreadable. Keep the original receipt and seek reconciliation.') }
+    catch { setReady(false); setError('Saved cancellation is unreadable.') }
   }, [requestId])
   async function review() {
     if (flight.current || !ready || intent?.phase === 'pending') return
@@ -45,7 +46,7 @@ export function RequestCancellation({ requestId, requestProof = null, status, on
       const result = payload.data?.riderRequestCancellationPreview
       if (!response.ok || payload.errors?.length || result?.requestId !== requestId || typeof result.actorId !== 'string' || !result.actorId || !['requested','matching'].includes(result.status)) throw new Error()
       setPreview(result)
-    } catch { setError('The request cannot currently be cancelled here. Refresh its private status; it may already have a trip.') }
+    } catch { setError('This request can no longer be cancelled here. It may already have a driver.') }
     finally { flight.current = false; setBusy(false) }
   }
   async function send(recover: boolean) {
@@ -69,13 +70,18 @@ export function RequestCancellation({ requestId, requestProof = null, status, on
       saveIntent(`${storageKey(requestId)}:ack:${original.key}`, resolved)
       saveIntent(storageKey(requestId), resolved)
       setIntent(resolved); setOpen(false); onAcknowledged?.(); router.refresh()
-    } catch { setError('Cancellation outcome is unconfirmed. Recover the saved original cancellation; do not send another request.') }
+    } catch { setError('Cancellation unconfirmed. Recover it.') }
     finally { flight.current = false; setBusy(false) }
   }
   const pending = intent?.phase === 'pending'
-  return <div className="mt-4 space-y-2" data-command-pending={pending || busy ? 'true' : undefined}>
-    {pending ? <Button type="button" variant="outline" disabled={!ready || busy} onClick={() => void send(true)}>Recover original request cancellation</Button> : intent?.phase === 'resolved' ? <p role="status" className="text-sm">Request cancellation acknowledged.</p> : ['requested','matching'].includes(status) && <Button type="button" variant="outline" disabled={!ready || busy} onClick={() => void review()}>Cancel request</Button>}
-    {error && <p role="alert" className="text-sm text-amber-600 dark:text-amber-300">{error}</p>}
-    <Dialog open={open} onOpenChange={value => { if (!busy) setOpen(value) }}><DialogContent><DialogHeader><DialogTitle>Cancel this request?</DialogTitle><DialogDescription>This cancels an unmatched request. If a driver has accepted, use the trip cancellation review instead.</DialogDescription></DialogHeader>{preview && <p>Current request: {preview.status.replaceAll('_',' ')}.</p>}<div className="flex flex-wrap gap-2"><Button type="button" variant="destructive" disabled={!preview || busy || pending} onClick={() => void send(false)}>Confirm request cancellation</Button><Button type="button" variant="outline" disabled={busy} onClick={() => setOpen(false)}>{pending ? 'Close review; retain original command' : 'Keep request'}</Button>{pending && <Button type="button" variant="outline" disabled={busy} onClick={() => void send(true)}>Recover original cancellation</Button>}</div>{error && <p role="alert" className="text-sm text-destructive">{error}</p>}{pending && <p role="status">Outcome unconfirmed. The original cancellation remains saved.</p>}</DialogContent></Dialog>
+  const cancellable = ['requested','matching'].includes(status)
+  if (!pending && intent?.phase !== 'resolved' && !cancellable && !error) return null
+  return <div className="space-y-2" data-command-pending={pending || busy ? 'true' : undefined}>
+    {pending ? <RiderTrack><RiderButton tone="danger" disabled={!ready || busy} onClick={() => void send(true)}>Recover cancellation</RiderButton></RiderTrack> : intent?.phase === 'resolved' ? <p role="status" className="text-sm text-muted-foreground">Request cancelled</p> : cancellable && <RiderTrack><RiderButton tone="danger" disabled={!ready || busy} onClick={() => void review()}>Cancel request</RiderButton></RiderTrack>}
+    {error && !open && <p role="alert" className="text-sm text-[#ff8a7f]">{error}</p>}
+    <Dialog open={open} onOpenChange={value => { if (!busy) setOpen(value) }}><DialogContent className="rs dark rounded-3xl border-border"><DialogHeader><DialogTitle className="font-display text-xl font-bold [font-stretch:115%]">Cancel this request?</DialogTitle><DialogDescription>{preview ? `Currently ${statusLabel(preview.status).toLowerCase()}` : busy ? 'Checking…' : 'A driver may already be assigned'}</DialogDescription></DialogHeader>
+      <RiderTrack className="w-full justify-end"><RiderButton tone="quiet" disabled={busy} onClick={() => setOpen(false)}>{pending ? 'Close' : 'Keep request'}</RiderButton>{pending ? <RiderButton tone="danger" disabled={busy} onClick={() => void send(true)}>Recover cancellation</RiderButton> : <RiderButton tone="danger" disabled={!preview || busy} onClick={() => void send(false)}>Cancel request</RiderButton>}</RiderTrack>
+      {error && <p role="alert" className="text-sm text-[#ff8a7f]">{error}</p>}{pending && <p role="status" className="text-sm text-amber-300">Cancellation unconfirmed</p>}
+    </DialogContent></Dialog>
   </div>
 }

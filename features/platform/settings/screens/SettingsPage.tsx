@@ -1,10 +1,25 @@
-import { FleetBrandingSettings } from '../branding/FleetBrandingSettings'
 import Link from 'next/link'
-import { PageContainer } from '@/features/dashboard/components/PageContainer'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { ArrowUpRight } from 'lucide-react'
+import { PageBreadcrumbs } from '@/features/dashboard/components/PageBreadcrumbs'
+import { PlatformHeader, PlatformSection } from '@/features/platform/components/PlatformPage'
+import { FleetBrandingSettings } from '../branding/FleetBrandingSettings'
 
-const areas = [
-  ['Fleet records','fleets','Tenant identity, ownership, and operator roles.'],['Service records','ride-services','Public offers and coarse service geography.'],['Fare rules','fare-rules','Versioned source-owned pricing in minor units.'],['Policy records','policies','Eligibility requirements and evidence review without compliance claims.'],['Provider connections','provider-connections','Mapping, identity, communications, location, and background-check adapter references.'],['Marketplace','marketplace-registrations','Discovery registration and verification evidence.'],
+const records = [
+  ['Fleets', 'fleets'], ['Ride services', 'ride-services'], ['Fare rules', 'fare-rules'], ['Policies', 'policies'], ['Provider connections', 'provider-connections'], ['Marketplace registrations', 'marketplace-registrations'],
 ]
-export function SettingsPage(){return <PageContainer title="Settings" header={<div><h1 className="text-2xl font-semibold">Platform settings</h1><p className="text-sm text-muted-foreground">Manage fleet branding and review configuration records.</p></div>} breadcrumbs={[{type:'link',label:'Dashboard',href:'/dashboard'},{type:'page',label:'Settings'}]}><div className="p-4 md:p-6"><FleetBrandingSettings /></div><div className="grid gap-4 p-4 md:grid-cols-2 md:p-6">{areas.map(([title,path,description])=><Link href={`/dashboard/${path}`} key={path}><Card className="h-full hover:bg-muted/40"><CardHeader><CardTitle className="text-base">{title}</CardTitle></CardHeader><CardContent className="text-sm text-muted-foreground">{description}</CardContent></Card></Link>)}</div></PageContainer>}
+
+export function SettingsPage() {
+  return <>
+    <PageBreadcrumbs items={[{ type: 'link', label: 'Dashboard', href: '' }, { type: 'page', label: 'Platform' }, { type: 'page', label: 'Settings' }]} />
+    <div className="mx-auto w-full max-w-4xl space-y-8 p-4 md:p-6">
+      <PlatformHeader title="Settings" />
+      <FleetBrandingSettings />
+      <PlatformSection id="records" title="Configuration records">
+        <ul className="grid overflow-hidden rounded-xl border bg-card sm:grid-cols-2 [&>li]:border-b sm:[&>li:nth-child(odd)]:border-r [&>li:last-child]:border-b-0 sm:[&>li:nth-last-child(2):nth-child(odd)]:border-b-0">
+          {records.map(([title, path]) => <li key={path}><Link href={`/dashboard/${path}`} className="flex min-h-12 items-center justify-between gap-3 px-4 py-3 text-sm font-medium transition-colors hover:bg-muted/60">{title}<ArrowUpRight className="size-4 text-muted-foreground" aria-hidden="true" /></Link></li>)}
+        </ul>
+      </PlatformSection>
+    </div>
+  </>
+}
 export default SettingsPage

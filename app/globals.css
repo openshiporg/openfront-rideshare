@@ -120,3 +120,47 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Rider storefront ("kerbside"): night asphalt, kerb-signal yellow, transit-sign display type.
+   Scoped to .rs so the dashboard keeps its own tokens. Dialogs portal out, so they take .rs too. */
+@theme {
+  --color-signal: #ffd23f;
+  --color-signal-deep: #e5b300;
+  --color-asphalt: #0b0d10;
+  --color-kerb: #14171c;
+  --color-lane: #1c2027;
+  --font-display: var(--font-archivo), var(--font-geist-sans), system-ui, sans-serif;
+}
+
+.rs {
+  --background: #0b0d10;
+  --foreground: #f3f2ee;
+  --card: #14171c;
+  --card-foreground: #f3f2ee;
+  --popover: #14171c;
+  --popover-foreground: #f3f2ee;
+  --primary: #ffd23f;
+  --primary-foreground: #121212;
+  --secondary: #1c2027;
+  --secondary-foreground: #f3f2ee;
+  --muted: #1c2027;
+  --muted-foreground: #9aa0aa;
+  --accent: #1c2027;
+  --accent-foreground: #f3f2ee;
+  --destructive: #ff6b5e;
+  --border: #272c34;
+  --input: #2d333c;
+  --ring: #ffd23f;
+  color-scheme: dark;
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
+.rs ::selection {
+  background: #ffd23f;
+  color: #121212;
+}
+
+.rs input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.85);
+}

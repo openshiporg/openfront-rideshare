@@ -3,15 +3,13 @@
 import { RequestCancellation } from '../components/RequestCancellation'
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import Link from 'next/link'
-import { ArrowRight, MapPin, ShieldCheck, Users } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { Accessibility, ArrowRight, ArrowUpRight, CalendarClock, CarFront, MapPin, Minus, Plus, Search, Users } from 'lucide-react'
+import { StatusDot, StatusTitle } from '@/features/platform/components/StatusTitle'
+import { TRIP_STAGES, statusLabel, statusTone, tripStageIndex } from '@/features/platform/lib/statusTone'
+import { RiderShell } from '../components/RiderShell'
+import { RiderButton, RiderButtonLink, RiderPill, RiderTrack } from '../components/RiderPills'
 import { formatMoney } from '@/features/lib/currency'
 import { isQuoteResponse } from '../domain/quoteResponse'
-import { FleetBrand } from '../components/FleetBrand'
 import { normalizeStoreLogoColor } from '@/features/platform/settings/branding/store-logo'
 import { ServiceAreaPages } from '../components/ServiceAreaPages'
 import {
@@ -63,7 +61,7 @@ type RequestView = { requestNumber: string; status: string; handoffState: string
 async function graphql<T>(query: string, variables: Record<string, unknown> = {}, signal?: AbortSignal): Promise<T> {
   const response = await fetch('/api/graphql', { signal, method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ query, variables }) })
   const payload = await response.json()
-  if (!response.ok || payload.errors?.length) throw new Error('The request could not be confirmed. Please try again.')
+  if (!response.ok || payload.errors?.length) throw new Error('Something went wrong. Try again.')
   return payload.data as T
 }
 
@@ -90,6 +88,7 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
   const [error, setError] = useState('')
   const [statusError, setStatusError] = useState('')
   const [statusAsOf, setStatusAsOf] = useState('')
+  const [scheduleOpen, setScheduleOpen] = useState(false)
 
   const selectedService = useMemo(() => services.find(service => service.id === serviceId), [services, serviceId])
   const currentQuoteInputs = (): QuoteInputSnapshot => ({ serviceId, pickupLabel, dropoffLabel, scheduledFor, passengerCount, wheelchairAccessible })
@@ -114,14 +113,14 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
         setNextServiceCursor(found.at(-1)?.nextCursor || null)
         setServiceId(current => current || found[0]?.id || '')
       })
-      .catch(reason => { if (active) setError(reason instanceof Error ? reason.message : 'Service discovery is unavailable.') })
+      .catch(reason => { if (active) setError(reason instanceof Error ? reason.message : 'Rides are unavailable right now.') })
       .finally(() => { if (active) setServicesLoading(false) })
     if (initialServiceId) {
       graphql<{ marketplaceRideshareService: Service | null }>(`query SelectedService($id: ID!) { marketplaceRideshareService(id: $id) { id title description category passengerCapacity wheelchairAccessible advanceBookingMinutes publicRegionLabels areasTruncated startingFareMinor currencyCode readiness { bookingEnabled mode reason } fleet { name publicCity logoIcon logoColor } } }`, { id: initialServiceId }).then(data => {
         if (!active) return
         if (data.marketplaceRideshareService) setServices(current => [...current.filter(item => item.id !== initialServiceId), data.marketplaceRideshareService!])
-        else setError('The selected service is unavailable. Choose another listed service.')
-      }).catch(() => { if (active) setError('The selected service could not be loaded. Your saved request remains available.') })
+        else setError('That ride is unavailable. Choose another.')
+      }).catch(() => { if (active) setError('That ride could not be loaded.') })
     }
     try {
       const saved = parseRiderReceipt(sessionStorage.getItem(receiptStorageKey))
@@ -138,7 +137,7 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
         }
       }
     } catch {
-      setError('Saved request recovery is unavailable. Do not send another request while its outcome is unknown; use the owning account or your saved receipt.')
+      setError('Your last request could not be restored from this browser. Check My rides before booking again.')
       requestInFlightRef.current = true
     }
     return () => {
@@ -181,9 +180,9 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
         if (!active || requestController.signal.aborted || controller !== requestController) return
         setRequestView(data.publicRideshareRequest)
         setStatusAsOf(data.publicRideshareRequest ? new Date().toLocaleTimeString() : '')
-        setStatusError(data.publicRideshareRequest ? '' : 'Private status is unavailable. Sign in to the owning account or use your original receipt.')
+        setStatusError(data.publicRideshareRequest ? '' : 'Status unavailable. Sign in to see this ride.')
       } catch {
-        if (active && controller === requestController) { setRequestView(null); setStatusAsOf(''); setStatusError('Status could not be refreshed. Your original receipt is retained.') }
+        if (active && controller === requestController) { setRequestView(null); setStatusAsOf(''); setStatusError('Status could not be refreshed.') }
       } finally { window.clearTimeout(deadline); if (controller === requestController) { controller = null; inFlight = false } }
     }
     void refresh()
@@ -206,7 +205,7 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
   async function getQuote() {
     if (requestLoading || requestInFlightRef.current || uncertainRequestRef.current || receipt) return
     if (!selectedService?.readiness?.bookingEnabled) { setError(selectedService?.readiness?.reason || 'Booking is unavailable.'); return }
-    if (pickupLabel.trim().length < 2 || dropoffLabel.trim().length < 2) { setError('Enter a pickup area and destination area.'); return }
+    if (pickupLabel.trim().length < 2 || dropoffLabel.trim().length < 2) { setError('Enter a pickup and a destination.'); return }
     const inputs = currentQuoteInputs()
     quoteRequestGeneration.current = advanceQuoteRequestGeneration(quoteRequestGeneration.current)
     const generation = quoteRequestGeneration.current
@@ -224,13 +223,13 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
       const acceptedQuote = data.marketplaceRideshareQuote
       if (!isQuoteResponse(acceptedQuote) || !isQuoteUnexpired(acceptedQuote.expiresAt)) {
         setQuoteExpired(true)
-        setError('The quote is unavailable or expired. Review the route and request another quote.')
+        setError('Price unavailable. Try again.')
         return
       }
       setQuoteBinding({ quote: acceptedQuote, inputs, generation })
     } catch (reason) {
       if (!isCurrentQuoteRequest(generation, quoteRequestGeneration.current)) return
-      setError(reason instanceof Error ? reason.message : 'Quote is unavailable.')
+      setError(reason instanceof Error ? reason.message : 'Price unavailable.')
     } finally {
       if (isCurrentQuoteRequest(generation, quoteRequestGeneration.current)) setQuoteLoading(false)
     }
@@ -246,13 +245,13 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
     if (binding !== quoteBinding || (!retryingUncertainRequest && getUsableQuoteBinding(binding, currentInputs, quoteRequestGeneration.current) !== binding)) {
       invalidateQuote()
       setQuoteExpired(true)
-      setError('This source quote no longer matches the current inputs or has expired. Review the inputs and request a fresh quote.')
+      setError('Your trip changed or the price expired. Get a new price.')
       return
     }
     try {
       persistPendingRequest(sessionStorage, binding)
     } catch {
-      setError('This browser cannot save the exact request intent for reload. No request was sent. Enable session storage before retrying.')
+      setError('This browser could not save the request. Nothing was sent.')
       return
     }
     requestInFlightRef.current = true
@@ -268,7 +267,7 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
         needs: { wheelchairAccessible: binding.inputs.wheelchairAccessible },
       })
       const confirmed = parseRiderReceipt(JSON.stringify(data.requestRide))
-      if (!confirmed) throw new Error('The source did not return a complete request receipt.')
+      if (!confirmed) throw new Error('Incomplete receipt.')
       uncertainRequestRef.current = null
       setUncertainRequest(null)
       setReceipt(confirmed)
@@ -282,11 +281,11 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
         if (sessionStorage.getItem(receiptStorageKey) !== serialized) throw new Error('Receipt was not saved.')
         sessionStorage.removeItem(pendingRequestStorageKey)
       } catch {
-        setError('The source returned a request receipt, but this browser could not save it for reload. Keep this tab open.')
+        setError('Ride requested. Keep this tab open; it could not be saved for reload.')
       }
     } catch (reason) {
       setUncertainRequest(binding)
-      setError('Request outcome is unconfirmed. Keep this tab or recover the same request; do not send another booking.')
+      setError('Request unconfirmed. Recover it before booking again.')
     } finally {
       requestInFlightRef.current = false
       setRequestLoading(false)
@@ -302,7 +301,7 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
       if (!Array.isArray(rows) || rows.length > 12) throw new Error()
       setServices(current => [...new Map([...current, ...rows].map(row => [row.id, row])).values()])
       setNextServiceCursor(rows.at(-1)?.nextCursor || null)
-    } catch { setError('More services could not be loaded. Try again shortly.') }
+    } catch { setError('More rides could not be loaded.') }
     finally { setServicesLoading(false) }
   }
 
@@ -331,7 +330,7 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
       sessionStorage.removeItem(pendingRequestStorageKey)
       uncertainRequestRef.current = null; setUncertainRequest(null); setQuoteBinding(null)
       quoteRequestGeneration.current = advanceQuoteRequestGeneration(quoteRequestGeneration.current)
-    } catch { setError('Original intent is still unresolved. Keep its saved proof and reconcile the same request again.') }
+    } catch { setError('Still unconfirmed. Try again shortly.') }
     finally { requestInFlightRef.current = false; setRequestLoading(false) }
   }
 
@@ -340,76 +339,209 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
     const terminal = ['cancelled', 'expired'].includes(requestView.status) || ['completed', 'no_show'].includes(requestView.trip?.status || '')
     if (!terminal) return
     try { archiveReceipt(sessionStorage, receipt); sessionStorage.removeItem(receiptStorageKey) }
-    catch { setError('The original receipt could not be retained. Keep this tab open.'); return }
+    catch { setError('This ride could not be archived. Keep this tab open.'); return }
     setReceipt(null); setRequestView(null); setQuoteBinding(null); setPickupLabel(''); setDropoffLabel(''); setScheduledFor(''); setStatusAsOf(''); setStatusError(''); setError('')
     quoteRequestGeneration.current = advanceQuoteRequestGeneration(quoteRequestGeneration.current)
   }
 
-  const change = (setter: (value: string) => void) => (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    if (requestLoading || requestInFlightRef.current || uncertainRequestRef.current) return
+  const locked = () => requestLoading || requestInFlightRef.current || Boolean(uncertainRequestRef.current)
+  const update = (setter: (value: string) => void, value: string) => {
+    if (locked()) return
     invalidateQuote()
-    setter(event.target.value)
+    setter(value)
   }
-  const status = requestView?.status || 'status unavailable'
+  const change = (setter: (value: string) => void) => (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => update(setter, event.target.value)
+  const maxPassengers = selectedService?.passengerCapacity || 50
+  const passengers = Number(passengerCount) || 1
+  const scheduling = scheduleOpen || Boolean(scheduledFor)
+  const terminal = Boolean(requestView && requestView.handoffState !== 'reassignment_pending' && (['cancelled', 'expired'].includes(requestView.status) || ['completed', 'no_show'].includes(requestView.trip?.status || '')))
+  const formLocked = Boolean(receipt) || Boolean(uncertainRequest) || requestLoading || servicesLoading
+  const quote = visibleQuoteBinding?.quote
+  const ctaDisabled = quoteLoading || requestLoading || (!uncertainRequest && (servicesLoading || services.length === 0 || !serviceId || !selectedService?.readiness?.bookingEnabled)) || Boolean(receipt) || requestInFlightRef.current || (Boolean(uncertainRequest) && !visibleQuoteBinding)
+  const liveState = requestView?.trip?.status || requestView?.status
 
-  return <main style={{ '--fleet-hue': normalizeStoreLogoColor(selectedService?.fleet.logoColor) } as CSSProperties} className="min-h-screen bg-zinc-950 text-zinc-50 [&_p]:break-words">
-    <nav className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-5 py-6 sm:px-6">
-      <FleetBrand fleet={selectedService?.fleet} />
-      <div className="flex items-center gap-5 text-sm"><Link href="/account/rides" className="text-zinc-300 hover:text-white">My rides</Link><Link href="/dashboard" className="text-zinc-400 hover:text-white">Driver &amp; operator</Link></div>
-    </nav>
-    <section className="mx-auto grid max-w-6xl gap-10 px-5 pb-20 pt-8 sm:px-6 lg:grid-cols-[1.05fr_.95fr] lg:gap-14 lg:pt-16">
-      <div>
-        <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-zinc-800 px-3 py-1 text-xs text-zinc-300"><ShieldCheck className="size-3.5 text-[hsl(var(--fleet-hue)_85%_75%)]" /> Book with a local fleet</div>
-        <h1 className="max-w-3xl text-5xl font-semibold tracking-[-0.05em] sm:text-7xl">A ride, directly from its local operator.</h1>
-        <p className="mt-6 max-w-xl text-lg leading-8 text-zinc-400">Choose a listed service, review its quoted fare, and request a ride from the operator. Preview fares do not verify route coverage or driver availability.</p>
-        <div className="mt-10 grid gap-5 border-t border-zinc-800 pt-6 sm:grid-cols-2">
-          <div><MapPin className="mb-3 size-5 text-[hsl(var(--fleet-hue)_85%_75%)]"/><h2 className="font-medium">Service areas</h2><p className="mt-1 text-sm leading-6 text-zinc-400">Published service regions. Use area names; keep exact addresses private.</p></div>
-          <div><Users className="mb-3 size-5 text-[hsl(var(--fleet-hue)_85%_75%)]"/><h2 className="font-medium">Evidence is not approval</h2><p className="mt-1 text-sm leading-6 text-zinc-400">Recorded policy outcomes do not establish legal eligibility, licensing, insurance, or background-check approval.</p></div>
-        </div>
-        {!servicesLoading && services.length > 0 && <p className="mt-8 text-xs text-zinc-500">Currently listed: {services.map(service => service.title).join(' · ')}</p>}
+  return <RiderShell fleet={selectedService?.fleet}>
+    <div style={{ '--fleet-hue': normalizeStoreLogoColor(selectedService?.fleet.logoColor) } as CSSProperties} className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,27rem)] lg:gap-14">
+      <div className="min-w-0 lg:pt-6">
+        <h1 className="font-display text-[2.6rem] font-extrabold leading-[0.95] tracking-[-0.03em] [font-stretch:125%] sm:text-6xl lg:text-7xl">{receipt ? 'Your ride' : 'Where to?'}</h1>
+        {selectedService && <p className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground"><span className="font-medium text-foreground">{selectedService.fleet.name}</span>{selectedService.fleet.publicCity && <span>{selectedService.fleet.publicCity}</span>}</p>}
+
+        <section aria-labelledby="services-title" className="mt-8 hidden lg:block">
+          <h2 id="services-title" className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Rides</h2>
+          <ServiceList services={services} serviceId={serviceId} disabled={formLocked} onChange={change(setServiceId)} loading={servicesLoading} more={nextServiceCursor ? () => void moreServices() : undefined} name="service-wide" />
+          {selectedService && <ServiceDetail service={selectedService} />}
+        </section>
       </div>
 
-      <Card className="self-start border-zinc-800 bg-zinc-900 text-zinc-50 shadow-2xl">
-        <CardHeader><CardTitle className="text-xl">Plan a ride</CardTitle><p className="text-sm leading-6 text-zinc-400">Use area names. Preview fares are unverified and no payment is collected.</p></CardHeader>
-        <CardContent>
-          {nextServiceCursor && <Button type="button" variant="outline" className="mb-4" disabled={servicesLoading} onClick={() => void moreServices()}>More services</Button>}
-          <form className="space-y-5" onSubmit={event => {
-            event.preventDefault()
-            if (uncertainRequest) {
-              if (visibleQuoteBinding) void requestRide(visibleQuoteBinding)
-              return
-            }
+      <div className="min-w-0">
+        {receipt ? receiptPanel() : <form className="relative rounded-[1.75rem] border border-border bg-kerb p-4 shadow-[0_30px_80px_-40px_rgba(0,0,0,0.9)] sm:p-5" onSubmit={event => {
+          event.preventDefault()
+          if (uncertainRequest) {
             if (visibleQuoteBinding) void requestRide(visibleQuoteBinding)
-            else void getQuote()
-          }}>
-            <fieldset disabled={Boolean(receipt) || Boolean(uncertainRequest) || requestLoading || servicesLoading} className="space-y-5 disabled:opacity-70">
-              <div className="space-y-2"><Label htmlFor="service" className="text-zinc-300">Service</Label><select id="service" name="service" required className="h-11 w-full rounded-md border border-zinc-700 bg-zinc-950 px-3 text-sm text-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[hsl(var(--fleet-hue)_85%_75%)]" value={serviceId} onChange={change(setServiceId)}><option value="" disabled>Select a service</option>{services.map(service=><option value={service.id} key={service.id}>{service.title} · {service.fleet.name}</option>)}</select></div>
-              {selectedService && <div className="rounded-lg border border-zinc-800 bg-zinc-950/60 p-3 text-sm"><p className="font-medium">{selectedService.fleet.name}{selectedService.fleet.publicCity ? ` · ${selectedService.fleet.publicCity}` : ''}</p><p className="mt-1 text-zinc-400">{selectedService.publicRegionLabels.join(' · ') || 'Region not published'} · up to {selectedService.passengerCapacity} passengers</p><p className="mt-1 text-xs text-zinc-500">Published service listing only; this does not confirm current supply or route coverage.</p><ServiceAreaPages serviceId={selectedService.id} /></div>}
-              <div className="space-y-2"><Label htmlFor="pickup" className="text-zinc-300">Pickup area</Label><div className="relative"><MapPin className="absolute left-3 top-3 size-4 text-zinc-500"/><Input id="pickup" name="pickup" autoComplete="off" className="border-zinc-700 bg-zinc-950 pl-9" placeholder="e.g. Downtown station" value={pickupLabel} onChange={change(setPickupLabel)} required minLength={2} maxLength={120}/></div></div>
-              <div className="space-y-2"><Label htmlFor="dropoff" className="text-zinc-300">Destination area</Label><div className="relative"><MapPin className="absolute left-3 top-3 size-4 text-[hsl(var(--fleet-hue)_85%_75%)]"/><Input id="dropoff" name="dropoff" autoComplete="off" className="border-zinc-700 bg-zinc-950 pl-9" placeholder="e.g. Riverside district" value={dropoffLabel} onChange={change(setDropoffLabel)} required minLength={2} maxLength={120}/></div></div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2"><Label htmlFor="passengers" className="text-zinc-300">Passengers</Label><Input id="passengers" name="passengers" type="number" min={1} max={selectedService?.passengerCapacity || 50} value={passengerCount} onChange={change(setPassengerCount)} required className="border-zinc-700 bg-zinc-950"/></div>
-                <div className="space-y-2"><Label htmlFor="schedule" className="text-zinc-300">Schedule (optional)</Label><Input id="schedule" name="schedule" type="datetime-local" value={scheduledFor} onChange={change(setScheduledFor)} className="border-zinc-700 bg-zinc-950"/></div>
-              </div>
-              <label className="flex min-h-11 items-center gap-3 text-sm text-zinc-300"><input type="checkbox" checked={wheelchairAccessible} onChange={event => { if (requestLoading || requestInFlightRef.current || uncertainRequestRef.current) return; invalidateQuote(); setWheelchairAccessible(event.target.checked) }} className="size-4 accent-[hsl(var(--fleet-hue)_85%_75%)]"/> I need a wheelchair-accessible service</label>
-            </fieldset>
+            return
+          }
+          if (visibleQuoteBinding) void requestRide(visibleQuoteBinding)
+          else void getQuote()
+        }}>
+          <fieldset disabled={formLocked} className="min-w-0 space-y-5 disabled:opacity-70">
+            <legend className="sr-only">Plan a ride</legend>
+            <div className="relative rounded-2xl bg-asphalt ring-1 ring-inset ring-white/10">
+              <span aria-hidden="true" className="absolute left-[1.3rem] top-[1.6rem] bottom-[1.6rem] w-px bg-[linear-gradient(to_bottom,#9aa0aa_50%,transparent_0)] bg-[length:1px_6px]" />
+              <label className="flex items-center gap-3 px-4 py-1">
+                <span aria-hidden="true" className="relative z-10 size-3 shrink-0 rounded-full border-[3px] border-foreground bg-asphalt" />
+                <span className="sr-only">Pickup</span>
+                <input id="pickup" name="pickup" autoComplete="off" placeholder="Pickup area" value={pickupLabel} onChange={change(setPickupLabel)} required minLength={2} maxLength={120} className="h-12 min-w-0 flex-1 bg-transparent text-base font-medium outline-none placeholder:text-muted-foreground/80" />
+              </label>
+              <div aria-hidden="true" className="ml-11 border-t border-white/10" />
+              <label className="flex items-center gap-3 px-4 py-1">
+                <span aria-hidden="true" className="relative z-10 size-3 shrink-0 rounded-[3px] bg-signal" />
+                <span className="sr-only">Destination</span>
+                <input id="dropoff" name="dropoff" autoComplete="off" placeholder="Destination area" value={dropoffLabel} onChange={change(setDropoffLabel)} required minLength={2} maxLength={120} className="h-12 min-w-0 flex-1 bg-transparent text-base font-medium outline-none placeholder:text-muted-foreground/80" />
+              </label>
+            </div>
 
-            {visibleQuoteBinding && <div className="rounded-xl border border-lime-300/20 bg-lime-300/5 p-4" aria-live="polite"><div className="flex min-w-0 flex-wrap items-end justify-between gap-4"><div className="min-w-0 max-w-full"><p className="text-xs uppercase tracking-widest text-zinc-400">Source quote · expires {new Date(visibleQuoteBinding.quote.expiresAt).toLocaleTimeString()}</p><p className="mt-1 text-sm text-zinc-300">{visibleQuoteBinding.quote.pickupLabel} → {visibleQuoteBinding.quote.dropoffLabel}</p><p className="mt-1 text-xs text-zinc-400">{selectedService?.title || 'Selected service'} · {visibleQuoteBinding.inputs.passengerCount} passenger(s){visibleQuoteBinding.inputs.wheelchairAccessible ? ' · wheelchair-accessible service requested' : ''}</p>{visibleQuoteBinding.quote.scheduledFor && <p className="mt-1 text-xs text-zinc-400">Scheduled {new Date(visibleQuoteBinding.quote.scheduledFor).toLocaleString()}</p>}</div><p className="shrink-0 text-2xl font-semibold">{formatMoney(visibleQuoteBinding.quote.fare.totalMinor, visibleQuoteBinding.quote.fare.currencyCode)}</p></div><p className="mt-3 text-xs leading-5 text-zinc-300">{visibleQuoteBinding.quote.estimateDisclosure}</p><p className="mt-2 text-xs text-zinc-400">Quoted cancellation fee: {formatMoney(visibleQuoteBinding.quote.cancellationFeeMinor, visibleQuoteBinding.quote.fare.currencyCode)} · no-show fee: {formatMoney(visibleQuoteBinding.quote.noShowFeeMinor, visibleQuoteBinding.quote.fare.currencyCode)}. No payment is collected in this demo.</p></div>}
-            {quoteExpired && !uncertainRequest && <p role="status" className="text-sm text-amber-300">This quote expired. Review your inputs and request a fresh quote.</p>}
-            {uncertainRequest && <p role="status" className="text-sm text-amber-300">The source request outcome is unconfirmed. Inputs and new quotes are locked. Only an explicit retry with the same quote can ask the source to return its receipt; if the original did not reach the source before expiry, it may reject again.</p>}
-            <Button disabled={quoteLoading || requestLoading || (!uncertainRequest && (servicesLoading || services.length === 0 || !serviceId || !selectedService?.readiness?.bookingEnabled)) || Boolean(receipt) || requestInFlightRef.current || (Boolean(uncertainRequest) && !visibleQuoteBinding)} type="submit" className="h-12 w-full bg-[hsl(var(--fleet-hue)_85%_80%)] text-zinc-950 hover:bg-[hsl(var(--fleet-hue)_85%_85%)]">{quoteLoading || requestLoading ? 'Working…' : uncertainRequest ? 'Recover original request' : visibleQuoteBinding ? 'Request ride' : 'Get quote'}<ArrowRight className="ml-2 size-4"/></Button>
-          </form>
-          {uncertainRequest && <Button type="button" variant="outline" className="mt-3 w-full" disabled={requestLoading} onClick={() => void resolveOriginalIntent()}>Resolve original request</Button>}
-          {receipt && requestView && <RequestCancellation requestId={receipt.requestId} requestProof={receipt.requestProof} status={requestView.status} onAcknowledged={() => { setRequestView(null); setStatusAsOf(''); setStatusError('Cancellation acknowledged. Refresh status or wait for the next check.') }} />}
-          {receipt && requestView && requestView.handoffState !== 'reassignment_pending' && (['cancelled','expired'].includes(requestView.status) || ['completed','no_show'].includes(requestView.trip?.status || '')) && <Button type="button" variant="outline" className="mt-3 w-full" onClick={beginAnotherRide}>Request another ride</Button>}
-          {servicesLoading && <p className="mt-4 text-sm text-zinc-400" role="status">Loading published services…</p>}
-          {!servicesLoading && !services.length && <p className="mt-4 text-sm text-amber-300" role="status">No services are currently available. Try again later or contact the operator.</p>}
-          {statusError && <p role="status" className="mt-4 text-sm text-amber-300">{statusError}</p>}
-          {selectedService?.readiness && <p role="status" className="mt-4 text-sm text-zinc-300">{selectedService.readiness.reason}</p>}
-          {error && <p role="alert" className="mt-4 text-sm text-red-300">{error}</p>}
-          {receipt && <div className="mt-5 rounded-xl border border-lime-300/30 bg-lime-300/10 p-5" aria-live="polite"><p className="text-sm font-medium text-lime-100">Request receipt · {receipt.requestNumber}</p><p className="mt-2 text-sm text-zinc-200">Status{statusAsOf ? ` at ${statusAsOf}` : ''}: <strong>{status.replaceAll('_', ' ')}</strong></p>{requestView?.handoffState === 'unavailable' && <p className="mt-3 text-sm text-amber-300">The owned request remains recorded, but its current quote/assignment binding is unavailable. Source reconciliation is required; no new request was sent.</p>}{requestView?.trip && <div className="mt-3 border-t border-lime-300/20 pt-3"><p className="text-sm">Trip {requestView.trip.confirmationCode} · {requestView.trip.status.replaceAll('_', ' ')}</p><Link href={riderStatusHref(requestView.trip.confirmationCode, receipt.requestId)} className="mt-2 inline-block text-sm text-[hsl(var(--fleet-hue)_85%_80%)] underline">Open private trip status and history</Link>{requestView.handoffState === 'reassignment_pending' && <p className="mt-2 text-xs text-amber-300">The previous assignment was cancelled; the source is matching again. This is not a new accepted ride.</p>}{requestView.trip.scheduledFor && <p className="mt-1 text-xs text-zinc-400">Scheduled {new Date(requestView.trip.scheduledFor).toLocaleString()}</p>}</div>}<p className="mt-3 text-xs leading-5 text-zinc-400">This browser checks source status every 10 seconds. The private receipt and original retry intent stay in this tab’s session storage across reloads, not in links or operator responses. Guest access expires 24 hours after the original request, never after a read or retry; account-linked requests require their owning sign-in. No external notification or payment is implied.</p><Link href="/account/rides" className="mt-3 inline-block text-sm text-[hsl(var(--fleet-hue)_85%_80%)] underline underline-offset-4">Open account ride history</Link></div>}
-        </CardContent>
-      </Card>
+            <div className="lg:hidden">
+              <p id="service-label" className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Ride</p>
+              <ServiceList services={services} serviceId={serviceId} disabled={formLocked} onChange={change(setServiceId)} loading={servicesLoading} more={nextServiceCursor ? () => void moreServices() : undefined} name="service" />
+              {selectedService && <ServiceDetail service={selectedService} />}
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <span className="text-sm font-medium" id="when-label">When</span>
+                <RiderTrack label="When">
+                  <RiderPill active={!scheduling} onClick={() => { if (locked()) return; setScheduleOpen(false); update(setScheduledFor, '') }}>Now</RiderPill>
+                  <RiderPill active={scheduling} onClick={() => { if (locked()) return; setScheduleOpen(true) }}><CalendarClock className="size-4" aria-hidden="true" />Schedule</RiderPill>
+                </RiderTrack>
+              </div>
+              {scheduling && <label className="block"><span className="sr-only">Pickup time</span><input id="schedule" name="schedule" type="datetime-local" value={scheduledFor} onChange={change(setScheduledFor)} className="h-12 w-full rounded-2xl bg-asphalt px-4 text-base outline-none ring-1 ring-inset ring-white/10 focus-visible:ring-2 focus-visible:ring-signal" /></label>}
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <label htmlFor="passengers" className="text-sm font-medium">Passengers</label>
+                <RiderTrack label="Passengers">
+                  <RiderButton size="sm" aria-label="Fewer passengers" disabled={passengers <= 1} onClick={() => update(setPassengerCount, String(Math.max(1, passengers - 1)))} className="size-9 px-0"><Minus className="size-4" aria-hidden="true" /></RiderButton>
+                  <input id="passengers" name="passengers" type="number" inputMode="numeric" min={1} max={maxPassengers} value={passengerCount} onChange={change(setPassengerCount)} required className="w-10 bg-transparent text-center text-base font-semibold tabular-nums outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none" />
+                  <RiderButton size="sm" aria-label="More passengers" disabled={passengers >= maxPassengers} onClick={() => update(setPassengerCount, String(Math.min(maxPassengers, passengers + 1)))} className="size-9 px-0"><Plus className="size-4" aria-hidden="true" /></RiderButton>
+                </RiderTrack>
+              </div>
+              <label className="flex min-h-11 cursor-pointer items-center justify-between gap-3 text-sm font-medium">
+                <span className="inline-flex items-center gap-2"><Accessibility className="size-4 text-muted-foreground" aria-hidden="true" />Wheelchair accessible</span>
+                <input type="checkbox" role="switch" checked={wheelchairAccessible} onChange={event => { if (locked()) return; invalidateQuote(); setWheelchairAccessible(event.target.checked) }} className="peer sr-only" />
+                <span aria-hidden="true" className="relative h-7 w-12 shrink-0 rounded-full bg-asphalt ring-1 ring-inset ring-white/15 transition-colors after:absolute after:left-1 after:top-1 after:size-5 after:rounded-full after:bg-muted-foreground after:transition-transform peer-checked:bg-signal peer-checked:after:translate-x-5 peer-checked:after:bg-zinc-950 peer-focus-visible:ring-2 peer-focus-visible:ring-signal" />
+              </label>
+            </div>
+          </fieldset>
+
+          {quote && visibleQuoteBinding && <section aria-live="polite" aria-label="Price" className="relative mt-5 overflow-hidden rounded-2xl bg-signal p-4 text-zinc-950">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-800">{selectedService?.title || 'Ride'}</p>
+                <p className="mt-1 font-display text-4xl font-extrabold tracking-tight tabular-nums [font-stretch:115%]">{formatMoney(quote.fare.totalMinor, quote.fare.currencyCode)}</p>
+              </div>
+              <p className="shrink-0 rounded-full bg-zinc-950/10 px-2.5 py-1 text-xs font-semibold tabular-nums"><QuoteCountdown expiresAt={quote.expiresAt} /></p>
+            </div>
+            <dl className="mt-3 grid grid-cols-3 gap-2 border-t border-zinc-950/15 pt-3 text-xs">
+              <div><dt className="text-zinc-800">Time</dt><dd className="font-semibold tabular-nums">{formatDuration(quote.estimatedDurationSeconds)}</dd></div>
+              <div><dt className="text-zinc-800">Distance</dt><dd className="font-semibold tabular-nums">{formatDistance(quote.estimatedDistanceMeters)}</dd></div>
+              <div><dt className="text-zinc-800">Riders</dt><dd className="font-semibold tabular-nums">{visibleQuoteBinding.inputs.passengerCount}{visibleQuoteBinding.inputs.wheelchairAccessible ? ' · ♿' : ''}</dd></div>
+            </dl>
+            {quote.scheduledFor && <p className="mt-2 text-xs font-medium">Pickup {new Date(quote.scheduledFor).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</p>}
+            <p className="mt-2 text-xs text-zinc-800">Cancellation {formatMoney(quote.cancellationFeeMinor, quote.fare.currencyCode)} · No-show {formatMoney(quote.noShowFeeMinor, quote.fare.currencyCode)}</p>
+            <p className="mt-1 text-[0.6875rem] leading-4 text-zinc-800">{quote.estimateDisclosure}</p>
+          </section>}
+
+          <div className="mt-4 space-y-2" aria-live="polite">
+            {quoteExpired && !uncertainRequest && <p role="status" className="text-sm text-amber-300">Price expired. Get a new price.</p>}
+            {uncertainRequest && <p role="status" className="flex items-start gap-2 text-sm text-amber-300"><StatusDot tone="amber" pulse className="mt-1.5" />Request unconfirmed. Recover it before booking again.</p>}
+            {servicesLoading && <p className="text-sm text-muted-foreground" role="status">Loading rides…</p>}
+            {!servicesLoading && !services.length && <p className="text-sm text-amber-300" role="status">No rides available right now</p>}
+            {selectedService?.readiness && !selectedService.readiness.bookingEnabled && <p role="status" className="text-sm text-amber-300">{selectedService.readiness.reason}</p>}
+            {statusError && <p role="status" className="text-sm text-amber-300">{statusError}</p>}
+            {error && <p role="alert" className="text-sm text-[#ff8a7f]">{error}</p>}
+          </div>
+
+          <div className="sticky bottom-3 z-10 mt-4 space-y-2">
+            <RiderButton type="submit" tone="signal" size="lg" disabled={ctaDisabled} className="w-full">{quoteLoading || requestLoading ? 'Working…' : uncertainRequest ? 'Recover request' : visibleQuoteBinding ? 'Request ride' : 'See price'}<ArrowRight className="size-5" aria-hidden="true" /></RiderButton>
+            {uncertainRequest && <RiderButton tone="raised" className="w-full" disabled={requestLoading} onClick={() => void resolveOriginalIntent()}>Check request outcome</RiderButton>}
+          </div>
+        </form>}
+      </div>
+    </div>
+  </RiderShell>
+
+  function receiptPanel() {
+    if (!receipt) return null
+    return <section aria-live="polite" aria-labelledby="receipt-title" className="space-y-5 rounded-[1.75rem] border border-border bg-kerb p-5 shadow-[0_30px_80px_-40px_rgba(0,0,0,0.9)]">
+      <div className="space-y-1">
+        <StatusTitle as="h2" id="receipt-title" tone={requestView ? statusTone(liveState) : 'zinc'} pulse={Boolean(requestView) && !terminal} status={requestView ? statusLabel(liveState) : statusError ? 'Status unavailable' : 'Checking…'} className="font-mono text-base font-semibold">{receipt.requestNumber}</StatusTitle>
+        {statusAsOf && <p className="text-xs text-muted-foreground">Updated {statusAsOf}</p>}
+      </div>
+      {requestView?.trip ? <div className="space-y-3 rounded-2xl bg-asphalt p-4 ring-1 ring-inset ring-white/10">
+        <TripProgress status={requestView.trip.status} />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0"><p className="text-xs text-muted-foreground">Trip</p><p className="font-mono text-lg font-semibold">{requestView.trip.confirmationCode}</p>{requestView.trip.scheduledFor && <p className="text-xs text-muted-foreground">Pickup {new Date(requestView.trip.scheduledFor).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</p>}</div>
+          <RiderButtonLink href={riderStatusHref(requestView.trip.confirmationCode, receipt.requestId)} tone="signal">Track ride<ArrowUpRight className="size-4" aria-hidden="true" /></RiderButtonLink>
+        </div>
+        {requestView.handoffState === 'reassignment_pending' && <p className="text-sm text-amber-300">Driver cancelled. Finding another driver.</p>}
+      </div> : requestView && !terminal && <div className="flex items-center gap-3 rounded-2xl bg-asphalt p-4 ring-1 ring-inset ring-white/10"><span className="relative grid size-10 shrink-0 place-items-center rounded-full bg-signal/15"><Search className="size-4 text-signal" aria-hidden="true" /><span className="absolute inset-0 animate-ping rounded-full bg-signal/20 motion-reduce:animate-none" /></span><p className="text-sm font-medium">Finding your driver</p></div>}
+      {requestView?.handoffState === 'unavailable' && <p className="text-sm text-amber-300">Assignment details unavailable. The operator needs to reconcile this request.</p>}
+      {statusError && <p role="status" className="text-sm text-amber-300">{statusError}</p>}
+      {error && <p role="alert" className="text-sm text-[#ff8a7f]">{error}</p>}
+      {requestView && <RequestCancellation requestId={receipt.requestId} requestProof={receipt.requestProof} status={requestView.status} onAcknowledged={() => { setRequestView(null); setStatusAsOf(''); setStatusError('Cancellation received. Updating status…') }} />}
+      <RiderTrack className="w-full">
+        {terminal && <RiderButton tone="signal" className="flex-1" onClick={beginAnotherRide}>New ride</RiderButton>}
+        <RiderButtonLink href="/account/rides" tone={terminal ? 'quiet' : 'raised'} className="flex-1">My rides</RiderButtonLink>
+      </RiderTrack>
     </section>
-  </main>
+  }
+}
+
+function QuoteCountdown({ expiresAt }: { expiresAt: string }) {
+  const [now, setNow] = useState<number | null>(null)
+  useEffect(() => { setNow(Date.now()); const timer = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(timer) }, [])
+  if (now === null) return <>Held</>
+  const left = Math.max(0, Math.round((Date.parse(expiresAt) - now) / 1000))
+  return <span role="timer" aria-label={`Price held for ${left} seconds`}>{left ? `Held ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}` : 'Expired'}</span>
+}
+
+function formatDuration(seconds: number) {
+  const minutes = Math.max(1, Math.round(seconds / 60))
+  return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} h ${minutes % 60} min`
+}
+
+function formatDistance(meters: number) {
+  return meters < 1000 ? `${Math.round(meters)} m` : `${(meters / 1000).toFixed(meters < 10_000 ? 1 : 0)} km`
+}
+
+function ServiceList({ services, serviceId, disabled, onChange, loading, more, name }: { services: Service[]; serviceId: string; disabled: boolean; onChange: (event: React.ChangeEvent<HTMLInputElement>) => void; loading: boolean; more?: () => void; name: string }) {
+  if (loading && !services.length) return <div className="mt-3 space-y-2" aria-hidden="true">{[0, 1].map(index => <div key={index} className="h-[4.25rem] animate-pulse rounded-2xl bg-lane motion-reduce:animate-none" />)}</div>
+  return <div className="mt-3 space-y-2" role="radiogroup" aria-label="Ride">
+    {services.map(service => {
+      const ready = service.readiness?.bookingEnabled === true
+      return <label key={service.id} className="group flex cursor-pointer items-center gap-3 rounded-2xl bg-asphalt p-3 ring-1 ring-inset ring-white/10 transition-[box-shadow,background-color] has-[:checked]:bg-lane has-[:checked]:ring-2 has-[:checked]:ring-signal has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-signal has-[:disabled]:cursor-default">
+        <input type="radio" name={name} value={service.id} checked={serviceId === service.id} disabled={disabled} onChange={onChange} className="sr-only" />
+        <span aria-hidden="true" className="grid size-11 shrink-0 place-items-center rounded-xl bg-kerb ring-1 ring-inset ring-white/10 group-has-[:checked]:bg-signal group-has-[:checked]:text-zinc-950">{service.wheelchairAccessible ? <Accessibility className="size-5" /> : <CarFront className="size-5" />}</span>
+        <span className="min-w-0 flex-1">
+          <StatusTitle as="span" tone={ready ? 'green' : 'amber'} className="text-sm font-semibold">{service.title}</StatusTitle>
+          <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground"><span className="truncate">{service.fleet.name}</span><span className="inline-flex items-center gap-1"><Users className="size-3" aria-hidden="true" />{service.passengerCapacity}</span>{service.category && <span className="capitalize">{service.category.replaceAll('_', ' ')}</span>}</span>
+        </span>
+        {service.startingFareMinor !== null && <span className="shrink-0 text-right text-xs text-muted-foreground">from<span className="block text-sm font-semibold tabular-nums text-foreground">{formatMoney(service.startingFareMinor, service.currencyCode)}</span></span>}
+      </label>
+    })}
+    {more && <RiderButton tone="quiet" size="sm" disabled={loading} onClick={more} className="w-full">{loading ? 'Loading…' : 'More rides'}</RiderButton>}
+  </div>
+}
+
+function ServiceDetail({ service }: { service: Service }) {
+  return <div className="mt-3 space-y-2 rounded-2xl border border-dashed border-border p-3 text-sm">
+    {service.description && <p className="text-muted-foreground">{service.description}</p>}
+    {service.publicRegionLabels.length > 0 && <ul aria-label="Service areas" className="flex flex-wrap gap-1.5">{service.publicRegionLabels.map(label => <li key={label} className="inline-flex items-center gap-1 rounded-full bg-lane px-2.5 py-1 text-xs"><MapPin className="size-3 text-signal" aria-hidden="true" />{label}</li>)}</ul>}
+    {service.advanceBookingMinutes > 0 && <p className="text-xs text-muted-foreground">Book {service.advanceBookingMinutes >= 60 ? `${Math.round(service.advanceBookingMinutes / 60)} h` : `${service.advanceBookingMinutes} min`} ahead</p>}
+    <ServiceAreaPages serviceId={service.id} />
+  </div>
+}
+
+function TripProgress({ status }: { status: string }) {
+  const current = tripStageIndex(status)
+  if (current < 0) return null
+  return <ol className="grid grid-cols-5 gap-1" aria-label={`Trip: ${statusLabel(status)}`}>{TRIP_STAGES.map((stage, index) => <li key={stage} aria-current={index === current ? 'step' : undefined} className={`h-1.5 rounded-full ${index <= current ? 'bg-signal' : 'bg-lane'}`}><span className="sr-only">{statusLabel(stage)}</span></li>)}</ol>
 }

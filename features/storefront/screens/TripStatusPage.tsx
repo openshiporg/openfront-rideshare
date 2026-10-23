@@ -1,10 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
-import { CheckCircle2 } from 'lucide-react'
-import { FleetBrand, type PublicFleetBrand } from '../components/FleetBrand'
-import { Button } from '@/components/ui/button'
+import { CalendarClock, RefreshCw } from 'lucide-react'
+import { type PublicFleetBrand } from '../components/FleetBrand'
+import { RiderShell } from '../components/RiderShell'
+import { RiderButton, RiderButtonLink, RiderTrack } from '../components/RiderPills'
+import { StatusDot, StatusTitle } from '@/features/platform/components/StatusTitle'
+import { TRIP_STAGES, statusLabel, statusTone, tripStageIndex } from '@/features/platform/lib/statusTone'
 import { RiderTripHistory } from '../components/RiderTripHistory'
 import { storedReceipt } from '../domain/riderReceiptStorage'
 
@@ -71,9 +73,30 @@ export default function TripStatusPage({ confirmationCode, requestId }: { confir
     return () => { active = false; controller.abort() }
   }, [confirmationCode, requestId, retry])
 
-  return <main className="min-h-screen bg-zinc-950 px-6 py-12 text-zinc-50"><div className="mx-auto min-w-0 max-w-2xl break-words"><FleetBrand fleet={trip?.fleetBrand} /><div className="mt-12 rounded-2xl border border-zinc-800 bg-zinc-900 p-6" aria-live="polite">
-    {loading ? <p className="text-zinc-400" role="status">Checking the private trip view…</p> : error ? <div role="alert"><p className="text-red-300">The source could not be reached. Your trip details have not been changed.</p><Button type="button" variant="outline" className="mt-4" onClick={() => setRetry(value => value + 1)}>Retry status check</Button></div> : unavailable || !trip ? <div role="status"><h1 className="text-xl font-semibold">Private trip view unavailable</h1><p className="mt-2 text-sm leading-6 text-zinc-400">This private link is unavailable. Use your original saved receipt or sign in to your rider account.</p><Link href="/account/signin" className="mt-4 inline-block text-sm underline">Rider sign-in</Link><Link href="/book" className="mt-4 inline-block text-sm text-lime-200 underline underline-offset-4">Return to ride requests</Link></div> : <>
-      <p className="text-xs uppercase tracking-widest text-zinc-500">Source confirmation</p><h1 className="mt-2 text-3xl font-semibold">{trip.confirmationCode}</h1><p className="mt-2 capitalize text-lime-300">{trip.status.replaceAll('_',' ')}</p>{trip.scheduledFor && <p className="mt-2 text-sm text-zinc-400">Scheduled {new Date(trip.scheduledFor).toLocaleString()}</p>}<div className="my-7 border-y border-zinc-800 py-5"><p>{trip.pickupLabel}</p><p className="my-2 text-zinc-600">↓</p><p>{trip.dropoffLabel}</p></div><div className="space-y-4">{trip.events.map((event,index)=><div className="flex gap-3" key={`${event.eventType}:${event.occurredAt}:${index}`}><CheckCircle2 className="size-5 text-lime-300"/><div><p className="text-sm capitalize">{event.toStatus?.replaceAll('_',' ') || event.eventType.replaceAll('_',' ')}</p><p className="text-xs text-zinc-500">{new Date(event.occurredAt).toLocaleString()}</p></div></div>)}</div>{trip.historyTruncated && <p className="mt-4 text-xs text-amber-300">The latest 100 events are shown above. Use the history pages below for older entries.</p>}<Button type="button" variant="outline" className="mt-5" onClick={() => setRetry(value => value + 1)}>Refresh current status</Button><Link href="/account/rides" className="ml-4 text-sm underline">Account history</Link><RiderTripHistory requestId={trip.requestId} tripId={trip.id} /><p className="mt-8 text-xs leading-5 text-zinc-500">This redacted view comes from the driver-owned deployment. Precise location, direct identity data, incident records, and provider evidence are not exposed here.</p>
-    </>}
-  </div></div></main>
+  const stage = tripStageIndex(trip?.status)
+  return <RiderShell fleet={trip?.fleetBrand}>
+    <div className="mx-auto max-w-2xl space-y-6" aria-live="polite">
+      {loading ? <div className="space-y-4" role="status" aria-label="Loading trip"><div className="h-14 w-2/3 animate-pulse rounded-2xl bg-kerb motion-reduce:animate-none" /><div className="h-64 animate-pulse rounded-[1.75rem] bg-kerb motion-reduce:animate-none" /></div>
+        : error ? <div role="alert" className="space-y-4 rounded-[1.75rem] border border-border bg-kerb p-5"><p className="text-sm text-[#ff8a7f]">Trip status could not be loaded.</p><RiderTrack><RiderButton onClick={() => setRetry(value => value + 1)}>Try again</RiderButton></RiderTrack></div>
+        : unavailable || !trip ? <div role="status" className="space-y-4 rounded-[1.75rem] border border-border bg-kerb p-5"><h1 className="font-display text-2xl font-extrabold [font-stretch:120%]">Trip not available</h1><p className="text-sm text-muted-foreground">Sign in, or open this trip from the browser you booked it in.</p><RiderTrack><RiderButtonLink href="/account/signin" tone="signal">Sign in</RiderButtonLink><RiderButtonLink href="/book" tone="quiet">Book a ride</RiderButtonLink></RiderTrack></div>
+        : <>
+          <div className="space-y-2">
+            <StatusTitle as="p" tone={statusTone(trip.status)} pulse={stage >= 0 && stage < 4} className="text-sm font-semibold uppercase tracking-[0.14em] text-muted-foreground">{statusLabel(trip.status)}</StatusTitle>
+            <h1 className="font-mono text-4xl font-semibold tracking-tight sm:text-5xl">{trip.confirmationCode}</h1>
+            {trip.scheduledFor && <p className="inline-flex items-center gap-1.5 text-sm text-muted-foreground"><CalendarClock className="size-4" aria-hidden="true" />Pickup {new Date(trip.scheduledFor).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</p>}
+          </div>
+          <section aria-label="Trip" className="space-y-5 rounded-[1.75rem] border border-border bg-kerb p-5">
+            {stage >= 0 && <ol className="grid grid-cols-5 gap-1.5" aria-label="Progress">{TRIP_STAGES.map((value, index) => <li key={value} aria-current={index === stage ? 'step' : undefined} className="space-y-1.5"><span className={`block h-1.5 rounded-full ${index <= stage ? 'bg-signal' : 'bg-lane'}`} /><span className={`block truncate text-[0.625rem] sm:text-xs ${index === stage ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}>{statusLabel(value).replace('Driver ', '')}</span></li>)}</ol>}
+            <ol className="grid grid-cols-[0.875rem_minmax(0,1fr)] gap-x-3 gap-y-0 text-base font-medium" aria-label="Route">
+              <li className="contents"><span className="relative flex justify-center pt-1.5" aria-hidden="true"><span className="size-3 rounded-full border-[3px] border-foreground" /><span className="absolute left-1/2 top-6 bottom-0 w-px -translate-x-1/2 bg-[linear-gradient(to_bottom,#9aa0aa_50%,transparent_0)] bg-[length:1px_6px]" /></span><span className="pb-5 [overflow-wrap:anywhere]"><span className="block text-xs font-normal text-muted-foreground">Pickup</span>{trip.pickupLabel || 'Not recorded'}</span></li>
+              <li className="contents"><span className="flex justify-center pt-1.5" aria-hidden="true"><span className="size-3 rounded-[3px] bg-signal" /></span><span className="[overflow-wrap:anywhere]"><span className="block text-xs font-normal text-muted-foreground">Destination</span>{trip.dropoffLabel || 'Not recorded'}</span></li>
+            </ol>
+            {trip.events.length > 0 && <ol className="space-y-3 border-t border-border pt-5" aria-label="Latest updates">{[...trip.events].reverse().map((event, index) => { const state = event.toStatus || event.eventType; return <li key={`${event.eventType}:${event.occurredAt}:${index}`} className="flex items-center gap-3 text-sm"><StatusDot tone={statusTone(state)} /><span className="font-medium">{statusLabel(state)}</span><span className="ml-auto text-xs tabular-nums text-muted-foreground">{new Date(event.occurredAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span></li> })}</ol>}
+            {trip.historyTruncated && <p className="text-xs text-muted-foreground">Showing the latest 100 updates</p>}
+            <RiderTrack><RiderButton onClick={() => setRetry(value => value + 1)}><RefreshCw className="size-4" aria-hidden="true" />Refresh</RiderButton><RiderButtonLink href="/account/rides" tone="quiet">My rides</RiderButtonLink></RiderTrack>
+          </section>
+          <RiderTripHistory requestId={trip.requestId} tripId={trip.id} />
+        </>}
+    </div>
+  </RiderShell>
 }

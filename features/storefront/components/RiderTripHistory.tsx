@@ -1,7 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Button } from '@/components/ui/button'
+import { Star } from 'lucide-react'
+import { StatusDot } from '@/features/platform/components/StatusTitle'
+import { statusLabel, statusTone } from '@/features/platform/lib/statusTone'
+import { RiderButton, RiderPill, RiderTrack } from './RiderPills'
 import { formatMoney } from '@/features/lib/currency'
 import { storedReceipt } from '../domain/riderReceiptStorage'
 
@@ -16,7 +19,7 @@ function isPage(value: any, requestId: string, tripId: string, kind: Kind): valu
     return (row.status === null || typeof row.status === 'string') && (row.currencyCode === null || typeof row.currencyCode === 'string')
   })
 }
-const dateLabel = (value: string | null | undefined) => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString() : 'Time unavailable'
+const dateLabel = (value: string | null | undefined) => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'Time unavailable'
 
 export function RiderTripHistory({ requestId, tripId }: { requestId: string; tripId: string }) {
   const [kind, setKind] = useState<Kind>('events')
@@ -49,5 +52,17 @@ export function RiderTripHistory({ requestId, tripId }: { requestId: string; tri
     })()
     return () => { active = false; window.clearTimeout(timeout); controller.abort() }
   }, [requestId, tripId, kind, cursor, refresh])
-  return <section className="mt-6 space-y-4 border-t border-zinc-800 pt-6" aria-label="Complete trip history"><h2 className="font-semibold">Trip history</h2><nav aria-label="History type" className="flex flex-wrap gap-2">{(['events','payments','reviews'] as const).map(value => <Button key={value} type="button" variant={kind === value ? 'secondary' : 'outline'} aria-pressed={kind === value} onClick={() => { setPage(null); setKind(value); setCursor(null) }}>{value[0].toUpperCase() + value.slice(1)}</Button>)}</nav><div aria-live="polite">{loading ? <p role="status">Loading private history…</p> : error || !page ? <p role="alert">Private history is unavailable. Refresh to recheck your current access.</p> : !page.items.length ? <p>No {kind} on this page.</p> : <ol className="space-y-3">{page.items.map(row => <li key={row.id} className="min-w-0 break-words rounded-lg border border-zinc-800 p-3 text-sm">{kind === 'events' ? <><p>{(row.toStatus || row.eventType || 'Event').replaceAll('_',' ')}</p><p className="text-xs text-zinc-400">{dateLabel(row.occurredAt)}</p></> : kind === 'payments' ? <><p>{formatMoney(row.amountMinor, row.currencyCode || '')} · {row.status?.replaceAll('_',' ') || 'Status unavailable'}</p><p className="text-xs text-zinc-400">{dateLabel(row.createdAt)}</p></> : <><p>{row.rating === null ? 'Rating unavailable' : `${row.rating}/5`}</p><p className="whitespace-pre-wrap">{row.body}</p><p className="text-xs text-zinc-400">{dateLabel(row.submittedAt)}</p></>}</li>)}</ol>}</div><div className="flex flex-wrap gap-2"><Button type="button" variant="outline" disabled={loading} onClick={() => { setPage(null); setCursor(null); setRefresh(value => value + 1) }}>Latest / retry</Button>{page?.nextCursor && <Button type="button" variant="outline" disabled={loading} onClick={() => { setPage(null); setCursor(page.nextCursor) }}>Older {kind}</Button>}</div></section>
+  const label = { events: 'Updates', payments: 'Payments', reviews: 'Reviews' } as const
+  return <section className="space-y-4" aria-labelledby="trip-history-title">
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <h2 id="trip-history-title" className="font-display text-xl font-bold [font-stretch:115%]">History</h2>
+      <RiderTrack label="History type">{(['events', 'payments', 'reviews'] as const).map(value => <RiderPill key={value} active={kind === value} onClick={() => { setPage(null); setKind(value); setCursor(null) }}>{label[value]}</RiderPill>)}</RiderTrack>
+    </div>
+    <div aria-live="polite">{loading ? <p role="status" className="text-sm text-muted-foreground">Loading…</p> : error || !page ? <p role="alert" className="text-sm text-[#ff8a7f]">History unavailable. Try again.</p> : !page.items.length ? <p className="rounded-2xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">No {label[kind].toLowerCase()}</p> : <ol className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-kerb">{page.items.map(row => <li key={row.id} className="min-w-0 break-words px-4 py-3 text-sm">
+      {kind === 'events' ? <div className="flex items-center gap-3"><StatusDot tone={statusTone(row.toStatus || row.eventType)} /><span className="font-medium">{statusLabel(row.toStatus || row.eventType || 'Update')}</span><span className="ml-auto text-xs tabular-nums text-muted-foreground">{dateLabel(row.occurredAt)}</span></div>
+        : kind === 'payments' ? <div className="flex items-center gap-3"><StatusDot tone={statusTone(row.status)} /><span className="min-w-0"><span className="block font-semibold tabular-nums">{formatMoney(row.amountMinor, row.currencyCode || '')}</span><span className="block text-xs text-muted-foreground">{statusLabel(row.status)}</span></span><span className="ml-auto text-xs tabular-nums text-muted-foreground">{dateLabel(row.createdAt)}</span></div>
+        : <div className="space-y-1.5"><div className="flex items-center gap-2">{row.rating === null ? <span className="text-xs text-muted-foreground">No rating</span> : <span className="inline-flex gap-0.5" aria-label={`${row.rating} out of 5`}>{[1, 2, 3, 4, 5].map(star => <Star key={star} aria-hidden="true" className={`size-4 ${star <= (row.rating || 0) ? 'fill-signal text-signal' : 'text-lane'}`} />)}</span>}<span className="ml-auto text-xs tabular-nums text-muted-foreground">{dateLabel(row.submittedAt)}</span></div>{row.body && <p className="whitespace-pre-wrap text-muted-foreground">{row.body}</p>}</div>}
+    </li>)}</ol>}</div>
+    {(cursor || page?.nextCursor || error) && <RiderTrack><RiderButton disabled={loading} onClick={() => { setPage(null); setCursor(null); setRefresh(value => value + 1) }}>{error ? 'Try again' : 'Latest'}</RiderButton>{page?.nextCursor && <RiderButton disabled={loading} onClick={() => { setPage(null); setCursor(page.nextCursor) }}>Older</RiderButton>}</RiderTrack>}
+  </section>
 }

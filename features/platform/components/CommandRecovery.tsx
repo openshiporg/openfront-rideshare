@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { Button } from '@/components/ui/button'
+import { ActionTrack, TrackButton } from './PillTabs'
+import { StatusTitle } from './StatusTitle'
 import { commandPrefix, executeDurableCommand, readCommand, type CommandIntent } from './durableCommand'
 
 export function CommandRecovery({ actorId }: { actorId: string }) {
@@ -21,16 +22,22 @@ export function CommandRecovery({ actorId }: { actorId: string }) {
         if (value?.phase === 'pending') rows.push(value)
       }
       setCommands(rows); setPage(0)
-    } catch { setError('Some original commands cannot be read. Keep their stored data for reconciliation.') }
+    } catch { setError('Some saved commands are unreadable.') }
   }
   useEffect(() => { load(); window.addEventListener('storage', load); return () => window.removeEventListener('storage', load) }, [actorId])
   async function recover(command: CommandIntent) {
     if (busy) return
     setBusy(true); setError('')
     try { await executeDurableCommand(actorId, command.resource); load() }
-    catch { setError('The original outcome is still unresolved. Current authority or assignment may have changed; do not create a replacement key.') }
+    catch { setError('Still unconfirmed. Access or assignment may have changed.') }
     finally { setBusy(false) }
   }
-  if (!actorId) return null
-  return <section className="space-y-3 rounded-xl border p-4" data-command-pending={commands.length > 0 || busy ? 'true' : undefined}><h2 className="font-medium">Original command recovery</h2><Button type="button" size="sm" variant="outline" onClick={load} disabled={busy}>Refresh saved commands</Button>{commands.slice(page * 25, (page+1)*25).map(command => <div key={command.key} className="flex min-w-0 flex-wrap items-center gap-2 text-sm"><span className="break-all">{command.purpose} · {command.resource}</span><Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void recover(command)}>Recover original command</Button></div>)}{commands.length > 25 && <div className="flex gap-2"><Button type="button" variant="outline" size="sm" disabled={page === 0 || busy} onClick={() => setPage(v=>v-1)}>Previous</Button><Button type="button" variant="outline" size="sm" disabled={(page+1)*25 >= commands.length || busy} onClick={() => setPage(v=>v+1)}>Next</Button></div>}{!commands.length && <p className="text-xs text-muted-foreground">No unresolved commands for this account in this browser.</p>}{error && <p role="alert" className="text-sm text-destructive">{error}</p>}</section>
+  if (!actorId || (!commands.length && !error)) return null
+  const purpose = { offer: 'Offer', transition: 'Trip update', cancel: 'Cancellation' }
+  return <section aria-label="Unconfirmed commands" className="space-y-3 rounded-xl border border-amber-500/40 bg-amber-500/5 p-4" data-command-pending={commands.length > 0 || busy ? 'true' : undefined}>
+    <div className="flex flex-wrap items-center justify-between gap-2"><StatusTitle as="h2" tone="amber" status={`${commands.length}`} className="text-sm font-semibold">Unconfirmed commands</StatusTitle><ActionTrack><TrackButton onClick={load} disabled={busy}>Reload</TrackButton></ActionTrack></div>
+    {commands.length > 0 && <ul className="divide-y rounded-lg border bg-background">{commands.slice(page * 25, (page + 1) * 25).map(command => <li key={command.key} className="flex min-w-0 flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm"><span className="min-w-0 break-all"><span className="font-medium">{purpose[command.purpose]}</span> <span className="font-mono text-xs text-muted-foreground">{command.resource}</span></span><ActionTrack><TrackButton tone="primary" disabled={busy} onClick={() => void recover(command)}>Recover</TrackButton></ActionTrack></li>)}</ul>}
+    {commands.length > 25 && <ActionTrack label="Command pages"><TrackButton disabled={page === 0 || busy} onClick={() => setPage(v => v - 1)}>Previous</TrackButton><TrackButton disabled={(page + 1) * 25 >= commands.length || busy} onClick={() => setPage(v => v + 1)}>Next</TrackButton></ActionTrack>}
+    {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+  </section>
 }

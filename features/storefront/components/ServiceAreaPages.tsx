@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Button } from '@/components/ui/button'
+import { RiderButton } from './RiderPills'
 
 export function ServiceAreaPages({ serviceId }: { serviceId: string }) {
   const [labels, setLabels] = useState<string[]>([])
@@ -25,5 +25,9 @@ export function ServiceAreaPages({ serviceId }: { serviceId: string }) {
     } catch { if (generation.current === current) setError(true) }
     finally { if (generation.current === current) { flight.current = false; setBusy(false) } }
   }
-  return <div className="mt-2 min-w-0 space-y-2 text-xs" aria-live="polite">{loaded && <ul className="list-inside list-disc break-words">{labels.map((label, index) => <li key={index}>{label}</li>)}</ul>}{(!loaded || cursor) && <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void load()}>{busy ? 'Loading areas…' : loaded ? 'More service areas' : 'Browse service areas'}</Button>}{loaded && !cursor && <p>End of published service areas.</p>}{error && <p role="alert">Service areas are unavailable. Try again.</p>}</div>
+  return <div className="min-w-0 space-y-2 text-xs" aria-live="polite">
+    {loaded && (labels.length ? <ul aria-label="All service areas" className="flex flex-wrap gap-1.5">{labels.map((label, index) => <li key={index} className="rounded-full bg-lane px-2.5 py-1 [overflow-wrap:anywhere]">{label}</li>)}</ul> : <p className="text-muted-foreground">No areas listed</p>)}
+    {(!loaded || cursor) && <RiderButton tone="quiet" size="sm" disabled={busy} onClick={() => void load()} className="-ml-3">{busy ? 'Loading…' : loaded ? 'More areas' : 'All service areas'}</RiderButton>}
+    {error && <p role="alert" className="text-[#ff8a7f]">Areas unavailable. Try again.</p>}
+  </div>
 }

@@ -4,8 +4,12 @@ import { RequestCancellation } from '../components/RequestCancellation'
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { FleetBrand, type PublicFleetBrand } from '../components/FleetBrand'
-import { Button } from '@/components/ui/button'
+import { ArrowUpRight, CalendarClock } from 'lucide-react'
+import { type PublicFleetBrand } from '../components/FleetBrand'
+import { RiderShell } from '../components/RiderShell'
+import { RiderButton, RiderButtonLink, RiderTrack } from '../components/RiderPills'
+import { StatusDot, StatusTitle } from '@/features/platform/components/StatusTitle'
+import { TRIP_STAGES, statusLabel, statusTone, tripStageIndex } from '@/features/platform/lib/statusTone'
 import { parseRiderReceipt, receiptStorageKey, riderStatusHref, type RiderReceipt } from '../domain/riderReceiptStorage'
 
 type RequestSummary = { fleetBrand: PublicFleetBrand | null; requestId: string; requestNumber: string; status: string; requestedFor: string | null; pickupLabel: string | null; dropoffLabel: string | null; handoffState: string; createdAt: string; trip: { confirmationCode: string; status: string } | null }
@@ -41,12 +45,34 @@ export default function RiderAccountPage() {
     void load()
     return () => { active = false; controller.abort() }
   }, [cursor, retry])
-  return <main className="min-h-screen bg-zinc-950 px-6 py-12 text-zinc-50"><div className="mx-auto max-w-3xl">
-    <div className="flex flex-wrap items-center justify-between gap-4"><FleetBrand /><Link href="/book" className="text-sm text-zinc-400">Request a ride</Link></div>
-    <Link href="/account" className="mt-6 inline-block text-sm underline">Account / sign out</Link><h1 className="mt-14 text-4xl font-semibold">Your requests and rides</h1><p className="mt-2 text-zinc-400">Your requests, assignments and trip history. A request receipt does not confirm a driver or payment.</p>
-    {receipt && <Link href="/book" className="mt-5 block rounded-xl border border-zinc-800 p-4 text-sm text-lime-200">Resume this tab’s private receipt · {receipt.requestNumber}</Link>}
-    <div className="mt-8 space-y-3" aria-live="polite">
-      {loading ? <p role="status">Loading your ride history…</p> : error ? <div role="alert"><p className="text-amber-300">Account history is unavailable. Sign in to your rider account or retry.</p><Link href="/account/signin" className="mt-3 inline-block underline">Sign in</Link><Button type="button" variant="outline" className="ml-3" onClick={() => setRetry(value => value + 1)}>Retry history</Button></div> : !items.length ? <p role="status" className="rounded-xl border border-dashed border-zinc-800 p-8">No requests on this account history page. Guest requests use their private saved receipt and are not claimed by signing in.</p> : items.map(item => <article key={item.requestId} className="min-w-0 break-words rounded-xl border border-zinc-800 bg-zinc-900 p-5"><FleetBrand fleet={item.fleetBrand} /><h2 className="mt-3 font-semibold">{item.requestNumber}</h2><p className="mt-2 text-sm">{item.pickupLabel} → {item.dropoffLabel}</p><p className="mt-2 text-sm text-lime-200">Request: {item.status.replaceAll('_', ' ')}</p><p className="mt-1 text-xs text-zinc-400">{new Date(item.requestedFor || item.createdAt).toLocaleString()}</p>{item.handoffState === 'unavailable' ? <p className="mt-3 text-amber-300">Assignment receipt unavailable; source reconciliation is required.</p> : item.trip ? <div className="mt-3"><Link href={riderStatusHref(item.trip.confirmationCode, item.requestId)} className="text-sm underline">{item.trip.confirmationCode} · {item.trip.status.replaceAll('_', ' ')} · status and history</Link>{item.handoffState === 'reassignment_pending' && <p className="mt-2 text-sm text-amber-300">Previous assignment cancelled; matching again.</p>}</div> : <p className="mt-3 text-sm text-zinc-400">No trip has been assigned.</p>}<RequestCancellation requestId={item.requestId} status={item.status} onAcknowledged={() => setRetry(value => value + 1)} /></article>)}
-    </div><nav aria-label="Ride history pages" className="mt-6 flex flex-wrap gap-3"><Button type="button" variant="outline" disabled={loading} onClick={() => { setCursor(null); setRetry(value => value + 1) }}>Latest / refresh</Button>{nextCursor && <Button type="button" variant="outline" disabled={loading} onClick={() => setCursor(nextCursor)}>Older requests</Button>}</nav>
-  </div></main>
+  const live = (item: RequestSummary) => ['requested', 'matching'].includes(item.status) || (item.trip ? tripStageIndex(item.trip.status) >= 0 && item.trip.status !== 'completed' : false)
+  return <RiderShell>
+    <div className="mx-auto max-w-3xl space-y-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <h1 className="font-display text-4xl font-extrabold tracking-[-0.03em] [font-stretch:125%] sm:text-5xl">My rides</h1>
+        <RiderButtonLink href="/book" tone="signal">Book a ride</RiderButtonLink>
+      </div>
+      {receipt && <Link href="/book" className="flex items-center justify-between gap-3 rounded-2xl bg-signal/10 p-4 text-sm ring-1 ring-inset ring-signal/30"><span className="flex min-w-0 items-center gap-2"><StatusDot tone="amber" pulse /><span className="truncate">Current request <span className="font-mono font-semibold">{receipt.requestNumber}</span></span></span><ArrowUpRight className="size-4 shrink-0 text-signal" aria-hidden="true" /></Link>}
+      <div aria-live="polite">
+        {loading ? <ul className="space-y-3" aria-label="Loading rides">{[0, 1, 2].map(index => <li key={index} className="h-32 animate-pulse rounded-[1.5rem] bg-kerb motion-reduce:animate-none" />)}</ul>
+          : error ? <div role="alert" className="space-y-4 rounded-[1.5rem] border border-border bg-kerb p-5"><p className="text-sm text-amber-300">Sign in to see your rides.</p><RiderTrack><RiderButtonLink href="/account/signin" tone="signal">Sign in</RiderButtonLink><RiderButton onClick={() => setRetry(value => value + 1)}>Try again</RiderButton></RiderTrack></div>
+          : !items.length ? <p role="status" className="rounded-[1.5rem] border border-dashed border-border px-5 py-12 text-center text-sm text-muted-foreground">No rides yet</p>
+          : <ul className="space-y-3">{items.map(item => { const state = item.trip?.status || item.status; const stage = tripStageIndex(item.trip?.status); return <li key={item.requestId} className="min-w-0 space-y-4 rounded-[1.5rem] border border-border bg-kerb p-5">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <StatusTitle as="h2" tone={statusTone(state)} pulse={live(item)} status={statusLabel(state)} className="font-mono text-sm font-semibold">{item.trip?.confirmationCode || item.requestNumber}</StatusTitle>
+              <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"><CalendarClock className="size-3.5" aria-hidden="true" />{new Date(item.requestedFor || item.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
+            </div>
+            <ol className="grid grid-cols-[0.75rem_minmax(0,1fr)] gap-x-3 text-sm" aria-label="Route"><li className="contents"><span className="mt-1.5 size-2.5 rounded-full border-2 border-foreground" aria-hidden="true" /><span className="[overflow-wrap:anywhere]">{item.pickupLabel || 'Pickup'}</span></li><li className="contents"><span className="mt-1.5 size-2.5 rounded-[2px] bg-signal" aria-hidden="true" /><span className="[overflow-wrap:anywhere]">{item.dropoffLabel || 'Destination'}</span></li></ol>
+            {stage >= 0 && <ol className="grid grid-cols-5 gap-1" aria-hidden="true">{TRIP_STAGES.map((value, index) => <li key={value} className={`h-1 rounded-full ${index <= stage ? 'bg-signal' : 'bg-lane'}`} />)}</ol>}
+            {item.handoffState === 'unavailable' ? <p className="text-sm text-amber-300">Assignment details unavailable</p> : item.handoffState === 'reassignment_pending' && <p className="text-sm text-amber-300">Driver cancelled. Finding another driver.</p>}
+            <div className="flex flex-wrap items-center gap-2">
+              {item.trip && item.handoffState !== 'unavailable' && <RiderButtonLink href={riderStatusHref(item.trip.confirmationCode, item.requestId)}>Trip details<ArrowUpRight className="size-4" aria-hidden="true" /></RiderButtonLink>}
+              <RequestCancellation requestId={item.requestId} status={item.status} onAcknowledged={() => setRetry(value => value + 1)} />
+            </div>
+            <p className="flex flex-wrap gap-x-2 text-[0.6875rem] text-muted-foreground">{item.fleetBrand?.name && <span>{item.fleetBrand.name}</span>}<span className="font-mono">{item.requestNumber}</span></p>
+          </li> })}</ul>}
+      </div>
+      {!error && (cursor || nextCursor) && <nav aria-label="Ride history pages"><RiderTrack><RiderButton disabled={loading} onClick={() => { setCursor(null); setRetry(value => value + 1) }}>Latest</RiderButton>{nextCursor && <RiderButton disabled={loading} onClick={() => setCursor(nextCursor)}>Older rides</RiderButton>}</RiderTrack></nav>}
+    </div>
+  </RiderShell>
 }

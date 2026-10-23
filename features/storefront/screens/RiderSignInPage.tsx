@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { ArrowRight, LogOut } from 'lucide-react'
+import { RiderShell } from '../components/RiderShell'
+import { RiderButton, RiderButtonLink, RiderPillLink, RiderTrack } from '../components/RiderPills'
 
 /** Uses native same-origin Keystone session operations. No password, token or
  * GraphQL diagnostic is retained in returned action/form state. */
@@ -24,7 +24,7 @@ export default function RiderSignInPage({ register = false }: { register?: boole
   }
   useEffect(() => {
     let active = true
-    query(`query RiderIdentity { riderAccountOptions authenticatedItem { ... on User { id name email } } }`).then(data => { if (active) { setIdentity(data.authenticatedItem || null); setSignupAllowed(data.riderAccountOptions?.registrationEnabled === true) } }).catch(() => { if (active) setError('Account details are unavailable. Try again shortly.') })
+    query(`query RiderIdentity { riderAccountOptions authenticatedItem { ... on User { id name email } } }`).then(data => { if (active) { setIdentity(data.authenticatedItem || null); setSignupAllowed(data.riderAccountOptions?.registrationEnabled === true) } }).catch(() => { if (active) setError('Account unavailable. Try again shortly.') })
     return () => { active = false }
   }, [])
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -43,15 +43,36 @@ export default function RiderSignInPage({ register = false }: { register?: boole
       const result = await query(`mutation RiderSignIn($email: String!, $password: String!) { authenticateUserWithPassword(email: $email, password: $password) { ... on UserAuthenticationWithPasswordSuccess { item { id } } ... on UserAuthenticationWithPasswordFailure { __typename } } }`, { email, password })
       if (!result.authenticateUserWithPassword?.item?.id) throw new Error('Sign-in could not be confirmed. Check your email and password.')
       router.replace('/account/rides'); router.refresh()
-    } catch { setError(register ? 'Account setup is unconfirmed. Try signing in before registering again.' : 'Sign-in was not confirmed. Check your details or try again shortly.') }
+    } catch { setError(register ? 'Account not confirmed. Try signing in before registering again.' : 'Sign-in failed. Check your email and password.') }
     finally { const input = form.elements.namedItem('password'); if (input instanceof HTMLInputElement) input.value = ''; inFlight.current = false; setBusy(false) }
   }
   async function signOut() {
     if (inFlight.current) return
     inFlight.current = true; setBusy(true); setError('')
     try { const result = await query(`mutation RiderSignOut { endSession }`); if (result.endSession !== true) throw new Error(); setIdentity(null); router.refresh() }
-    catch { setError('Sign-out is unconfirmed. Check your account before switching users.') }
+    catch { setError('Sign-out unconfirmed. Try again.') }
     finally { inFlight.current = false; setBusy(false) }
   }
-  return <main className="min-h-screen bg-background px-5 py-12 text-foreground"><div className="mx-auto w-full max-w-md space-y-6"><Link href="/" className="text-sm underline">Openfront Rideshare</Link><h1 className="text-2xl font-semibold">{identity ? 'Your rider account' : register ? 'Create rider account' : 'Rider sign-in'}</h1>{identity ? <div className="space-y-4"><p className="break-words">{identity.name} · {identity.email}</p><Link href="/account/rides" className="block underline">Your ride history</Link><Button type="button" variant="outline" disabled={busy} onClick={() => void signOut()}>Sign out</Button></div> : register && !signupAllowed ? <p role="status">New account registration is unavailable. Existing riders can <Link className="underline" href="/account/signin">sign in</Link>.</p> : <form onSubmit={submit} className="space-y-4"><fieldset disabled={busy} className="space-y-4">{register && <div><Label htmlFor="rider-name">Name</Label><Input id="rider-name" name="name" required maxLength={160} autoComplete="name" /></div>}<div><Label htmlFor="rider-email">Email</Label><Input id="rider-email" name="email" type="email" required autoComplete="username" /></div><div><Label htmlFor="rider-password">Password</Label><Input id="rider-password" name="password" type="password" required minLength={register ? 10 : undefined} autoComplete={register ? 'new-password' : 'current-password'} /></div></fieldset><Button type="submit" disabled={busy}>{busy ? 'Working…' : register ? 'Create account' : 'Sign in'}</Button></form>}{error && <p role="alert" className="text-sm text-destructive">{error}</p>}{!identity && <div className="space-y-3 text-sm">{signupAllowed && !register && <Link className="block underline" href="/account/signup">Create a rider account</Link>}<p>Password recovery is currently unavailable on this storefront.</p></div>}<Link href="/book" className="block text-sm underline">Back to ride requests</Link></div></main>
+  const field = 'h-12 w-full rounded-2xl bg-asphalt px-4 text-base outline-none ring-1 ring-inset ring-white/10 placeholder:text-muted-foreground/70 focus-visible:ring-2 focus-visible:ring-signal'
+  return <RiderShell className="flex justify-center">
+    <div className="w-full max-w-md space-y-6 sm:pt-6">
+      <h1 className="font-display text-4xl font-extrabold tracking-[-0.03em] [font-stretch:125%] sm:text-5xl">{identity ? 'Account' : register ? 'Create account' : 'Sign in'}</h1>
+      {identity ? <section className="space-y-5 rounded-[1.75rem] border border-border bg-kerb p-5">
+        <div className="flex items-center gap-3"><span className="grid size-12 shrink-0 place-items-center rounded-full bg-signal font-display text-lg font-extrabold uppercase text-zinc-950" aria-hidden="true">{identity.name.trim().slice(0, 1) || '?'}</span><div className="min-w-0"><p className="truncate font-semibold">{identity.name}</p><p className="truncate text-sm text-muted-foreground">{identity.email}</p></div></div>
+        <RiderTrack className="w-full"><RiderButtonLink href="/account/rides" tone="signal" className="flex-1">My rides<ArrowRight className="size-4" aria-hidden="true" /></RiderButtonLink><RiderButton tone="quiet" disabled={busy} onClick={() => void signOut()}><LogOut className="size-4" aria-hidden="true" />Sign out</RiderButton></RiderTrack>
+      </section> : <section className="space-y-5 rounded-[1.75rem] border border-border bg-kerb p-5">
+        {signupAllowed && <RiderTrack label="Account" className="w-full [&>a]:flex-1"><RiderPillLink href="/account/signin" active={!register}>Sign in</RiderPillLink><RiderPillLink href="/account/signup" active={register}>Create account</RiderPillLink></RiderTrack>}
+        {register && !signupAllowed ? <p role="status" className="text-sm text-muted-foreground">Registration is closed. <Link className="font-semibold text-foreground underline underline-offset-4" href="/account/signin">Sign in</Link></p> : <form onSubmit={submit} className="space-y-4">
+          <fieldset disabled={busy} className="space-y-3">
+            {register && <label className="block space-y-1.5"><span className="text-sm font-medium">Name</span><input id="rider-name" name="name" required maxLength={160} autoComplete="name" className={field} /></label>}
+            <label className="block space-y-1.5"><span className="text-sm font-medium">Email</span><input id="rider-email" name="email" type="email" required autoComplete="username" className={field} /></label>
+            <label className="block space-y-1.5"><span className="text-sm font-medium">Password</span><input id="rider-password" name="password" type="password" required minLength={register ? 10 : undefined} autoComplete={register ? 'new-password' : 'current-password'} className={field} /></label>
+          </fieldset>
+          <RiderButton type="submit" tone="signal" size="lg" disabled={busy} className="w-full">{busy ? 'Working…' : register ? 'Create account' : 'Sign in'}</RiderButton>
+        </form>}
+      </section>}
+      {error && <p role="alert" className="text-sm text-[#ff8a7f]">{error}</p>}
+      <Link href="/book" className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground">Book a ride<ArrowRight className="size-4" aria-hidden="true" /></Link>
+    </div>
+  </RiderShell>
 }

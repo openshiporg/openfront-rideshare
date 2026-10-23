@@ -1,6 +1,8 @@
 import { parseQueueSearch, queueSearchHref } from '@/features/platform/components/queueSearch'
-import Link from 'next/link'
-import { Badge } from '@/components/ui/badge'
+import { CarFront, FileText } from 'lucide-react'
+import { QueueIssues, QueuePagination } from '@/features/platform/components/QueuePagination'
+import { StatusDot, StatusTitle } from '@/features/platform/components/StatusTitle'
+import { statusLabel, statusTone } from '@/features/platform/lib/statusTone'
 import { keystoneClient } from '@/features/dashboard/lib/keystoneClient'
 import { OperationsBoard } from '@/features/platform/components/OperationsBoard'
 import { driverReadinessQuery } from '../domain/driverReadinessQuery'
@@ -15,52 +17,9 @@ import {
   hasDriverReadScope,
   parseDriverReadinessParams,
   reconcileDriverPage,
-  type DriverStatusFilter,
 } from '../domain/pagination'
 
 type DriverSearchParams = { q?: string | string[]; status?: string | string[]; page?: string | string[] }
-
-function DriverPagination({
-  query,
-  status,
-  page,
-  total,
-  pageCount,
-  firstItem,
-  lastItem,
-  staleReason,
-  exceedsPageLimit,
-}: {
-  query: string
-  status: DriverStatusFilter
-  page: number
-  total: number
-  pageCount: number
-  firstItem: number
-  lastItem: number
-  staleReason: 'page_out_of_range' | 'count_mismatch' | null
-  exceedsPageLimit: boolean
-}) {
-  const reachablePageCount = Math.min(pageCount, DRIVER_MAX_PAGE)
-  const label = status === 'all' ? 'drivers' : `${status.replaceAll('_', ' ')} drivers`
-  const recoveryPage = staleReason === 'page_out_of_range'
-    ? Math.max(1, Math.min(pageCount, DRIVER_MAX_PAGE))
-    : page
-
-  return <section aria-label="Driver readiness pagination" className="flex flex-col gap-3 rounded-xl border p-4 text-sm sm:flex-row sm:items-center sm:justify-between">
-    {staleReason ? <div role="status" className="space-y-1">
-      <p>{staleReason === 'page_out_of_range'
-        ? `Page ${page} is stale; the current ${label} queue ends at page ${pageCount}.`
-        : 'The scoped driver count and page rows changed during loading; reload this page to reconcile them.'}</p>
-      <Link className="underline underline-offset-4" href={queueSearchHref(driverPageHref(recoveryPage, status), query)}>{staleReason === 'page_out_of_range' ? 'Open the last current page' : 'Reload this page'}</Link>
-    </div> : <p aria-live="polite">Showing {firstItem}–{lastItem} of {total} {label} · page {page} of {reachablePageCount}</p>}
-    {exceedsPageLimit && <p role="status" className="text-amber-800 dark:text-amber-300">The driver queue exceeds the {DRIVER_MAX_PAGE.toLocaleString()}-page navigation limit; later profiles are not reachable from this board.</p>}
-    {!staleReason && <nav aria-label="Driver profile pages" className="flex items-center gap-2">
-      {page > 1 && <Link className="rounded-md border px-3 py-1.5" href={queueSearchHref(driverPageHref(page - 1, status), query)}>Previous</Link>}
-      {page < pageCount && page < DRIVER_MAX_PAGE && <Link className="rounded-md border px-3 py-1.5" href={queueSearchHref(driverPageHref(page + 1, status), query)}>Next</Link>}
-    </nav>}
-  </section>
-}
 
 export async function DriverReadinessPage({ searchParams }: { searchParams?: Promise<DriverSearchParams> } = {}) {
   const rawParams = searchParams ? await searchParams : {}
@@ -105,42 +64,34 @@ export async function DriverReadinessPage({ searchParams }: { searchParams?: Pro
       : undefined
   const boardError = loadError || pageError
 
-  return <>
-    {selection.issues.length > 0 && <div role="alert" className="mx-4 mt-4 rounded-lg border border-amber-500/40 bg-amber-500/5 p-4 text-sm text-amber-800 dark:text-amber-200 md:mx-6">
-      {selection.issues.join(' ')} <Link className="underline underline-offset-4" href={queueSearchHref(driverPageHref(selection.page, selection.status), query)}>Open the canonical page URL</Link>
-    </div>}
-    <OperationsBoard
-      title="Drivers"
-      description={`Review fleet-scoped readiness records. Each profile shows at most ${DRIVER_DOCUMENT_LIMIT} evidence rows and ${DRIVER_VEHICLE_LIMIT} vehicles; reaching a cap means more may exist. Evidence and recorded evaluations are not compliance approval or driver admission.`}
-      items={items}
-      selectedStatus={selection.status}
-      queryParams={{ q: query, page: String(selection.page) }}
-      showColumnCounts={false}
-      error={boardError}
-      columns={[{ key: 'all', label: 'All' }, { key: 'active', label: 'Active' }, { key: 'pending_review', label: 'Review' }, { key: 'ineligible', label: 'Ineligible' }, { key: 'applicant', label: 'Applicants' }, { key: 'paused', label: 'Paused' }, { key: 'offboarded', label: 'Offboarded' }]}
-      empty="No driver profiles are visible in this fleet scope."
-      render={item => <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-2"><span className="font-semibold">{item.publicName}</span><Badge variant="secondary">{item.status}</Badge><Badge variant="outline">{item.dispatchStatus}</Badge></div>
-          <p className="mt-2 text-xs text-muted-foreground">{item.vehicles.length}{item.vehicles.length === DRIVER_VEHICLE_LIMIT ? '+' : ''} vehicle(s) loaded · {item.documents.length}{item.documents.length === DRIVER_DOCUMENT_LIMIT ? '+' : ''} evidence row(s) loaded</p>
+  return <OperationsBoard
+    title="Drivers"
+    meta={loaded ? <span className="tabular-nums">{total} {selection.status === 'all' ? 'drivers' : statusLabel(selection.status).toLowerCase()}</span> : null}
+    searchLabel="Driver name"
+    items={items}
+    selectedStatus={selection.status}
+    queryParams={{ q: query, page: String(selection.page) }}
+    error={boardError}
+    columns={[{ key: 'all', label: 'All' }, { key: 'active', label: 'Active' }, { key: 'pending_review', label: 'In review' }, { key: 'applicant', label: 'Applicants' }, { key: 'ineligible', label: 'Ineligible' }, { key: 'paused', label: 'Paused' }, { key: 'offboarded', label: 'Offboarded' }]}
+    empty="No drivers yet"
+    before={<QueueIssues issues={selection.issues} href={queueSearchHref(driverPageHref(selection.page, selection.status), query)} />}
+    after={loaded && pageState ? <QueuePagination label="Driver pagination" noun="drivers" page={selection.page} total={total} pageCount={pageState.pageCount} maxPage={DRIVER_MAX_PAGE} firstItem={pageState.firstItem} lastItem={pageState.lastItem} staleReason={pageState.staleReason} exceedsPageLimit={pageState.exceedsPageLimit} hrefFor={page => queueSearchHref(driverPageHref(page, selection.status), query)} /> : null}
+    render={item => { const evaluation = item.policyEvaluations[0]; const expiring = item.documents.filter((document: any) => document.expiresAt && Date.parse(document.expiresAt) < Date.now() + 30 * 864e5).length; return <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-6">
+      <div className="flex min-w-0 items-start gap-3">
+        <span className="grid size-10 shrink-0 place-items-center rounded-full bg-muted text-sm font-semibold uppercase" aria-hidden="true">{String(item.publicName || '?').trim().slice(0, 2)}</span>
+        <div className="min-w-0 space-y-1">
+          <StatusTitle tone={statusTone(item.status)} status={statusLabel(item.status)} className="font-semibold">{item.publicName}</StatusTitle>
+          <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5"><StatusDot tone={statusTone(item.dispatchStatus)} />{statusLabel(item.dispatchStatus)}</span>
+            <span className="inline-flex items-center gap-1"><CarFront className="size-3.5" aria-hidden="true" />{item.vehicles.length}{item.vehicles.length === DRIVER_VEHICLE_LIMIT ? '+' : ''} vehicles</span>
+            <span className="inline-flex items-center gap-1"><FileText className="size-3.5" aria-hidden="true" />{item.documents.length}{item.documents.length === DRIVER_DOCUMENT_LIMIT ? '+' : ''} documents</span>
+            {expiring > 0 && <span className="font-medium text-amber-700 dark:text-amber-300">{expiring} expiring</span>}
+          </p>
         </div>
-        <div className="text-right"><p className="text-sm font-medium">{item.policyEvaluations[0]?.outcome || 'Not evaluated'}</p><p className="text-xs text-muted-foreground">Recorded evaluation outcome; not an approval</p></div>
-      </div>}
-    />
-    {loaded && pageState && <div className="px-4 pb-6 md:px-6">
-      <DriverPagination
-        query={query}
-        status={selection.status}
-        page={selection.page}
-        total={total}
-        pageCount={pageState.pageCount}
-        firstItem={pageState.firstItem}
-        lastItem={pageState.lastItem}
-        staleReason={pageState.staleReason}
-        exceedsPageLimit={pageState.exceedsPageLimit}
-      />
-    </div>}
-  </>
+      </div>
+      <p className="justify-self-start rounded-full bg-muted px-3 py-1 text-xs font-medium sm:justify-self-end">{evaluation?.outcome ? `Check: ${statusLabel(evaluation.outcome)}` : 'Not checked'}</p>
+    </div> }}
+  />
 }
 
 export default DriverReadinessPage

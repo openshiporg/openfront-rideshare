@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Button } from '@/components/ui/button'
+import { ActionTrack, TrackButton } from '@/features/platform/components/PillTabs'
+import { StatusDot } from '@/features/platform/components/StatusTitle'
+import { statusLabel, statusTone, formatWhen } from '@/features/platform/lib/statusTone'
 
 type Handoff = { nextCursor: string | null; available: boolean; tripId: string; status: string; requestId: string | null; requestNumber: string | null; requestStatus: string | null; acceptedOfferId: string | null; historyTruncated: boolean; events: Array<{ eventType: string; toStatus: string | null; occurredAt: string }> }
 
@@ -37,5 +39,18 @@ export function TripHandoffHistory({ tripId, revision }: { tripId: string; revis
     } catch { if (controllerRef.current === controller) setError(true) }
     finally { window.clearTimeout(timeout); if (controllerRef.current === controller) { controllerRef.current = null; setLoading(false) } }
   }
-  return <section className="mt-4 space-y-3 border-t pt-3" aria-live="polite"><Button type="button" size="sm" variant="outline" disabled={loading} onClick={() => void refresh()}>{loading ? 'Loading history…' : checked ? 'Refresh latest history' : 'Read handoff and history'}</Button>{error ? <p role="alert" className="text-xs text-amber-800 dark:text-amber-300">History is unavailable. Retry this read to check the latest status.</p> : checked && !loading && !handoff ? <p role="status" className="text-xs text-amber-800 dark:text-amber-300">Handoff unavailable or outside your current fleet authority.</p> : handoff && <div className="space-y-2 text-xs"><p>Trip at {observedAt}: {handoff.status.replaceAll('_', ' ')}</p>{!handoff.available ? <p className="text-amber-800 dark:text-amber-300">Assignment details are unavailable. Reconciliation is required.</p> : <><p>Request {handoff.requestNumber} · {handoff.requestStatus?.replaceAll('_', ' ')}</p><p className="break-all text-muted-foreground">Request ID {handoff.requestId} · accepted offer {handoff.acceptedOfferId}</p><ol className="space-y-1">{handoff.events.map((event, index) => <li key={`${event.eventType}:${event.occurredAt}:${index}`}>{event.toStatus?.replaceAll('_', ' ') || event.eventType.replaceAll('_', ' ')} · {new Date(event.occurredAt).toLocaleString()}</li>)}</ol>{handoff.historyTruncated && <p className="text-amber-800 dark:text-amber-300">More history is available below.</p>}<div className="flex flex-wrap gap-2">{cursor && <Button type="button" size="sm" variant="outline" disabled={loading} onClick={() => void refresh()}>Latest events</Button>}{handoff.nextCursor && <Button type="button" size="sm" variant="outline" disabled={loading} onClick={() => void refresh(handoff.nextCursor)}>Older events</Button>}</div></>}</div>}</section>
+  return <section className="space-y-3" aria-live="polite" aria-label="Trip history">
+    <ActionTrack>
+      <TrackButton tone="quiet" disabled={loading} onClick={() => void refresh()}>{loading ? 'Loading…' : checked ? 'Reload history' : 'History'}</TrackButton>
+      {handoff?.available && cursor && <TrackButton tone="quiet" disabled={loading} onClick={() => void refresh()}>Latest</TrackButton>}
+      {handoff?.available && handoff.nextCursor && <TrackButton tone="quiet" disabled={loading} onClick={() => void refresh(handoff.nextCursor)}>Older</TrackButton>}
+    </ActionTrack>
+    {error ? <p role="alert" className="text-xs text-destructive">History unavailable. Try again.</p>
+      : checked && !loading && !handoff ? <p role="status" className="text-xs text-amber-700 dark:text-amber-300">History unavailable for your fleet access</p>
+      : handoff && <div className="space-y-2 rounded-xl border bg-muted/30 p-3 text-xs">
+        <p className="flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground"><span>As of {observedAt}</span>{handoff.available && <span>Request <span className="font-mono text-foreground">{handoff.requestNumber}</span> · {statusLabel(handoff.requestStatus)}</span>}</p>
+        {!handoff.available ? <p className="text-amber-700 dark:text-amber-300">Assignment details unavailable; needs reconciliation</p> : <ol className="space-y-1.5">{handoff.events.map((event, index) => { const state = event.toStatus || event.eventType; return <li key={`${event.eventType}:${event.occurredAt}:${index}`} className="flex items-center gap-2"><StatusDot tone={statusTone(state)} /><span className="font-medium">{statusLabel(state)}</span><span className="ml-auto tabular-nums text-muted-foreground">{formatWhen(event.occurredAt)}</span></li> })}</ol>}
+        {handoff.available && handoff.historyTruncated && <p className="text-muted-foreground">Older events available</p>}
+      </div>}
+  </section>
 }

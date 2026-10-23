@@ -1,8 +1,9 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
-import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { Input } from '@/components/ui/input'
+import { ActionTrack, TrackButton } from '@/features/platform/components/PillTabs'
+import { PlatformSection } from '@/features/platform/components/PlatformPage'
+import { StatusDot } from '@/features/platform/components/StatusTitle'
 import { LOGO_ICONS } from './icon-registry'
 import { normalizeStoreLogoColor } from './store-logo'
 
@@ -35,7 +36,7 @@ export function FleetBrandingSettings() {
       const rows = data.fleets.slice(0,25)
       setFleets(current => cursor ? [...current, ...rows] : rows)
       setAfter(data.fleets.length > 25 ? rows[24].id : null)
-    } catch { setError('Fleet settings are unavailable or outside your current owner access.') }
+    } catch { setError('Fleets unavailable for your access.') }
   }
   useEffect(() => { void loadFleets() }, [])
   useEffect(() => {
@@ -58,9 +59,9 @@ export function FleetBrandingSettings() {
         if (original && (original.fleetId !== id || original.expectedActorId !== row.actorId || typeof original.idempotencyKey !== 'string')) throw new Error()
         originalRef.current = original
         setSaved(row); setLogoIcon(original?.logoIcon ?? row.logoIcon); setLogoColor(original?.logoColor ?? row.logoColor); setUncertain(Boolean(original))
-        if (original) setMessage('Current branding loaded. The original save remains unresolved; recover it before editing.')
+        if (original) setMessage('Last save unconfirmed. Recover it before editing.')
       }
-    } catch { if (current === generation.current) { setSaved(null); setError('Current fleet branding is unavailable. No save was sent.') } }
+    } catch { if (current === generation.current) { setSaved(null); setError('Branding unavailable. Nothing was saved.') } }
     finally { if (current === generation.current) setBusy(false) }
   }
   async function save() {
@@ -81,10 +82,37 @@ export function FleetBrandingSettings() {
       sessionStorage.setItem(acknowledgementKey, acknowledgement)
       if (sessionStorage.getItem(acknowledgementKey) !== acknowledgement) throw new Error()
       originalRef.current = null
-      setSaved(row); setLogoIcon(row.logoIcon); setLogoColor(row.logoColor); setUncertain(false); setMessage('Branding save acknowledged.')
+      setSaved(row); setLogoIcon(row.logoIcon); setLogoColor(row.logoColor); setUncertain(false); setMessage('Logo saved')
       sessionStorage.removeItem(key)
-    } catch { setError('Save outcome is unconfirmed. The original draft is retained. Read current branding before another save.') }
+    } catch { setError('Save unconfirmed. Your draft is kept; recover the save.') }
     finally { flight.current = false; setBusy(false) }
   }
-  return <section className="min-w-0 space-y-4 rounded-xl border p-4" data-unsaved={dirty || uncertain ? 'true' : undefined}><h2 className="font-semibold">Fleet storefront branding</h2><Label htmlFor="branding-fleet">Fleet</Label><select id="branding-fleet" value={fleetId} disabled={busy || uncertain} className="h-10 w-full min-w-0 rounded-md border bg-background px-3" onChange={event => { if (dirty && !window.confirm('Discard unsaved branding changes?')) return; setFleetId(event.target.value); setSaved(null); if (event.target.value) void read(event.target.value) }}><option value="">Choose a fleet you own</option>{fleets.map(fleet => <option key={fleet.id} value={fleet.id}>{fleet.name}</option>)}</select>{after && <Button type="button" size="sm" variant="outline" onClick={() => void loadFleets(after)}>More fleets</Button>}{saved && <><fieldset disabled={busy || uncertain} className="space-y-4"><legend className="text-sm font-medium">Choose a logo</legend><div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{LOGO_ICONS.map(icon => <button type="button" key={icon.id} aria-pressed={logoIcon === icon.lightSvg} onClick={() => setLogoIcon(icon.lightSvg)} className={`min-w-0 rounded-lg border p-3 text-xs focus-visible:outline focus-visible:outline-2 ${logoIcon === icon.lightSvg ? 'border-primary bg-primary/5' : ''}`}><img alt="" className="mx-auto mb-2 size-9" src={`data:image/svg+xml,${encodeURIComponent(icon.lightSvg)}`} />{icon.name}</button>)}</div><div><Label htmlFor="fleet-logo-hue">Logo hue</Label><Input id="fleet-logo-hue" type="number" value={logoColor} onChange={event => setLogoColor(event.target.value)} onBlur={() => setLogoColor(normalizeStoreLogoColor(logoColor))} /></div><div><Label htmlFor="fleet-custom-svg">Custom SVG</Label><textarea id="fleet-custom-svg" className="mt-1 min-h-32 w-full min-w-0 rounded-md border bg-background p-3 font-mono text-xs" value={logoIcon} maxLength={100000} onChange={event => setLogoIcon(event.target.value)} /></div></fieldset><div className="flex flex-wrap gap-2"><Button type="button" disabled={busy || (!dirty && !uncertain)} onClick={() => void save()}>{busy ? 'Working…' : uncertain ? 'Recover original branding save' : 'Save branding'}</Button><Button type="button" variant="outline" disabled={busy} onClick={() => { if (dirty && !window.confirm('Read current branding? The original submitted draft remains saved for reconciliation.')) return; void read(saved.fleetId) }}>Read current branding</Button></div></>}{message && <p role="status" className="text-sm">{message}</p>}{error && <p role="alert" className="text-sm text-destructive">{error}</p>}</section>
+  const fleetName = fleets.find(fleet => fleet.id === fleetId)?.name || saved?.name || ''
+  const svgSrc = (svg: string) => `data:image/svg+xml,${encodeURIComponent(svg)}`
+  return <PlatformSection id="branding" title="Storefront logo" meta={uncertain ? <span className="inline-flex items-center gap-1.5 text-amber-700 dark:text-amber-300"><StatusDot tone="amber" />Save unconfirmed</span> : dirty ? <span className="inline-flex items-center gap-1.5"><StatusDot tone="blue" />Unsaved</span> : undefined}>
+    <div className="min-w-0 space-y-5 rounded-xl border bg-card p-4 md:p-5" data-unsaved={dirty || uncertain ? 'true' : undefined}>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+        <div className="min-w-0 flex-1 space-y-1.5"><Label htmlFor="branding-fleet">Fleet</Label><select id="branding-fleet" value={fleetId} disabled={busy || uncertain} className="h-10 w-full min-w-0 rounded-xl border bg-background px-3 text-sm" onChange={event => { if (dirty && !window.confirm('Discard unsaved branding changes?')) return; setFleetId(event.target.value); setSaved(null); if (event.target.value) void read(event.target.value) }}><option value="">Choose a fleet</option>{fleets.map(fleet => <option key={fleet.id} value={fleet.id}>{fleet.name}</option>)}</select></div>
+        {after && <ActionTrack><TrackButton size="md" onClick={() => void loadFleets(after)}>More fleets</TrackButton></ActionTrack>}
+      </div>
+      {saved && <>
+        <div className="flex items-center gap-4 rounded-xl bg-zinc-950 p-4 text-zinc-50">
+          <img alt="" className="size-11 shrink-0" src={svgSrc(logoIcon)} style={{ filter: `hue-rotate(${normalizeStoreLogoColor(logoColor)}deg)` }} />
+          <div className="min-w-0"><p className="truncate font-semibold">{fleetName}</p><p className="text-xs text-zinc-400">Storefront preview</p></div>
+        </div>
+        <fieldset disabled={busy || uncertain} className="min-w-0 space-y-5">
+          <legend className="sr-only">Logo</legend>
+          <div role="radiogroup" aria-label="Logo mark" className="grid max-h-80 grid-cols-3 gap-2 overflow-y-auto pr-1 sm:grid-cols-5 lg:grid-cols-6">{LOGO_ICONS.map(icon => <button type="button" role="radio" key={icon.id} aria-checked={logoIcon === icon.lightSvg} onClick={() => setLogoIcon(icon.lightSvg)} className={`flex min-w-0 flex-col items-center gap-1.5 rounded-xl border p-2.5 text-[0.6875rem] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${logoIcon === icon.lightSvg ? 'border-foreground bg-muted font-medium' : 'hover:bg-muted/60'}`}><img alt="" className="size-8" src={svgSrc(icon.lightSvg)} style={{ filter: `hue-rotate(${normalizeStoreLogoColor(logoColor)}deg)` }} /><span className="w-full truncate text-center">{icon.name}</span></button>)}</div>
+          <div className="space-y-1.5"><div className="flex items-center justify-between"><Label htmlFor="fleet-logo-hue">Hue</Label><span className="text-xs tabular-nums text-muted-foreground">{normalizeStoreLogoColor(logoColor)}°</span></div><input id="fleet-logo-hue" type="range" min={0} max={359} step={1} value={Number(normalizeStoreLogoColor(logoColor))} onChange={event => setLogoColor(event.target.value)} className="h-2 w-full cursor-pointer appearance-none rounded-full bg-[linear-gradient(90deg,#155eef,#7a5af8,#dd2590,#f04438,#f79009,#66c61c,#06aed4,#155eef)] [&::-webkit-slider-thumb]:size-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:bg-foreground [&::-webkit-slider-thumb]:shadow" /></div>
+          <details className="group rounded-xl border px-3 py-2"><summary className="cursor-pointer text-sm font-medium">Custom SVG</summary><Label htmlFor="fleet-custom-svg" className="sr-only">Custom SVG</Label><textarea id="fleet-custom-svg" className="mt-2 min-h-32 w-full min-w-0 rounded-lg border bg-background p-3 font-mono text-xs" value={logoIcon} maxLength={100000} onChange={event => setLogoIcon(event.target.value)} /></details>
+        </fieldset>
+        <div className="sticky bottom-3 z-10 flex justify-end"><ActionTrack className="shadow-lg">
+          <TrackButton size="md" disabled={busy} onClick={() => { if (dirty && !window.confirm('Reload current branding? Unsaved changes are discarded.')) return; void read(saved.fleetId) }}>Reload</TrackButton>
+          <TrackButton tone="primary" size="md" disabled={busy || (!dirty && !uncertain)} onClick={() => void save()}>{busy ? 'Saving…' : uncertain ? 'Recover save' : 'Save logo'}</TrackButton>
+        </ActionTrack></div>
+      </>}
+      {message && <p role="status" className="text-sm text-emerald-700 dark:text-emerald-300">{message}</p>}
+      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+    </div>
+  </PlatformSection>
 }
