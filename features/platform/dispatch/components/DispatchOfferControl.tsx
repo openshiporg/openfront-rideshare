@@ -6,10 +6,11 @@ import { useDurableCommand } from '@/features/platform/components/durableCommand
 import { Search } from 'lucide-react'
 import { ActionTrack, TrackButton } from '@/features/platform/components/PillTabs'
 import { StatusTitle } from '@/features/platform/components/StatusTitle'
+import { OperationsOffNotice } from '@/features/platform/components/OperationsOffNotice'
 
 type Candidate = { driverId: string; driverName: string; vehicleId: string; vehicleLabel: string; capacity: number }
 type CandidatePage = { requestId: string; actorId: string; evaluatedAt: string; items: Candidate[]; nextCursor: string | null; blockedReason: string | null }
-export function DispatchOfferControl({ request, actionsEnabled, actorId = '' }: { request: { id: string; status: string }; actionsEnabled: boolean; actorId?: string }) {
+export function DispatchOfferControl({ request, actionsEnabled, actorId = '', operationsOff = false }: { request: { id: string; status: string }; actionsEnabled: boolean; actorId?: string; operationsOff?: boolean }) {
   const router = useRouter()
   const command = useDurableCommand(actorId, `request:${request.id}`)
   const [expanded, setExpanded] = useState(false)
@@ -70,7 +71,7 @@ export function DispatchOfferControl({ request, actionsEnabled, actorId = '' }: 
   }
   if (command.pending) return <div className="space-y-2 rounded-xl border border-amber-500/40 bg-amber-500/5 p-3" data-command-pending="true"><StatusTitle as="p" tone="amber" className="text-sm font-medium">Offer unconfirmed</StatusTitle><ActionTrack><TrackButton tone="primary" disabled={command.busy || !command.ready} onClick={() => void command.execute()}>Recover offer</TrackButton></ActionTrack>{command.error && <p role="alert" className="text-xs text-destructive">{command.error}</p>}</div>
   if (!['requested','matching'].includes(request.status)) return null
-  if (!actionsEnabled) return <p role="status" className="self-start rounded-full bg-muted px-3 py-1.5 text-xs text-muted-foreground md:justify-self-end">Dispatch actions off</p>
+  if (!actionsEnabled) return operationsOff ? <OperationsOffNotice /> : <p role="status" className="self-start rounded-full bg-muted px-3 py-1.5 text-xs text-muted-foreground md:justify-self-end">Reload to dispatch</p>
   return <div className="min-w-0 space-y-3" data-command-pending={command.busy ? 'true' : undefined}>
     <div className="flex md:justify-end"><ActionTrack>
       <TrackButton tone={expanded ? 'default' : 'primary'} aria-expanded={expanded} onClick={() => setExpanded(value => !value)}>{expanded ? 'Close' : 'Find driver'}</TrackButton>

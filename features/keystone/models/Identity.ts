@@ -24,6 +24,7 @@ export const Fleet = list({
       },
     } }),
     logoColor: text({ defaultValue: DEFAULT_STORE_LOGO_COLOR, hooks: { resolveInput: ({ resolvedData, fieldKey }) => resolvedData[fieldKey] === undefined ? undefined : normalizeStoreLogoColor(resolvedData[fieldKey]) } }),
+    operationsMode: select({ options: [{ label: 'Off', value: 'off' }, { label: 'Manual dispatch', value: 'manual' }], defaultValue: 'off', validation: { isRequired: true } }),
     preciseLocationRetentionDays: text({ defaultValue: '30' }),
     memberships: relationship({ ref: 'FleetMembership.fleet', many: true, access: { create: () => false, update: () => false } }), drivers: relationship({ ref: 'DriverProfile.fleet', many: true, access: { create: () => false, update: () => false } }),
     riders: relationship({ ref: 'RiderProfile.homeFleet', many: true, access: { create: () => false, update: () => false } }), vehicles: relationship({ ref: 'Vehicle.fleet', many: true, access: { create: () => false, update: () => false } }),

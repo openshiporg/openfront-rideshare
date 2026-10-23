@@ -1,14 +1,14 @@
 import { myRideshareRequests } from './riderReceipts'
 import { currentRiderId } from '../domain/requestAuthority'
 import { decodeKeyset, encodeKeyset } from '../domain/keysetCursor'
-import { rideReadiness } from '../domain/operationalReadiness'
+import { OPERATIONS_OFF_MESSAGE, rideReadiness } from '../domain/operationalReadiness'
 
 export async function myDriverWorkspace(_root: unknown, args: { offersCursor?: string | null; tripsCursor?: string | null } | null, context: any) {
   return context.prisma.$transaction(async (tx: any) => {
     const actorId = await currentRiderId(tx, context.session)
     if (!actorId) throw new Error('A current driver account session is required.')
-    const driver = await tx.driverProfile.findFirst({ where: { userId: actorId }, select: { id: true, userId: true, fleetId: true, publicName: true, status: true, dispatchStatus: true } })
-    const readiness = rideReadiness()
+    const driver = await tx.driverProfile.findFirst({ where: { userId: actorId }, select: { id: true, userId: true, fleetId: true, publicName: true, status: true, dispatchStatus: true, fleet: { select: { operationsMode: true } } } })
+    const readiness = rideReadiness(driver?.fleet?.operationsMode)
     const empty = { actorId, driver: driver ? { id: driver.id, publicName: driver.publicName, status: driver.status, dispatchStatus: driver.dispatchStatus } : null, offers: [], trips: [], offersNextCursor: null, tripsNextCursor: null, actionsEnabled: false, actionsBlockedReason: 'An active fleet-linked driver profile is required.' }
     if (!driver?.fleetId || driver.status !== 'active') return empty
     const scope = JSON.stringify([actorId, driver.fleetId, driver.id])
@@ -25,7 +25,7 @@ export async function myDriverWorkspace(_root: unknown, args: { offersCursor?: s
       select: { id: true, acceptedOfferId: true, confirmationCode: true, status: true, scheduledFor: true, pickupLabel: true, dropoffLabel: true, vehicle: { select: { id: true, label: true, plateMasked: true } } } }),
     ])
     const next = (rows: any[], purpose: string, field: string) => rows.length > 25 ? encodeKeyset(purpose, scope, { id: rows[24].id, time: rows[24][field]?.toISOString() || null }) : null
-    return { ...empty, offers: offerRows.slice(0,25), trips: tripRows.slice(0,25), offersNextCursor: next(offerRows, 'driver_offers', 'offeredAt'), tripsNextCursor: next(tripRows, 'driver_trips', 'scheduledFor'), actionsEnabled: readiness.bookingEnabled, actionsBlockedReason: readiness.bookingEnabled ? null : readiness.reason }
+    return { ...empty, offers: offerRows.slice(0,25), trips: tripRows.slice(0,25), offersNextCursor: next(offerRows, 'driver_offers', 'offeredAt'), tripsNextCursor: next(tripRows, 'driver_trips', 'scheduledFor'), actionsEnabled: readiness.bookingEnabled, actionsBlockedReason: readiness.bookingEnabled ? null : OPERATIONS_OFF_MESSAGE }
   }, { isolationLevel: 'RepeatableRead' })
 }
 

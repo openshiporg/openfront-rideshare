@@ -12,6 +12,7 @@ export const tripBoardQuery = `query Trips($where: TripWhereInput!, $take: Int!,
     driver { publicName }
     vehicle { label plateMasked }
     updatedAt
+    fleet { id operationsMode }
   }
   tripsCount(where: $where)
 }`

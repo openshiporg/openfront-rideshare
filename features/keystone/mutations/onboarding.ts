@@ -25,7 +25,6 @@ export async function dismissRideshareOnboarding(_root: unknown, _args: unknown,
 
 
 export async function bootstrapRideshare(_root: unknown, args: { mode: string }, context: any) {
-  if (process.env.NODE_ENV === 'production') throw new Error('Demonstration onboarding is disabled in production.')
   if (!context.session?.itemId || !await permissions.canManageOnboarding({ context, session: context.session })) throw new Error('Onboarding permission is required.')
   if (args.mode !== 'minimal' && args.mode !== 'full') throw new Error('Demo setup mode must be minimal or full.')
 
@@ -60,7 +59,7 @@ export async function bootstrapRideshare(_root: unknown, args: { mode: string },
     }
 
     const full = args.mode === 'full'
-    const fleet = await transactionSudo.query.Fleet.createOne({ data: { name: 'Harbor Independent Mobility', logoIcon: DEFAULT_STORE_LOGO_ICON, logoColor: DEFAULT_STORE_LOGO_COLOR, slug: demoSlug, status: 'active', publicDescription: 'A driver-owned cooperative serving central neighborhoods with transparent source-owned pricing.', publicCity: 'Harbor City', countryCode: 'US', currencyCode: 'USD', timezone: 'America/New_York', supportEmail: 'support@example.invalid', preciseLocationRetentionDays: '30' }, query: 'id' })
+    const fleet = await transactionSudo.query.Fleet.createOne({ data: { name: 'Harbor Independent Mobility', logoIcon: DEFAULT_STORE_LOGO_ICON, logoColor: DEFAULT_STORE_LOGO_COLOR, slug: demoSlug, status: 'active', operationsMode: 'manual', publicDescription: 'A driver-owned cooperative serving central neighborhoods with transparent source-owned pricing.', publicCity: 'Harbor City', countryCode: 'US', currencyCode: 'USD', timezone: 'America/New_York', supportEmail: 'support@example.invalid', preciseLocationRetentionDays: '30' }, query: 'id' })
     await transactionSudo.query.FleetMembership.createOne({ data: { fleet: { connect: { id: fleet.id } }, user: { connect: { id: userId } }, role: 'owner', status: 'active', acceptedAt: new Date() } })
     const area = await transactionSudo.query.ServiceArea.createOne({ data: { fleet: { connect: { id: fleet.id } }, name: 'Harbor City Core', publicRegionLabel: 'Harbor City central neighborhoods', countryCode: 'US', status: 'active', coarseBounds: { disclosure: 'Coarse public service region; exact driver locations are not published.' } }, query: 'id' })
     const service = await transactionSudo.query.RideService.createOne({ data: { fleet: { connect: { id: fleet.id } }, serviceAreas: { connect: [{ id: area.id }] }, name: 'Independent Standard', slug: `${demoSlug}-standard`, description: 'Everyday rides from locally operated independent drivers.', status: 'active', category: 'standard', passengerCapacity: 4, advanceBookingMinutes: 30 }, query: 'id' })
@@ -94,5 +93,6 @@ export async function bootstrapRideshare(_root: unknown, args: { mode: string },
     await transactionSudo.query.User.updateOne({ where: { id: userId }, data: { onboardingStatus: diagnostic.onboardingStatus } })
 
     return { fleetId: fleet.id, created: true, summary: diagnostic }
-  })
+  // The starter seed is a few dozen writes; Prisma's 5s interactive default is too tight for it.
+  }, { maxWait: 10_000, timeout: 60_000 })
 }

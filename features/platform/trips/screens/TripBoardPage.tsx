@@ -8,6 +8,7 @@ import { TripStageRail } from '@/features/platform/components/TripStageRail'
 import { statusLabel, statusTone, formatWhen } from '@/features/platform/lib/statusTone'
 import { keystoneClient } from '@/features/dashboard/lib/keystoneClient'
 import { OperationsBoard } from '@/features/platform/components/OperationsBoard'
+import { operationsEnabled } from '@/features/keystone/domain/operationalReadiness'
 import { TripOperatorActions } from '../components/TripOperatorActions'
 import { TripHandoffHistory } from '../components/TripHandoffHistory'
 import { tripBoardQuery } from '../domain/tripBoardQuery'
@@ -61,7 +62,7 @@ export async function TripBoardPage({ searchParams }: { searchParams?: Promise<T
       ? 'The trip page changed while loading; reload before taking action.'
       : undefined
   const boardError = loadError || pageError
-  const actionsEnabled = loaded && !pageState?.staleReason && selection.issues.length === 0 && process.env.NODE_ENV !== 'production'
+  const actionsEnabled = loaded && !pageState?.staleReason && selection.issues.length === 0
 
   const actorId = data?.authenticatedItem?.id || ''
   return <OperationsBoard
@@ -101,7 +102,7 @@ export async function TripBoardPage({ searchParams }: { searchParams?: Promise<T
         </div>
         <TripStageRail status={item.status} className="md:w-60" />
       </div>
-      <TripOperatorActions tripId={item.id} status={item.status} actorId={actorId} acceptedOfferId={item.acceptedOffer?.id} actionsEnabled={actionsEnabled} />
+      <TripOperatorActions tripId={item.id} status={item.status} actorId={actorId} acceptedOfferId={item.acceptedOffer?.id} actionsEnabled={actionsEnabled && operationsEnabled(item.fleet?.operationsMode)} operationsOff={!operationsEnabled(item.fleet?.operationsMode)} />
       <TripHandoffHistory tripId={item.id} revision={item.updatedAt} />
     </div>}
   />

@@ -10,6 +10,7 @@ import { requireAcceptedQuoteFee } from '../domain/tripEconomics'
 import { fenceHumanAuthority } from '../domain/authorityFence'
 import { commandBodyHash, requireCommandKey } from '../domain/commandBinding'
 import { authorizedRequestHeader, requestOwnerWhere } from '../domain/requestAuthority'
+import { requireFleetOperations } from '../domain/operationalReadiness'
 
 const createReviewBodyHash = (body: string) => createHash('sha256').update(body).digest('hex')
 
@@ -103,13 +104,13 @@ export async function cancelRideRequest(_root: unknown, args: { requestId: strin
 }
 
 export async function cancelRide(_root: unknown, args: { tripId: string; tripToken?: string | null; reasonCode?: string | null; reason?: string | null; idempotencyKey: string; reassign?: boolean | null; expectedActorId: string; expectedAcceptedOfferId: string; expectedUpdatedAt: string; expectedFeeMinor: number; expectedCurrencyCode: string }, context: any) {
-  if (process.env.NODE_ENV === 'production') throw new Error('Cancellation is disabled until refund and rider/driver communications workflows are ready.')
   if (typeof args.idempotencyKey !== 'string' || args.idempotencyKey.trim().length < 12 || args.idempotencyKey.length > 200) throw new Error('A stable idempotency key of 12–200 characters is required.')
   const initialAuthority = await authorizedTripHeader(context.prisma, context.session, args.tripId, 'participant')
   if (!initialAuthority) throw new Error('Trip not found.')
   if (args.expectedActorId !== initialAuthority.actorId || args.expectedAcceptedOfferId !== initialAuthority.header.acceptedOfferId) throw new Error('Cancellation actor or assignment changed; reconciliation is required.')
   if (!initialAuthority.bound) throw new Error('Trip binding is unavailable; reconcile the retained trip.')
   const header = initialAuthority.header
+  await requireFleetOperations(context.prisma, header.fleetId)
   const visible = { id: header.id, driver: header.driverId ? { id: header.driverId } : null, vehicle: header.vehicleId ? { id: header.vehicleId } : null, request: header.requestId ? { id: header.requestId } : null, acceptedOffer: header.acceptedOfferId ? { id: header.acceptedOfferId } : null, fleet: { id: header.fleetId } }
   const actorId = initialAuthority.actorId
   const reasonCode = String(args.reasonCode || 'other').trim().slice(0, 80)

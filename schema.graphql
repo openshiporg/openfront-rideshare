@@ -524,6 +524,7 @@ type Fleet {
   supportPhone: String
   logoIcon: String
   logoColor: String
+  operationsMode: String
   preciseLocationRetentionDays: String
   memberships(where: FleetMembershipWhereInput! = {}, orderBy: [FleetMembershipOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: FleetMembershipWhereUniqueInput): [FleetMembership!]
   membershipsCount(where: FleetMembershipWhereInput! = {}): Int
@@ -575,6 +576,7 @@ input FleetWhereInput {
   supportPhone: StringFilter
   logoIcon: StringFilter
   logoColor: StringFilter
+  operationsMode: StringFilter
   preciseLocationRetentionDays: StringFilter
   memberships: FleetMembershipManyRelationFilter
   drivers: DriverProfileManyRelationFilter
@@ -654,6 +656,7 @@ input FleetOrderByInput {
   supportPhone: OrderDirection
   logoIcon: OrderDirection
   logoColor: OrderDirection
+  operationsMode: OrderDirection
   preciseLocationRetentionDays: OrderDirection
   createdAt: OrderDirection
   updatedAt: OrderDirection
@@ -672,6 +675,7 @@ input FleetUpdateInput {
   supportPhone: String
   logoIcon: String
   logoColor: String
+  operationsMode: String
   preciseLocationRetentionDays: String
   memberships: FleetMembershipRelateToManyForUpdateInput
   drivers: DriverProfileRelateToManyForUpdateInput
@@ -769,6 +773,7 @@ input FleetCreateInput {
   supportPhone: String
   logoIcon: String
   logoColor: String
+  operationsMode: String
   preciseLocationRetentionDays: String
   memberships: FleetMembershipRelateToManyForCreateInput
   drivers: DriverProfileRelateToManyForCreateInput

@@ -16,10 +16,8 @@ if (production && (!process.env.DATABASE_URL || !process.env.SESSION_SECRET || s
 const session = statelessSessions({ maxAge: 60 * 60 * 24 * 30, secret: sessionSecret })
 const { withAuth } = createAuth({
   listKey: 'User', identityField: 'email', secretField: 'password',
-  initFirstItem: {
-    fields: ['name', 'email', 'password'],
-    itemData: { role: { create: { name: 'Admin', ...Object.fromEntries(permissionNames.map(name => [name, true])) } } },
-  },
+  // The first user's Admin role is assigned by the User resolveInput hook (see models/User.ts).
+  initFirstItem: { fields: ['name', 'email', 'password'] },
   passwordResetLink: { async sendToken(args) { await sendPasswordResetEmail(args.token, args.identity) } },
   sessionData: `id name email role { id name ${permissionNames.join(' ')} }`,
 })

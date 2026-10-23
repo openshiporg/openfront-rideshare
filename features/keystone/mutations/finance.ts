@@ -7,6 +7,7 @@ import { fenceHumanAuthority } from '../domain/authorityFence'
 import { commandBodyHash } from '../domain/commandBinding'
 import { currencyDigits, validMinor } from '../../lib/currency'
 import { randomUUID } from 'node:crypto'
+import { requireFleetOperations } from '../domain/operationalReadiness'
 
 function requireIdempotencyKey(value: unknown) {
   const key = String(value || '').trim()
@@ -37,7 +38,6 @@ function moneySnapshot(value: any) {
 }
 
 export async function initiateTripPayment(_root: unknown, args: { tripId: string; providerCode: string; idempotencyKey: string }, context: any) {
-  if (process.env.NODE_ENV === 'production') throw new Error('Payment initiation is disabled until a contracted processor, capture, reconciliation, and webhook workflow is available.')
   if (!humanSessionId(context.session)) throw new Error('Authentication is required.')
   const idempotencyKey = requireIdempotencyKey(args.idempotencyKey)
   const prisma = context.prisma as PrismaClient
@@ -49,6 +49,7 @@ export async function initiateTripPayment(_root: unknown, args: { tripId: string
     return { trip, header: authority.header }
   }, { isolationLevel: 'RepeatableRead' })
   const trip = preflight.trip
+  await requireFleetOperations(prisma, trip.fleet?.id)
   const sudo = context.sudo()
   if (!['driver_assigned', 'driver_en_route', 'driver_arrived', 'in_progress', 'completed'].includes(trip.status || '')) throw new Error('Trip is not in a payable state.')
   const { amount, currency } = moneySnapshot(trip.bookingSnapshot)
@@ -97,7 +98,6 @@ export async function initiateTripPayment(_root: unknown, args: { tripId: string
 }
 
 export async function requestTripRefund(_root: unknown, args: { paymentId: string; amountMinor: number; reason?: string | null; idempotencyKey: string }, context: any) {
-  if (process.env.NODE_ENV === 'production') throw new Error('Refunds are disabled until a contracted processor and reconciliation workflow are available.')
   if (!humanSessionId(context.session)) throw new Error('Authentication is required.')
   const idempotencyKey = requireIdempotencyKey(args.idempotencyKey)
   const amount = Number(args.amountMinor)
@@ -113,6 +113,7 @@ export async function requestTripRefund(_root: unknown, args: { paymentId: strin
     if (!payment) throw new Error('Payment is not refundable.')
     return { payment, header: authority.header }
   }, { isolationLevel: 'RepeatableRead' })
+  await requireFleetOperations(prisma, preflight.header.fleetId)
   const payment = preflight.payment
   if (!['captured', 'partially_refunded'].includes(payment.status || '')) throw new Error('Payment is not refundable.')
   const provider = payment.provider

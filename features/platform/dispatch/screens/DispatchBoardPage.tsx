@@ -7,6 +7,7 @@ import { RouteLine } from '@/features/platform/components/RouteLine'
 import { statusLabel, statusTone, formatWhen } from '@/features/platform/lib/statusTone'
 import { keystoneClient } from '@/features/dashboard/lib/keystoneClient'
 import { OperationsBoard } from '@/features/platform/components/OperationsBoard'
+import { operationsEnabled } from '@/features/keystone/domain/operationalReadiness'
 import { DispatchOfferControl } from '../components/DispatchOfferControl'
 import { dispatchBoardQuery } from '../domain/dispatchBoardQuery'
 import {
@@ -58,7 +59,7 @@ export async function DispatchBoardPage({ searchParams }: { searchParams?: Promi
       ? 'The dispatch page changed while loading; reload before taking action.'
       : undefined
   const boardError = loadError || pageError
-  const actionsEnabled = loaded && !pageState?.staleReason && selection.issues.length === 0 && process.env.NODE_ENV !== 'production'
+  const actionsEnabled = loaded && !pageState?.staleReason && selection.issues.length === 0
 
   const actorId = data?.authenticatedItem?.id || ''
   return <OperationsBoard
@@ -86,7 +87,7 @@ export async function DispatchBoardPage({ searchParams }: { searchParams?: Promi
           <span className="tabular-nums">{item.matchOffers.length}{item.matchOffers.length === 50 ? '+' : ''} live offers</span>
         </p>
       </div>
-      <DispatchOfferControl request={item} actorId={actorId} actionsEnabled={actionsEnabled} />
+      <DispatchOfferControl request={item} actorId={actorId} actionsEnabled={actionsEnabled && operationsEnabled(item.fleet?.operationsMode)} operationsOff={!operationsEnabled(item.fleet?.operationsMode)} />
     </div>}
   />
 }

@@ -8,6 +8,6 @@ export async function estimateRoute({ pickupLabel, dropoffLabel }: { pickupLabel
   return {
     distanceMeters,
     durationSeconds,
-    evidence: { provider: 'manual-estimate', observedAt: new Date().toISOString(), authoritative: false, disclosure: 'Development estimate only; no mapping provider was contacted.' },
+    evidence: { provider: 'manual-estimate', observedAt: new Date().toISOString(), authoritative: false, disclosure: 'Built-in estimate from area labels; no mapping provider was contacted.' },
   }
 }

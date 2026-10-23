@@ -5,7 +5,7 @@ import { createOwnershipProof, createRecoverableRequestProof, verifyOwnershipPro
 import { receiptBinding, recoverRequestReceipt, requestIntent, requestIntentHash } from '../domain/requestReceipt'
 import { riderRequestStatus } from './riderReceipts'
 import { estimateRoute } from '../../integrations/mapping/manual'
-import { rideReadiness } from '../domain/operationalReadiness'
+import { requireFleetOperations, rideReadiness } from '../domain/operationalReadiness'
 import { currentRiderId, requestOwnerWhere } from '../domain/requestAuthority'
 import { requireServiceReadiness } from '../domain/serviceReadiness'
 import { projectFleetBrand } from '../domain/fleetBrand'
@@ -55,14 +55,14 @@ export async function marketplaceRideshareServices(_root: unknown, args: { query
     take: limit + 1,
     orderBy: [{ name: 'asc' }, { id: 'asc' }],
     // Stable bounded public projection.
-    query: `id name slug description category passengerCapacity wheelchairAccessible advanceBookingMinutes fleet { id name slug publicDescription publicCity countryCode currencyCode logoIcon logoColor } serviceAreas(where: { status: { equals: "active" } }, orderBy: [{ publicRegionLabel: asc }, { id: asc }], take: 25) { id name publicRegionLabel countryCode status fleet { id } } fareRules(where: { status: { equals: "active" } }, orderBy: { version: desc }, take: 1) { id currencyCode baseFareMinor minimumFareMinor }`,
+    query: `id name slug description category passengerCapacity wheelchairAccessible advanceBookingMinutes fleet { id operationsMode name slug publicDescription publicCity countryCode currencyCode logoIcon logoColor } serviceAreas(where: { status: { equals: "active" } }, orderBy: [{ publicRegionLabel: asc }, { id: asc }], take: 25) { id name publicRegionLabel countryCode status fleet { id } } fareRules(where: { status: { equals: "active" } }, orderBy: { version: desc }, take: 1) { id currencyCode baseFareMinor minimumFareMinor }`,
   })
   return services.slice(0, limit).filter((service: any) => service.fleet).map((service: any, index: number) => {
     const publicRegionLabels = service.serviceAreas.slice(0, 24).filter((area: any) => area.fleet?.id === service.fleet.id).map((area: any) => area.publicRegionLabel)
     return {
       id: service.id, title: service.name, description: service.description, category: service.category, passengerCapacity: service.passengerCapacity,
       wheelchairAccessible: service.wheelchairAccessible, advanceBookingMinutes: service.advanceBookingMinutes, publicRegionLabels,
-      readiness: rideReadiness(), areasTruncated: service.serviceAreas.length > 24, nextCursor: services.length > limit && index === limit - 1 ? Buffer.from(JSON.stringify({ v: 1, query, location, name: service.name, id: service.id })).toString('base64url') : null,
+      readiness: rideReadiness(service.fleet.operationsMode), areasTruncated: service.serviceAreas.length > 24, nextCursor: services.length > limit && index === limit - 1 ? Buffer.from(JSON.stringify({ v: 1, query, location, name: service.name, id: service.id })).toString('base64url') : null,
       fleet: { ...projectFleetBrand(service.fleet), id: service.fleet.id, name: service.fleet.name, publicDescription: service.fleet.publicDescription, publicCity: service.fleet.publicCity, countryCode: service.fleet.countryCode },
       startingFareMinor: service.fareRules?.[0]?.minimumFareMinor ?? null, currencyCode: service.fareRules?.[0]?.currencyCode || service.fleet.currencyCode,
       extension: { schema: 'openfront.rideshare.service/v1', value: { category: service.category, passengerCapacity: service.passengerCapacity, wheelchairAccessible: service.wheelchairAccessible, serviceAreas: publicRegionLabels } },
@@ -84,7 +84,7 @@ export async function marketplaceRideshareQuote(_root: unknown, args: { serviceI
   if (passengerCount > service.passengerCapacity) throw new Error('Passenger count exceeds this service capacity.')
   if (args.wheelchairAccessible && !service.wheelchairAccessible) throw new Error('This service does not advertise wheelchair-accessible vehicles.')
   if (scheduledFor && scheduledFor.getTime() < Date.now() + service.advanceBookingMinutes * 60_000) throw new Error('This service requires more advance notice for scheduled rides.')
-  if (process.env.NODE_ENV === 'production') throw new Error('Quotes are unavailable until a contracted, production mapping provider is configured.')
+  await requireFleetOperations(context.prisma, service.fleet.id)
   await requireServiceReadiness(context.prisma, service.id, service.fleet.id)
   const route = await estimateRoute({ pickupLabel, dropoffLabel })
   const rule = service.fareRules[0]
@@ -93,12 +93,12 @@ export async function marketplaceRideshareQuote(_root: unknown, args: { serviceI
   const expiresAt = new Date(Date.now() + 10 * 60_000)
   const proof = createOwnershipProof('quote', publicId, expiresAt)
   await context.sudo().query.RideQuote.createOne({ data: {
-    publicId, ...(riderId ? { rider: { connect: { id: riderId } } } : {}), handoffId: args.handoffId?.trim() || null, status: 'active', service: { connect: { id: service.id } }, fareRule: { connect: { id: rule.id } },
+    publicId, ...(riderId ? { rider: { connect: { id: riderId } } } : {}), handoffId: args.handoffId?.trim() || '', status: 'active', service: { connect: { id: service.id } }, fareRule: { connect: { id: rule.id } },
     pickupLabel, dropoffLabel, routeInputHash: proof.hash, routeEvidence: route.evidence, estimatedDistanceMeters: route.distanceMeters, estimatedDurationSeconds: route.durationSeconds,
     fareSnapshot: { ...breakdown, _quoteOwner: { kind: riderId ? 'account' : 'guest', userId: riderId }, cancellationFeeMinor: rule.cancellationFeeMinor, noShowFeeMinor: rule.noShowFeeMinor, fareRuleId: rule.id, fareRuleVersion: rule.version, service: { id: service.id, fleetId: service.fleet.id, name: service.name, category: service.category, passengerCapacity: service.passengerCapacity, wheelchairAccessible: service.wheelchairAccessible }, routeEvidence: route.evidence },
     totalMinor: breakdown.totalMinor, currencyCode: breakdown.currencyCode, scheduledFor, expiresAt, guestProofHash: proof.hash,
   }, query: 'id' })
-  return { quoteId: publicId, quoteProof: proof.token, expiresAt: expiresAt.toISOString(), pickupLabel, dropoffLabel, scheduledFor: scheduledFor?.toISOString() || null, estimatedDistanceMeters: route.distanceMeters, estimatedDurationSeconds: route.durationSeconds, cancellationFeeMinor: rule.cancellationFeeMinor, noShowFeeMinor: rule.noShowFeeMinor, fare: breakdown, estimateDisclosure: 'Development-only demonstration estimate. Route distance, duration, coverage, and supply are not authoritative; do not use for real rides.', sourceCheckoutPath: `/book?service=${encodeURIComponent(service.id)}` }
+  return { quoteId: publicId, quoteProof: proof.token, expiresAt: expiresAt.toISOString(), pickupLabel, dropoffLabel, scheduledFor: scheduledFor?.toISOString() || null, estimatedDistanceMeters: route.distanceMeters, estimatedDurationSeconds: route.durationSeconds, cancellationFeeMinor: rule.cancellationFeeMinor, noShowFeeMinor: rule.noShowFeeMinor, fare: breakdown, estimateDisclosure: 'Estimated from your pickup and destination areas. The fleet confirms the final fare.', sourceCheckoutPath: `/book?service=${encodeURIComponent(service.id)}` }
   })
 }
 
@@ -131,7 +131,6 @@ export async function requestRide(_root: unknown, args: { quoteId: string; quote
 
     // Original committed receipt recovery above is read-only and requires no
     // external provider activation. The operational creation barrier stays closed.
-    if (process.env.NODE_ENV === 'production') throw new Error('Requests are disabled until a contracted route and operational eligibility provider are configured.')
     if (quote.status !== 'active' || quote.expiresAt <= new Date()) throw new Error('Quote is invalid or expired.')
     const quoteSnapshot = quote.fareSnapshot && typeof quote.fareSnapshot === 'object' && !Array.isArray(quote.fareSnapshot) ? quote.fareSnapshot as Record<string, unknown> : {}
     const serviceSnapshot = quoteSnapshot.service && typeof quoteSnapshot.service === 'object' ? quoteSnapshot.service as Record<string, unknown> : {}
@@ -146,6 +145,7 @@ export async function requestRide(_root: unknown, args: { quoteId: string; quote
     if (!quote.serviceId) throw new Error('The quote no longer references a service.')
     const service = await requireServiceReadiness(tx, quote.serviceId)
     if (!service?.fleetId) throw new Error('The quoted service is no longer attached to an operating fleet.')
+    await requireFleetOperations(tx, service.fleetId)
     const request = await tx.rideRequest.create({ data: {
       id: requestId, fleetId: service.fleetId, riderId: intent.riderId, requestNumber, status: 'requested', requestedFor: quote.scheduledFor,
       passengerCount, accessibilityNeeds, riderNotes: intent.riderNotes,

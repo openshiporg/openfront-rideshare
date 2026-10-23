@@ -14,6 +14,7 @@ import { fenceHumanAuthority } from '../domain/authorityFence'
 import { requireServiceReadiness } from '../domain/serviceReadiness'
 import { expireRideOffers } from './offerMaintenance'
 import { requireAcceptedQuoteFee } from '../domain/tripEconomics'
+import { requireFleetOperations } from '../domain/operationalReadiness'
 
 async function requireSignedIn(context: AccessArgs['context'] & { session?: AccessArgs['session'] }) {
   const actor = await currentHumanActor(context.prisma, context.session)
@@ -33,12 +34,12 @@ async function currentDriver(context: any) {
 export async function offerRideToDriver(_root: unknown, args: { requestId: string; driverId: string; vehicleId: string; expiresInSeconds?: number | null; idempotencyKey: string; expectedActorId: string }, context: any) {
   const actorId = await requireSignedIn(context)
   if (args.expectedActorId !== actorId) throw new Error('The acting account changed; reconcile the original command.')
-  if (process.env.NODE_ENV === 'production') throw new Error('Dispatch is disabled until contracted route and eligibility providers are configured.')
   if (args.idempotencyKey.trim().length < 12 || args.idempotencyKey.length > 200) throw new Error('A stable idempotency key of 12–200 characters is required.')
   if (args.expiresInSeconds != null && !Number.isSafeInteger(args.expiresInSeconds)) throw new Error('Offer duration must be an integer.')
   const prisma = context.prisma as PrismaClient
   const visibleRequest = await prisma.rideRequest.findUnique({ where: { id: args.requestId }, select: { id: true, fleetId: true } })
   if (!visibleRequest?.fleetId || !(await operatorOwnsFleet(context, visibleRequest.fleetId))) throw new Error('Ride request was not found.')
+  await requireFleetOperations(prisma, visibleRequest.fleetId)
   const existingOffer = await prisma.matchOffer.findUnique({ where: { idempotencyKey: args.idempotencyKey }, select: { id: true } })
   if (!existingOffer) {
     const maintenance = await expireRideOffers(null, { fleetId: visibleRequest.fleetId, driverId: args.driverId, vehicleId: args.vehicleId }, context)
@@ -114,7 +115,7 @@ export async function respondToRideOffer(_root: unknown, args: { offerId: string
   const responseReason = String(args.reason || '').slice(0, 500)
   const driver = await currentDriver(context)
   if (!driver) throw new Error('An active driver profile is required.')
-  if (process.env.NODE_ENV === 'production') throw new Error('Trip acceptance is disabled until contracted route and eligibility providers are configured.')
+  await requireFleetOperations(context.prisma, driver.fleet?.id)
   if (args.idempotencyKey.trim().length < 12 || args.idempotencyKey.length > 200) throw new Error('A stable idempotency key of 12–200 characters is required.')
   const prisma = context.prisma as PrismaClient
   const initial = await prisma.matchOffer.findUnique({ where: { id: args.offerId }, select: { requestId: true, driverId: true, vehicleId: true } })
@@ -222,7 +223,6 @@ export async function respondToRideOffer(_root: unknown, args: { offerId: string
 }
 
 export async function transitionTrip(_root: unknown, args: { tripId: string; action: string; reason?: string | null; idempotencyKey: string; expectedActorId: string; expectedAcceptedOfferId: string }, context: any) {
-  if (process.env.NODE_ENV === 'production') throw new Error('Trip transitions are disabled until contracted route, communications, payment, and operational workflows are ready.')
   const actorId = await requireSignedIn(context)
   if (args.expectedActorId !== actorId) throw new Error('The acting account changed; reconcile the original command.')
   if (args.idempotencyKey.trim().length < 12 || args.idempotencyKey.length > 200) throw new Error('A stable idempotency key of 12–200 characters is required.')
@@ -232,6 +232,7 @@ export async function transitionTrip(_root: unknown, args: { tripId: string; act
   const initialAuthority = await authorizedTripHeader(prisma, context.session, args.tripId, 'driverOrOperator')
   if (!initialAuthority) throw new Error('You cannot transition this trip.')
   if (initialAuthority.header.acceptedOfferId !== args.expectedAcceptedOfferId) throw new Error('Original trip assignment changed; reconciliation is required.')
+  await requireFleetOperations(prisma, initialAuthority.header.fleetId)
   const lockSnapshot = initialAuthority.header
   const lockKeys = [
     ...(lockSnapshot.driverId ? [`driver:${lockSnapshot.driverId}`] : []),

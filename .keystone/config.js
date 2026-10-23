@@ -57,6 +57,16 @@ __export(keystone_exports, {
 });
 module.exports = __toCommonJS(keystone_exports);
 
+// features/keystone/lib/s3-storage.ts
+function s3ForcePathStyle(endpoint) {
+  let hostname = "";
+  try {
+    hostname = endpoint ? new URL(endpoint).hostname : "";
+  } catch {
+  }
+  return !(hostname === "storageapi.dev" || hostname.endsWith(".storageapi.dev"));
+}
+
 // features/keystone/index.ts
 var import_auth = require("@keystone-6/auth");
 var import_core13 = require("@keystone-6/core");
@@ -296,7 +306,22 @@ var import_access3 = require("@keystone-6/core/access");
 var import_fields5 = require("@keystone-6/core/fields");
 var selfOrPeople = async (args) => await permissions.canManagePeople(args) || (await isSignedIn(args) ? { id: { equals: args.session.itemId } } : false);
 var selfField = async (args) => await permissions.canManagePeople(args) || await isSignedIn(args) && args.session.itemId === String(args.item.id);
+async function firstUserAdminRole(context) {
+  if (await context.prisma.user.count() > 0) return null;
+  const grants = Object.fromEntries(permissionNames.map((name) => [name, true]));
+  await context.prisma.role.upsert({ where: { name: "Admin" }, create: { name: "Admin", ...grants }, update: grants, select: { id: true } });
+  const role = await context.prisma.role.findUnique({ where: { name: "Admin" }, select: { id: true } });
+  if (!role?.id) throw new Error("The Admin role could not be created.");
+  return role.id;
+}
 var User = (0, import_core4.list)({
+  hooks: {
+    resolveInput: async ({ operation, resolvedData, context }) => {
+      if (operation !== "create" || resolvedData.role) return resolvedData;
+      const roleId = await firstUserAdminRole(context);
+      return roleId ? { ...resolvedData, role: { connect: { id: roleId } } } : resolvedData;
+    }
+  },
   access: {
     operation: { query: isSignedIn, create: (args) => process.env.PUBLIC_SIGNUPS_ALLOWED === "true" || permissions.canManagePeople(args), update: isSignedIn, delete: import_access3.denyAll },
     filter: { query: selfOrPeople, update: selfOrPeople }
@@ -482,6 +507,7 @@ var Fleet = (0, import_core6.list)({
       }
     } }),
     logoColor: (0, import_fields7.text)({ defaultValue: DEFAULT_STORE_LOGO_COLOR, hooks: { resolveInput: ({ resolvedData, fieldKey }) => resolvedData[fieldKey] === void 0 ? void 0 : normalizeStoreLogoColor(resolvedData[fieldKey]) } }),
+    operationsMode: (0, import_fields7.select)({ options: [{ label: "Off", value: "off" }, { label: "Manual dispatch", value: "manual" }], defaultValue: "off", validation: { isRequired: true } }),
     preciseLocationRetentionDays: (0, import_fields7.text)({ defaultValue: "30" }),
     memberships: (0, import_fields7.relationship)({ ref: "FleetMembership.fleet", many: true, access: { create: () => false, update: () => false } }),
     drivers: (0, import_fields7.relationship)({ ref: "DriverProfile.fleet", many: true, access: { create: () => false, update: () => false } }),
@@ -1543,18 +1569,26 @@ async function estimateRoute({ pickupLabel, dropoffLabel }) {
   return {
     distanceMeters,
     durationSeconds,
-    evidence: { provider: "manual-estimate", observedAt: (/* @__PURE__ */ new Date()).toISOString(), authoritative: false, disclosure: "Development estimate only; no mapping provider was contacted." }
+    evidence: { provider: "manual-estimate", observedAt: (/* @__PURE__ */ new Date()).toISOString(), authoritative: false, disclosure: "Built-in estimate from area labels; no mapping provider was contacted." }
   };
 }
 
 // features/keystone/domain/operationalReadiness.ts
-function rideReadiness() {
-  const preview = process.env.NODE_ENV !== "production";
+function operationsEnabled(mode) {
+  return mode === "manual" || process.env.NODE_ENV !== "production";
+}
+function rideReadiness(mode) {
+  const enabled = operationsEnabled(mode);
   return {
-    bookingEnabled: preview,
-    mode: preview ? "preview" : "unavailable",
-    reason: preview ? "Preview only. Routes and driver availability are unverified; no payment is collected." : "Online booking is unavailable. Existing ride receipts and account history remain accessible."
+    bookingEnabled: enabled,
+    mode: mode === "manual" ? "manual" : enabled ? "preview" : "unavailable",
+    reason: mode === "manual" ? "An operator assigns your driver." : enabled ? "Preview: routes and fares are estimated." : "Online booking is not open yet."
   };
+}
+var OPERATIONS_OFF_MESSAGE = "Manual dispatch is off for this fleet. Turn it on in Platform \u2192 Settings \u2192 Operations.";
+async function requireFleetOperations(db, fleetId) {
+  const fleet = fleetId ? await db.fleet.findUnique({ where: { id: fleetId }, select: { operationsMode: true } }) : null;
+  if (!fleet || !operationsEnabled(fleet.operationsMode)) throw new Error(OPERATIONS_OFF_MESSAGE);
 }
 
 // features/keystone/domain/serviceReadiness.ts
@@ -1621,7 +1655,7 @@ async function marketplaceRideshareServices(_root, args, context) {
     take: limit + 1,
     orderBy: [{ name: "asc" }, { id: "asc" }],
     // Stable bounded public projection.
-    query: `id name slug description category passengerCapacity wheelchairAccessible advanceBookingMinutes fleet { id name slug publicDescription publicCity countryCode currencyCode logoIcon logoColor } serviceAreas(where: { status: { equals: "active" } }, orderBy: [{ publicRegionLabel: asc }, { id: asc }], take: 25) { id name publicRegionLabel countryCode status fleet { id } } fareRules(where: { status: { equals: "active" } }, orderBy: { version: desc }, take: 1) { id currencyCode baseFareMinor minimumFareMinor }`
+    query: `id name slug description category passengerCapacity wheelchairAccessible advanceBookingMinutes fleet { id operationsMode name slug publicDescription publicCity countryCode currencyCode logoIcon logoColor } serviceAreas(where: { status: { equals: "active" } }, orderBy: [{ publicRegionLabel: asc }, { id: asc }], take: 25) { id name publicRegionLabel countryCode status fleet { id } } fareRules(where: { status: { equals: "active" } }, orderBy: { version: desc }, take: 1) { id currencyCode baseFareMinor minimumFareMinor }`
   });
   return services.slice(0, limit).filter((service) => service.fleet).map((service, index) => {
     const publicRegionLabels = service.serviceAreas.slice(0, 24).filter((area) => area.fleet?.id === service.fleet.id).map((area) => area.publicRegionLabel);
@@ -1634,7 +1668,7 @@ async function marketplaceRideshareServices(_root, args, context) {
       wheelchairAccessible: service.wheelchairAccessible,
       advanceBookingMinutes: service.advanceBookingMinutes,
       publicRegionLabels,
-      readiness: rideReadiness(),
+      readiness: rideReadiness(service.fleet.operationsMode),
       areasTruncated: service.serviceAreas.length > 24,
       nextCursor: services.length > limit && index === limit - 1 ? Buffer.from(JSON.stringify({ v: 1, query, location, name: service.name, id: service.id })).toString("base64url") : null,
       fleet: { ...projectFleetBrand(service.fleet), id: service.fleet.id, name: service.fleet.name, publicDescription: service.fleet.publicDescription, publicCity: service.fleet.publicCity, countryCode: service.fleet.countryCode },
@@ -1658,7 +1692,7 @@ async function marketplaceRideshareQuote(_root, args, context) {
     if (passengerCount > service.passengerCapacity) throw new Error("Passenger count exceeds this service capacity.");
     if (args.wheelchairAccessible && !service.wheelchairAccessible) throw new Error("This service does not advertise wheelchair-accessible vehicles.");
     if (scheduledFor && scheduledFor.getTime() < Date.now() + service.advanceBookingMinutes * 6e4) throw new Error("This service requires more advance notice for scheduled rides.");
-    if (process.env.NODE_ENV === "production") throw new Error("Quotes are unavailable until a contracted, production mapping provider is configured.");
+    await requireFleetOperations(context2.prisma, service.fleet.id);
     await requireServiceReadiness(context2.prisma, service.id, service.fleet.id);
     const route = await estimateRoute({ pickupLabel, dropoffLabel });
     const rule = service.fareRules[0];
@@ -1686,7 +1720,7 @@ async function marketplaceRideshareQuote(_root, args, context) {
       expiresAt,
       guestProofHash: proof.hash
     }, query: "id" });
-    return { quoteId: publicId, quoteProof: proof.token, expiresAt: expiresAt.toISOString(), pickupLabel, dropoffLabel, scheduledFor: scheduledFor?.toISOString() || null, estimatedDistanceMeters: route.distanceMeters, estimatedDurationSeconds: route.durationSeconds, cancellationFeeMinor: rule.cancellationFeeMinor, noShowFeeMinor: rule.noShowFeeMinor, fare: breakdown, estimateDisclosure: "Development-only demonstration estimate. Route distance, duration, coverage, and supply are not authoritative; do not use for real rides.", sourceCheckoutPath: `/book?service=${encodeURIComponent(service.id)}` };
+    return { quoteId: publicId, quoteProof: proof.token, expiresAt: expiresAt.toISOString(), pickupLabel, dropoffLabel, scheduledFor: scheduledFor?.toISOString() || null, estimatedDistanceMeters: route.distanceMeters, estimatedDurationSeconds: route.durationSeconds, cancellationFeeMinor: rule.cancellationFeeMinor, noShowFeeMinor: rule.noShowFeeMinor, fare: breakdown, estimateDisclosure: "Estimated from your pickup and destination areas. The fleet confirms the final fare.", sourceCheckoutPath: `/book?service=${encodeURIComponent(service.id)}` };
   });
 }
 async function requestRide(_root, args, context) {
@@ -1713,7 +1747,6 @@ async function requestRide(_root, args, context) {
       if (!service2?.fleetId || service2.fleetId !== existing.fleetId) throw new Error("Original request binding is unavailable.");
       return recoverRequestReceipt(existing, quote, intent, args.quoteProof);
     }
-    if (process.env.NODE_ENV === "production") throw new Error("Requests are disabled until a contracted route and operational eligibility provider are configured.");
     if (quote.status !== "active" || quote.expiresAt <= /* @__PURE__ */ new Date()) throw new Error("Quote is invalid or expired.");
     const quoteSnapshot = quote.fareSnapshot && typeof quote.fareSnapshot === "object" && !Array.isArray(quote.fareSnapshot) ? quote.fareSnapshot : {};
     const serviceSnapshot = quoteSnapshot.service && typeof quoteSnapshot.service === "object" ? quoteSnapshot.service : {};
@@ -1728,6 +1761,7 @@ async function requestRide(_root, args, context) {
     if (!quote.serviceId) throw new Error("The quote no longer references a service.");
     const service = await requireServiceReadiness(tx, quote.serviceId);
     if (!service?.fleetId) throw new Error("The quoted service is no longer attached to an operating fleet.");
+    await requireFleetOperations(tx, service.fleetId);
     const request = await tx.rideRequest.create({ data: {
       id: requestId,
       fleetId: service.fleetId,
@@ -2057,12 +2091,12 @@ async function currentDriver(context) {
 async function offerRideToDriver(_root, args, context) {
   const actorId = await requireSignedIn(context);
   if (args.expectedActorId !== actorId) throw new Error("The acting account changed; reconcile the original command.");
-  if (process.env.NODE_ENV === "production") throw new Error("Dispatch is disabled until contracted route and eligibility providers are configured.");
   if (args.idempotencyKey.trim().length < 12 || args.idempotencyKey.length > 200) throw new Error("A stable idempotency key of 12\u2013200 characters is required.");
   if (args.expiresInSeconds != null && !Number.isSafeInteger(args.expiresInSeconds)) throw new Error("Offer duration must be an integer.");
   const prisma = context.prisma;
   const visibleRequest = await prisma.rideRequest.findUnique({ where: { id: args.requestId }, select: { id: true, fleetId: true } });
   if (!visibleRequest?.fleetId || !await operatorOwnsFleet(context, visibleRequest.fleetId)) throw new Error("Ride request was not found.");
+  await requireFleetOperations(prisma, visibleRequest.fleetId);
   const existingOffer = await prisma.matchOffer.findUnique({ where: { idempotencyKey: args.idempotencyKey }, select: { id: true } });
   if (!existingOffer) {
     const maintenance = await expireRideOffers(null, { fleetId: visibleRequest.fleetId, driverId: args.driverId, vehicleId: args.vehicleId }, context);
@@ -2129,7 +2163,7 @@ async function respondToRideOffer(_root, args, context) {
   const responseReason = String(args.reason || "").slice(0, 500);
   const driver = await currentDriver(context);
   if (!driver) throw new Error("An active driver profile is required.");
-  if (process.env.NODE_ENV === "production") throw new Error("Trip acceptance is disabled until contracted route and eligibility providers are configured.");
+  await requireFleetOperations(context.prisma, driver.fleet?.id);
   if (args.idempotencyKey.trim().length < 12 || args.idempotencyKey.length > 200) throw new Error("A stable idempotency key of 12\u2013200 characters is required.");
   const prisma = context.prisma;
   const initial = await prisma.matchOffer.findUnique({ where: { id: args.offerId }, select: { requestId: true, driverId: true, vehicleId: true } });
@@ -2242,7 +2276,6 @@ async function respondToRideOffer(_root, args, context) {
   }, { isolationLevel: "Serializable" });
 }
 async function transitionTrip(_root, args, context) {
-  if (process.env.NODE_ENV === "production") throw new Error("Trip transitions are disabled until contracted route, communications, payment, and operational workflows are ready.");
   const actorId = await requireSignedIn(context);
   if (args.expectedActorId !== actorId) throw new Error("The acting account changed; reconcile the original command.");
   if (args.idempotencyKey.trim().length < 12 || args.idempotencyKey.length > 200) throw new Error("A stable idempotency key of 12\u2013200 characters is required.");
@@ -2252,6 +2285,7 @@ async function transitionTrip(_root, args, context) {
   const initialAuthority = await authorizedTripHeader(prisma, context.session, args.tripId, "driverOrOperator");
   if (!initialAuthority) throw new Error("You cannot transition this trip.");
   if (initialAuthority.header.acceptedOfferId !== args.expectedAcceptedOfferId) throw new Error("Original trip assignment changed; reconciliation is required.");
+  await requireFleetOperations(prisma, initialAuthority.header.fleetId);
   const lockSnapshot = initialAuthority.header;
   const lockKeys = [
     ...lockSnapshot.driverId ? [`driver:${lockSnapshot.driverId}`] : [],
@@ -2401,13 +2435,13 @@ async function cancelRideRequest(_root, args, context) {
   }, { isolationLevel: "Serializable" });
 }
 async function cancelRide(_root, args, context) {
-  if (process.env.NODE_ENV === "production") throw new Error("Cancellation is disabled until refund and rider/driver communications workflows are ready.");
   if (typeof args.idempotencyKey !== "string" || args.idempotencyKey.trim().length < 12 || args.idempotencyKey.length > 200) throw new Error("A stable idempotency key of 12\u2013200 characters is required.");
   const initialAuthority = await authorizedTripHeader(context.prisma, context.session, args.tripId, "participant");
   if (!initialAuthority) throw new Error("Trip not found.");
   if (args.expectedActorId !== initialAuthority.actorId || args.expectedAcceptedOfferId !== initialAuthority.header.acceptedOfferId) throw new Error("Cancellation actor or assignment changed; reconciliation is required.");
   if (!initialAuthority.bound) throw new Error("Trip binding is unavailable; reconcile the retained trip.");
   const header = initialAuthority.header;
+  await requireFleetOperations(context.prisma, header.fleetId);
   const visible = { id: header.id, driver: header.driverId ? { id: header.driverId } : null, vehicle: header.vehicleId ? { id: header.vehicleId } : null, request: header.requestId ? { id: header.requestId } : null, acceptedOffer: header.acceptedOfferId ? { id: header.acceptedOfferId } : null, fleet: { id: header.fleetId } };
   const actorId = initialAuthority.actorId;
   const reasonCode = String(args.reasonCode || "other").trim().slice(0, 80);
@@ -2620,7 +2654,6 @@ function moneySnapshot(value) {
   return { amount, currency };
 }
 async function initiateTripPayment(_root, args, context) {
-  if (process.env.NODE_ENV === "production") throw new Error("Payment initiation is disabled until a contracted processor, capture, reconciliation, and webhook workflow is available.");
   if (!humanSessionId(context.session)) throw new Error("Authentication is required.");
   const idempotencyKey = requireIdempotencyKey(args.idempotencyKey);
   const prisma = context.prisma;
@@ -2632,6 +2665,7 @@ async function initiateTripPayment(_root, args, context) {
     return { trip: trip2, header: authority.header };
   }, { isolationLevel: "RepeatableRead" });
   const trip = preflight.trip;
+  await requireFleetOperations(prisma, trip.fleet?.id);
   const sudo = context.sudo();
   if (!["driver_assigned", "driver_en_route", "driver_arrived", "in_progress", "completed"].includes(trip.status || "")) throw new Error("Trip is not in a payable state.");
   const { amount, currency } = moneySnapshot(trip.bookingSnapshot);
@@ -2682,7 +2716,6 @@ async function initiateTripPayment(_root, args, context) {
   } });
 }
 async function requestTripRefund(_root, args, context) {
-  if (process.env.NODE_ENV === "production") throw new Error("Refunds are disabled until a contracted processor and reconciliation workflow are available.");
   if (!humanSessionId(context.session)) throw new Error("Authentication is required.");
   const idempotencyKey = requireIdempotencyKey(args.idempotencyKey);
   const amount = Number(args.amountMinor);
@@ -2698,6 +2731,7 @@ async function requestTripRefund(_root, args, context) {
     if (!payment2) throw new Error("Payment is not refundable.");
     return { payment: payment2, header: authority.header };
   }, { isolationLevel: "RepeatableRead" });
+  await requireFleetOperations(prisma, preflight.header.fleetId);
   const payment = preflight.payment;
   if (!["captured", "partially_refunded"].includes(payment.status || "")) throw new Error("Payment is not refundable.");
   const provider = payment.provider;
@@ -3069,8 +3103,8 @@ async function myDriverWorkspace(_root, args, context) {
   return context.prisma.$transaction(async (tx) => {
     const actorId = await currentRiderId(tx, context.session);
     if (!actorId) throw new Error("A current driver account session is required.");
-    const driver = await tx.driverProfile.findFirst({ where: { userId: actorId }, select: { id: true, userId: true, fleetId: true, publicName: true, status: true, dispatchStatus: true } });
-    const readiness = rideReadiness();
+    const driver = await tx.driverProfile.findFirst({ where: { userId: actorId }, select: { id: true, userId: true, fleetId: true, publicName: true, status: true, dispatchStatus: true, fleet: { select: { operationsMode: true } } } });
+    const readiness = rideReadiness(driver?.fleet?.operationsMode);
     const empty = { actorId, driver: driver ? { id: driver.id, publicName: driver.publicName, status: driver.status, dispatchStatus: driver.dispatchStatus } : null, offers: [], trips: [], offersNextCursor: null, tripsNextCursor: null, actionsEnabled: false, actionsBlockedReason: "An active fleet-linked driver profile is required." };
     if (!driver?.fleetId || driver.status !== "active") return empty;
     const scope = JSON.stringify([actorId, driver.fleetId, driver.id]);
@@ -3106,7 +3140,7 @@ async function myDriverWorkspace(_root, args, context) {
       })
     ]);
     const next = (rows, purpose, field) => rows.length > 25 ? encodeKeyset(purpose, scope, { id: rows[24].id, time: rows[24][field]?.toISOString() || null }) : null;
-    return { ...empty, offers: offerRows.slice(0, 25), trips: tripRows.slice(0, 25), offersNextCursor: next(offerRows, "driver_offers", "offeredAt"), tripsNextCursor: next(tripRows, "driver_trips", "scheduledFor"), actionsEnabled: readiness.bookingEnabled, actionsBlockedReason: readiness.bookingEnabled ? null : readiness.reason };
+    return { ...empty, offers: offerRows.slice(0, 25), trips: tripRows.slice(0, 25), offersNextCursor: next(offerRows, "driver_offers", "offeredAt"), tripsNextCursor: next(tripRows, "driver_trips", "scheduledFor"), actionsEnabled: readiness.bookingEnabled, actionsBlockedReason: readiness.bookingEnabled ? null : OPERATIONS_OFF_MESSAGE };
   }, { isolationLevel: "RepeatableRead" });
 }
 async function myRideshareTrips(_root, _args, context) {
@@ -3433,10 +3467,8 @@ var { withAuth } = (0, import_auth.createAuth)({
   listKey: "User",
   identityField: "email",
   secretField: "password",
-  initFirstItem: {
-    fields: ["name", "email", "password"],
-    itemData: { role: { create: { name: "Admin", ...Object.fromEntries(permissionNames.map((name) => [name, true])) } } }
-  },
+  // The first user's Admin role is assigned by the User resolveInput hook (see models/User.ts).
+  initFirstItem: { fields: ["name", "email", "password"] },
   passwordResetLink: { async sendToken(args) {
     await sendPasswordResetEmail(args.token, args.identity);
   } },
@@ -3451,7 +3483,7 @@ var storage = process.env.S3_BUCKET_NAME ? {
     accessKeyId: process.env.S3_ACCESS_KEY_ID || "",
     secretAccessKey: process.env.S3_SECRET_ACCESS_KEY || "",
     endpoint: process.env.S3_ENDPOINT,
-    forcePathStyle: true,
+    forcePathStyle: s3ForcePathStyle(process.env.S3_ENDPOINT),
     signed: { expiry: 5e3 }
   }
 } : void 0;

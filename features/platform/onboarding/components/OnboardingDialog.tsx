@@ -43,14 +43,16 @@ export default function OnboardingDialog({ isOpen, onClose }: { isOpen: boolean;
             <p className="text-xs text-muted-foreground">
               Sample evidence is not licensing, insurance, provider approval or driver admission.
             </p>
-            <div className="flex flex-wrap gap-2"><Button disabled={isLoading} className="mt-2" onClick={() => void runOnboarding(mode)}>Check existing setup</Button><Button variant="outline" asChild><Link href="/dashboard/platform/settings">Open fleet settings</Link></Button></div>
+            <div className="flex flex-wrap gap-2"><Button disabled={isLoading} className="mt-2" onClick={() => void runOnboarding(mode)}>Check existing setup</Button><Button variant="outline" asChild><Link href="/dashboard/platform/settings#operations">Open fleet settings</Link></Button></div>
           </div>
         ) : (
           <>
             <RadioGroup value={mode} disabled={isLoading} onValueChange={value => { if (!isLoading && (value === 'minimal' || value === 'full')) setMode(value) }} aria-label="Setup template" className="grid grid-cols-2 gap-3">{(['minimal','full'] as const).map(value => <Label key={value} htmlFor={`setup-${value}`} className="flex items-start gap-3 rounded-lg border p-4"><RadioGroupItem id={`setup-${value}`} value={value} /><span><span className="font-medium capitalize">{value}</span><span className="mt-1 block text-xs font-normal text-muted-foreground">{value === 'minimal' ? 'One sample service.' : 'Standard and accessible samples.'}</span></span></Label>)}</RadioGroup>
-            <Button disabled={isLoading} onClick={() => runOnboarding(mode)}>
-              {isLoading ? 'Saving sample setup…' : 'Continue sample setup'}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button disabled={isLoading} onClick={() => runOnboarding(mode)}>
+                {isLoading ? 'Saving sample setup…' : 'Continue sample setup'}
+              </Button>
+            </div>
             {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
           </>
         )}
