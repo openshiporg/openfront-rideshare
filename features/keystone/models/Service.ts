@@ -3,9 +3,11 @@ import { denyAll } from '@keystone-6/core/access'
 import { checkbox, integer, json, relationship, select, text, timestamp } from '@keystone-6/core/fields'
 import { fleetScopedAccess, lockedOperationalAccess, operatorAccess, permissions } from '../access'
 import { trackingFields } from './trackingFields'
+import { labels } from './labels'
 import { validateFareRule } from '../domain/fare'
 
 export const ServiceArea = list({
+  ui: { hideCreate: true, hideDelete: true },
   access: operatorAccess,
   fields: {
     fleet: relationship({ ref: 'Fleet.serviceAreas', access: { create: () => false, update: () => false } }), name: text({ validation: { isRequired: true } }), publicRegionLabel: text({ validation: { isRequired: true } }),
@@ -17,6 +19,7 @@ export const ServiceArea = list({
 })
 
 export const RideService = list({
+  ui: { hideCreate: true, hideDelete: true },
   access: operatorAccess,
   fields: {
     fleet: relationship({ ref: 'Fleet.services', access: { create: () => false, update: () => false } }), name: text({ validation: { isRequired: true } }), slug: text({ validation: { isRequired: true }, isIndexed: 'unique' }),
@@ -29,22 +32,27 @@ export const RideService = list({
 })
 
 export const AvailabilityRule = list({
+  ui: { hideCreate: true, hideDelete: true, labelField: 'label', searchFields: ['timezone'] },
   access: lockedOperationalAccess,
   fields: {
-    driver: relationship({ ref: 'DriverProfile.availabilityRules' }), dayOfWeek: integer({ validation: { min: 0, max: 6 } }), startTime: text(), endTime: text(), timezone: text({ defaultValue: 'UTC' }),
+    label: labels.availabilityRule,
+    driver: relationship({ ref: 'DriverProfile.availabilityRules' }), dayOfWeek: integer({ label: 'Day (0 Sunday – 6 Saturday)', validation: { min: 0, max: 6 } }), startTime: text(), endTime: text(), timezone: text({ defaultValue: 'UTC' }),
     effectiveFrom: timestamp(), effectiveUntil: timestamp(), status: select({ options: ['active', 'paused'].map(value => ({ label: value, value })), defaultValue: 'active' }), ...trackingFields,
   },
 })
 
 export const AvailabilityException = list({
+  ui: { hideCreate: true, hideDelete: true, labelField: 'label', searchFields: ['reason'] },
   access: lockedOperationalAccess,
   fields: {
+    label: labels.availabilityException,
     driver: relationship({ ref: 'DriverProfile.availabilityExceptions' }), startsAt: timestamp({ validation: { isRequired: true } }), endsAt: timestamp({ validation: { isRequired: true } }),
     kind: select({ options: ['available', 'blocked'].map(value => ({ label: value, value })), defaultValue: 'blocked' }), reason: text(), ...trackingFields,
   },
 })
 
 export const FareRule = list({
+  ui: { hideCreate: true, hideDelete: true },
   access: fleetScopedAccess('fleetAdmin'),
   hooks: { validateInput: ({ resolvedData, item, addValidationError }) => {
     try { validateFareRule({ ...item, ...resolvedData } as Parameters<typeof validateFareRule>[0]) }
@@ -53,14 +61,16 @@ export const FareRule = list({
   fields: {
     fleet: relationship({ ref: 'Fleet.fareRules', access: { create: () => false, update: () => false } }), service: relationship({ ref: 'RideService.fareRules', access: { create: () => false, update: () => false } }), serviceArea: relationship({ ref: 'ServiceArea.fareRules', access: { create: () => false, update: () => false } }),
     name: text({ validation: { isRequired: true } }), version: integer({ defaultValue: 1 }), status: select({ options: ['draft', 'active', 'retired'].map(value => ({ label: value, value })), defaultValue: 'draft' }),
-    currencyCode: text({ defaultValue: 'USD' }), baseFareMinor: integer({ defaultValue: 0 }), perDistanceUnitMinor: integer({ defaultValue: 0 }), distanceUnit: select({ options: ['kilometer', 'mile'].map(value => ({ label: value, value })), defaultValue: 'mile' }),
-    perMinuteMinor: integer({ defaultValue: 0 }), bookingFeeMinor: integer({ defaultValue: 0 }), minimumFareMinor: integer({ defaultValue: 0 }), cancellationFeeMinor: integer({ defaultValue: 0 }), noShowFeeMinor: integer({ defaultValue: 0 }),
+    fareSummary: labels.fareSummary,
+    currencyCode: text({ defaultValue: 'USD' }), baseFareMinor: integer({ label: 'Base fare (cents)', defaultValue: 0 }), perDistanceUnitMinor: integer({ label: 'Per distance unit (cents)', defaultValue: 0 }), distanceUnit: select({ options: ['kilometer', 'mile'].map(value => ({ label: value, value })), defaultValue: 'mile' }),
+    perMinuteMinor: integer({ label: 'Per minute (cents)', defaultValue: 0 }), bookingFeeMinor: integer({ label: 'Booking fee (cents)', defaultValue: 0 }), minimumFareMinor: integer({ label: 'Minimum fare (cents)', defaultValue: 0 }), cancellationFeeMinor: integer({ label: 'Cancellation fee (cents)', defaultValue: 0 }), noShowFeeMinor: integer({ label: 'No-show fee (cents)', defaultValue: 0 }),
     maximumMultiplierBasisPoints: integer({ defaultValue: 10000, validation: { min: 10000, max: 30000 } }), rules: json({ defaultValue: {} }), quotes: relationship({ ref: 'RideQuote.fareRule', many: true, access: { create: () => false, update: () => false } }),
     ...trackingFields,
   },
 })
 
 export const RideQuote = list({
+  ui: { hideCreate: true, hideDelete: true, labelField: 'publicId', searchFields: ['publicId', 'pickupLabel', 'dropoffLabel'] },
   access: lockedOperationalAccess,
   fields: {
     service: relationship({ ref: 'RideService.quotes', access: { create: () => false, update: () => false } }), fareRule: relationship({ ref: 'FareRule.quotes', access: { create: () => false, update: () => false } }),

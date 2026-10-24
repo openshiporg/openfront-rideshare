@@ -9,6 +9,7 @@ import { StatusDot, StatusTitle } from '@/features/platform/components/StatusTit
 import { RouteLine } from '@/features/platform/components/RouteLine'
 import { TripStageRail } from '@/features/platform/components/TripStageRail'
 import { statusLabel, statusTone, formatWhen } from '@/features/platform/lib/statusTone'
+import { OnlineTrack } from '@/features/platform/drivers/components/DriverSetupActions'
 import { DriverOfferActions, DriverResponseRecovery, DriverTripActions, OfferCountdown } from '../components/DriverActions'
 
 type DriverWorkspaceData = {
@@ -53,7 +54,7 @@ export async function DriverWorkspacePage({ searchParams }: { searchParams?: Pro
       <PlatformHeader
         title={driver ? <StatusTitle as="span" tone={statusTone(driver.dispatchStatus)} pulse={driver.dispatchStatus === 'available'} status={statusLabel(driver.dispatchStatus)}>{driver.publicName}</StatusTitle> : 'My driving'}
         meta={driver ? <><span className="inline-flex items-center gap-1.5"><StatusDot tone={statusTone(driver.status)} />Profile {statusLabel(driver.status).toLowerCase()}</span>{workspace && <span className="tabular-nums">{workspace.offers.length} offers · {workspace.trips.length} trips</span>}</> : null}
-        actions={<OperationalRefresh revision={new Date().toISOString()} />}
+        actions={<>{driver?.status === 'active' && <OnlineTrack dispatchStatus={driver.dispatchStatus} />}<OperationalRefresh revision={new Date().toISOString()} /></>}
       />
       {!response.success && <p role="alert" className="rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">Driver workspace unavailable. Refresh to try again.</p>}
       {response.success && !driver && <PlatformEmpty>This account has no driver profile</PlatformEmpty>}

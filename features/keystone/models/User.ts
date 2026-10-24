@@ -3,6 +3,7 @@ import { denyAll } from '@keystone-6/core/access'
 import { password, relationship, select, text } from '@keystone-6/core/fields'
 import { isSignedIn, permissionNames, permissions, type AccessArgs } from '../access'
 import { trackingFields } from './trackingFields'
+import { riderSignupsOpen } from '../domain/riderAccounts'
 
 const selfOrPeople = async (args: AccessArgs) => await permissions.canManagePeople(args) || (await isSignedIn(args) ? { id: { equals: args.session!.itemId } } : false)
 const selfField = async (args: AccessArgs & { item: { id: { toString(): string } } }) => await permissions.canManagePeople(args) || (await isSignedIn(args) && args.session!.itemId === String(args.item.id))
@@ -20,6 +21,8 @@ async function firstUserAdminRole(context: { prisma: any }) {
 }
 
 export const User = list({
+  // The password is write-only (read: denyAll), so a list column would always read "not set".
+  ui: { listView: { initialColumns: ['name', 'email', 'role', 'onboardingStatus'] } },
   hooks: {
     resolveInput: async ({ operation, resolvedData, context }) => {
       if (operation !== 'create' || resolvedData.role) return resolvedData
@@ -28,7 +31,7 @@ export const User = list({
     },
   },
   access: {
-    operation: { query: isSignedIn, create: args => process.env.PUBLIC_SIGNUPS_ALLOWED === 'true' || permissions.canManagePeople(args), update: isSignedIn, delete: denyAll },
+    operation: { query: isSignedIn, create: async args => await riderSignupsOpen(args.context.prisma) || permissions.canManagePeople(args), update: isSignedIn, delete: denyAll },
     filter: { query: selfOrPeople, update: selfOrPeople },
   },
   fields: {

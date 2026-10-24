@@ -2,10 +2,12 @@ import { list } from '@keystone-6/core'
 import { checkbox, json, relationship, select, text, timestamp } from '@keystone-6/core/fields'
 import { fleetScopedAccess, lockedOperationalAccess, permissions } from '../access'
 import { trackingFields } from './trackingFields'
+import { labels } from './labels'
 import { DEFAULT_STORE_LOGO_ICON, DEFAULT_STORE_LOGO_COLOR, normalizeStoreLogoColor } from '../../platform/settings/branding/store-logo'
 import { sanitizeStoreLogoSvg } from '../utils/storeLogo'
 
 export const Fleet = list({
+  ui: { hideCreate: true, hideDelete: true },
   access: fleetScopedAccess('fleetAdmin'),
   fields: {
     name: text({ validation: { isRequired: true } }),
@@ -24,6 +26,7 @@ export const Fleet = list({
       },
     } }),
     logoColor: text({ defaultValue: DEFAULT_STORE_LOGO_COLOR, hooks: { resolveInput: ({ resolvedData, fieldKey }) => resolvedData[fieldKey] === undefined ? undefined : normalizeStoreLogoColor(resolvedData[fieldKey]) } }),
+    riderAccounts: select({ options: [{ label: 'Closed', value: 'closed' }, { label: 'Open', value: 'open' }], defaultValue: 'closed', validation: { isRequired: true } }),
     operationsMode: select({ options: [{ label: 'Off', value: 'off' }, { label: 'Manual dispatch', value: 'manual' }], defaultValue: 'off', validation: { isRequired: true } }),
     preciseLocationRetentionDays: text({ defaultValue: '30' }),
     memberships: relationship({ ref: 'FleetMembership.fleet', many: true, access: { create: () => false, update: () => false } }), drivers: relationship({ ref: 'DriverProfile.fleet', many: true, access: { create: () => false, update: () => false } }),
@@ -37,8 +40,10 @@ export const Fleet = list({
 })
 
 export const FleetMembership = list({
+  ui: { hideCreate: true, hideDelete: true, labelField: 'label', searchFields: ['role'] },
   access: lockedOperationalAccess,
   fields: {
+    label: labels.fleetMembership,
     fleet: relationship({ ref: 'Fleet.memberships', access: { create: () => false, update: () => false } }), user: relationship({ ref: 'User.fleetMemberships', access: { create: () => false, update: () => false } }),
     role: select({ options: ['owner', 'dispatcher', 'support', 'finance', 'viewer'].map(value => ({ label: value, value })), defaultValue: 'viewer' }),
     status: select({ options: ['invited', 'active', 'suspended'].map(value => ({ label: value, value })), defaultValue: 'invited' }),
@@ -48,6 +53,7 @@ export const FleetMembership = list({
 })
 
 export const DriverProfile = list({
+  ui: { hideCreate: true, hideDelete: true, labelField: 'publicName', searchFields: ['publicName'] },
   access: fleetScopedAccess('drivers'),
   fields: {
     user: relationship({ ref: 'User.driverProfile', access: { create: () => false, update: () => false } }), fleet: relationship({ ref: 'Fleet.drivers', access: { create: () => false, update: () => false } }),
@@ -63,6 +69,7 @@ export const DriverProfile = list({
 })
 
 export const RiderProfile = list({
+  ui: { hideCreate: true, hideDelete: true, labelField: 'displayName', searchFields: ['displayName'] },
   access: fleetScopedAccess('safety'),
   fields: {
     user: relationship({ ref: 'User.riderProfile', access: { create: () => false, update: () => false } }), homeFleet: relationship({ ref: 'Fleet.riders', access: { create: () => false, update: () => false } }), displayName: text({ validation: { isRequired: true } }),

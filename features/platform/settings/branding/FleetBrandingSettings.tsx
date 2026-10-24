@@ -36,6 +36,8 @@ export function FleetBrandingSettings() {
       const rows = data.fleets.slice(0,25)
       setFleets(current => cursor ? [...current, ...rows] : rows)
       setAfter(data.fleets.length > 25 ? rows[24].id : null)
+      // With a single fleet there is nothing to choose; open its logo straight away.
+      if (!cursor && rows.length === 1 && data.fleets.length === 1) { setFleetId(rows[0].id); void read(rows[0].id) }
     } catch { setError('Fleets unavailable for your access.') }
   }
   useEffect(() => { void loadFleets() }, [])

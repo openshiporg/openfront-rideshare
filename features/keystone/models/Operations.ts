@@ -3,10 +3,12 @@ import { denyAll } from '@keystone-6/core/access'
 import { checkbox, integer, json, relationship, select, text, timestamp } from '@keystone-6/core/fields'
 import { fleetScopedAccess, lockedFleetAccess, operatorAccess, permissions } from '../access'
 import { trackingFields } from './trackingFields'
+import { labels } from './labels'
 
 const documentAccess = lockedFleetAccess('drivers')
 
 export const Vehicle = list({
+  ui: { hideCreate: true, hideDelete: true, labelField: 'label', searchFields: ['label', 'plateMasked'] },
   access: operatorAccess,
   fields: {
     fleet: relationship({ ref: 'Fleet.vehicles', access: { create: () => false, update: () => false } }), drivers: relationship({ ref: 'DriverProfile.vehicles', many: true, access: { create: () => false, update: () => false } }),
@@ -21,8 +23,10 @@ export const Vehicle = list({
 })
 
 export const ComplianceDocument = list({
+  ui: { hideCreate: true, hideDelete: true, labelField: 'label', searchFields: ['issuer', 'referenceMasked'] },
   access: documentAccess,
   fields: {
+    label: labels.complianceDocument,
     driver: relationship({ ref: 'DriverProfile.documents', access: { create: () => false, update: () => false } }), vehicle: relationship({ ref: 'Vehicle.documents', access: { create: () => false, update: () => false } }),
     kind: select({ options: ['driver_license', 'vehicle_registration', 'insurance', 'inspection', 'background_check', 'business_license', 'other'].map(value => ({ label: value, value })) }),
     status: select({ options: ['submitted', 'under_review', 'accepted_evidence', 'rejected_evidence', 'expired', 'revoked'].map(value => ({ label: value, value })), defaultValue: 'submitted' }),
@@ -34,6 +38,7 @@ export const ComplianceDocument = list({
 })
 
 export const Policy = list({
+  ui: { hideCreate: true, hideDelete: true },
   access: fleetScopedAccess('fleetAdmin'),
   fields: {
     fleet: relationship({ ref: 'Fleet.policies', access: { create: () => false, update: () => false } }), name: text({ validation: { isRequired: true } }), version: text({ validation: { isRequired: true } }), jurisdiction: text(),
@@ -45,8 +50,10 @@ export const Policy = list({
 })
 
 export const PolicyEvaluation = list({
+  ui: { hideCreate: true, hideDelete: true, labelField: 'label', searchFields: [] },
   access: lockedFleetAccess('drivers'),
   fields: {
+    label: labels.policyEvaluation,
     policy: relationship({ ref: 'Policy.evaluations' }), driver: relationship({ ref: 'DriverProfile.policyEvaluations' }), vehicle: relationship({ ref: 'Vehicle.policyEvaluations' }),
     outcome: select({ options: ['pending', 'eligible', 'ineligible', 'manual_review'].map(value => ({ label: value, value })), defaultValue: 'pending' }),
     reasons: json({ defaultValue: [] }), evidenceSnapshot: json({ defaultValue: [] }), evaluatedAt: timestamp(), expiresAt: timestamp(), evaluator: relationship({ ref: 'User' }),
@@ -55,6 +62,7 @@ export const PolicyEvaluation = list({
 })
 
 export const ProviderConnection = list({
+  ui: { hideCreate: true, hideDelete: true },
   access: fleetScopedAccess('fleetAdmin'),
   fields: {
     fleet: relationship({ ref: 'Fleet.providers', access: { create: () => false, update: () => false } }), name: text({ validation: { isRequired: true } }),

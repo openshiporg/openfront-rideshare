@@ -69,13 +69,13 @@ function s3ForcePathStyle(endpoint) {
 
 // features/keystone/index.ts
 var import_auth = require("@keystone-6/auth");
-var import_core13 = require("@keystone-6/core");
+var import_core14 = require("@keystone-6/core");
 var import_session = require("@keystone-6/core/session");
 var import_config = require("dotenv/config");
 
 // features/keystone/models/PaymentObservation.ts
-var import_core = require("@keystone-6/core");
-var import_fields2 = require("@keystone-6/core/fields");
+var import_core2 = require("@keystone-6/core");
+var import_fields3 = require("@keystone-6/core/fields");
 
 // features/keystone/access.ts
 var permissionNames = [
@@ -259,40 +259,82 @@ var trackingFields = {
   updatedAt: (0, import_fields.timestamp)({ db: { updatedAt: true }, isIndexed: true })
 };
 
+// features/keystone/models/labels.ts
+var import_core = require("@keystone-6/core");
+var import_fields2 = require("@keystone-6/core/fields");
+var DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+var words = (value) => typeof value === "string" && value ? value.replaceAll("_", " ") : "";
+var join = (...parts) => parts.filter((part) => typeof part === "string" && part).join(" \xB7 ");
+var money = (minor, currency) => typeof minor === "number" && typeof currency === "string" && currency ? new Intl.NumberFormat("en-US", { style: "currency", currency }).format(minor / 100) : "";
+var shortDate = (value) => value instanceof Date || typeof value === "string" ? new Date(value).toISOString().slice(0, 10) : "";
+async function driverName(context, id) {
+  return typeof id === "string" ? (await context.prisma.driverProfile.findUnique({ where: { id }, select: { publicName: true } }))?.publicName || "" : "";
+}
+async function vehicleLabel(context, id) {
+  return typeof id === "string" ? (await context.prisma.vehicle.findUnique({ where: { id }, select: { label: true } }))?.label || "" : "";
+}
+function recordLabel(resolve) {
+  return (0, import_fields2.virtual)({
+    field: import_core.graphql.field({ type: import_core.graphql.String, resolve: async (item, _args, context) => await resolve(item, context) || String(item.id) }),
+    ui: { itemView: { fieldMode: "hidden" }, createView: { fieldMode: "hidden" } }
+  });
+}
+var labels = {
+  fareSummary: (0, import_fields2.virtual)({
+    field: import_core.graphql.field({ type: import_core.graphql.String, resolve: (item) => {
+      const unit = item.distanceUnit === "kilometer" ? "km" : "mile";
+      return [`${money(item.baseFareMinor, item.currencyCode)} base`, `${money(item.perDistanceUnitMinor, item.currencyCode)}/${unit}`, `${money(item.perMinuteMinor, item.currencyCode)}/min`, `${money(item.minimumFareMinor, item.currencyCode)} minimum`].join(" \xB7 ");
+    } }),
+    ui: { createView: { fieldMode: "hidden" } }
+  }),
+  fleetMembership: recordLabel(async (item, context) => {
+    const user = typeof item.userId === "string" ? await context.prisma.user.findUnique({ where: { id: item.userId }, select: { name: true } }) : null;
+    return join(user?.name, words(item.role));
+  }),
+  availabilityRule: recordLabel((item) => join(DAYS[item.dayOfWeek] || "", item.startTime && item.endTime ? `${item.startTime}\u2013${item.endTime}` : "", item.timezone)),
+  availabilityException: recordLabel(async (item, context) => join(await driverName(context, item.driverId), words(item.kind), shortDate(item.startsAt))),
+  complianceDocument: recordLabel(async (item, context) => join(await driverName(context, item.driverId) || await vehicleLabel(context, item.vehicleId), words(item.kind))),
+  policyEvaluation: recordLabel(async (item, context) => join(await driverName(context, item.driverId) || await vehicleLabel(context, item.vehicleId), words(item.outcome))),
+  marketplaceRegistration: recordLabel((item) => join(item.platform, words(item.status))),
+  matchOffer: recordLabel(async (item, context) => join(await driverName(context, item.driverId), words(item.status))),
+  payment: recordLabel((item) => join(money(item.amountMinor, item.currencyCode), words(item.status))),
+  refund: recordLabel((item) => join("Refund", money(item.amountMinor, item.currencyCode), words(item.status))),
+  ledgerEntry: recordLabel((item) => join(words(item.kind) || "Entry", money(item.amountMinor, item.currencyCode))),
+  payout: recordLabel(async (item, context) => join(await driverName(context, item.driverId), money(item.amountMinor, item.currencyCode), words(item.status))),
+  cancellation: recordLabel((item) => join("Cancellation", words(item.reasonCode), shortDate(item.createdAt))),
+  locationEvent: recordLabel((item) => join(words(item.actorType), shortDate(item.recordedAt))),
+  conversation: recordLabel((item) => join("Conversation", words(item.status))),
+  message: recordLabel((item) => join(words(item.senderType), typeof item.body === "string" ? item.body.slice(0, 40) : "")),
+  review: recordLabel((item) => join(typeof item.rating === "number" ? `${item.rating}/5` : "", words(item.direction))),
+  notification: recordLabel((item) => join(words(item.channel), words(item.templateKey), words(item.status))),
+  paymentObservation: recordLabel((item) => join("Observation", item.observationKey)),
+  requestCancellationCommand: recordLabel((item) => join("Request cancellation", shortDate(item.createdAt))),
+  fleetBrandingChange: recordLabel((item) => join("Branding change", shortDate(item.createdAt)))
+};
+
 // features/keystone/models/PaymentObservation.ts
-var PaymentObservation = (0, import_core.list)({
+var PaymentObservation = (0, import_core2.list)({
+  ui: { hideCreate: true, hideDelete: true, labelField: "label", searchFields: ["observationKey"] },
   access: financeAccess,
   fields: {
-    payment: (0, import_fields2.relationship)({ ref: "Payment", access: { create: () => false, update: () => false } }),
-    refund: (0, import_fields2.relationship)({ ref: "Refund", access: { create: () => false, update: () => false } }),
-    observationKey: (0, import_fields2.text)({ isIndexed: "unique", validation: { isRequired: true } }),
-    details: (0, import_fields2.json)({ defaultValue: {} }),
+    label: labels.paymentObservation,
+    payment: (0, import_fields3.relationship)({ ref: "Payment", access: { create: () => false, update: () => false } }),
+    refund: (0, import_fields3.relationship)({ ref: "Refund", access: { create: () => false, update: () => false } }),
+    observationKey: (0, import_fields3.text)({ isIndexed: "unique", validation: { isRequired: true } }),
+    details: (0, import_fields3.json)({ defaultValue: {} }),
     ...trackingFields
   }
 });
 
 // features/keystone/models/RequestCancellationCommand.ts
-var import_core2 = require("@keystone-6/core");
-var import_fields3 = require("@keystone-6/core/fields");
-var RequestCancellationCommand = (0, import_core2.list)({
-  access: { operation: { query: () => false, create: () => false, update: () => false, delete: () => false } },
-  fields: {
-    request: (0, import_fields3.relationship)({ ref: "RideRequest", access: { create: () => false, update: () => false } }),
-    idempotencyKey: (0, import_fields3.text)({ isIndexed: "unique", validation: { isRequired: true } }),
-    command: (0, import_fields3.json)({ defaultValue: {} }),
-    result: (0, import_fields3.json)({ defaultValue: {} }),
-    ...trackingFields
-  }
-});
-
-// features/keystone/models/FleetBrandingChange.ts
 var import_core3 = require("@keystone-6/core");
 var import_fields4 = require("@keystone-6/core/fields");
-var FleetBrandingChange = (0, import_core3.list)({
-  access: lockedFleetAccess("fleetAdmin"),
+var RequestCancellationCommand = (0, import_core3.list)({
+  ui: { hideCreate: true, hideDelete: true, labelField: "label", searchFields: [] },
+  access: { operation: { query: () => false, create: () => false, update: () => false, delete: () => false } },
   fields: {
-    fleet: (0, import_fields4.relationship)({ ref: "Fleet", access: { create: () => false, update: () => false } }),
-    actor: (0, import_fields4.relationship)({ ref: "User", access: { create: () => false, update: () => false } }),
+    label: labels.requestCancellationCommand,
+    request: (0, import_fields4.relationship)({ ref: "RideRequest", access: { create: () => false, update: () => false } }),
     idempotencyKey: (0, import_fields4.text)({ isIndexed: "unique", validation: { isRequired: true } }),
     command: (0, import_fields4.json)({ defaultValue: {} }),
     result: (0, import_fields4.json)({ defaultValue: {} }),
@@ -300,10 +342,35 @@ var FleetBrandingChange = (0, import_core3.list)({
   }
 });
 
-// features/keystone/models/User.ts
+// features/keystone/models/FleetBrandingChange.ts
 var import_core4 = require("@keystone-6/core");
-var import_access3 = require("@keystone-6/core/access");
 var import_fields5 = require("@keystone-6/core/fields");
+var FleetBrandingChange = (0, import_core4.list)({
+  ui: { hideCreate: true, hideDelete: true, labelField: "label", searchFields: [] },
+  access: lockedFleetAccess("fleetAdmin"),
+  fields: {
+    label: labels.fleetBrandingChange,
+    fleet: (0, import_fields5.relationship)({ ref: "Fleet", access: { create: () => false, update: () => false } }),
+    actor: (0, import_fields5.relationship)({ ref: "User", access: { create: () => false, update: () => false } }),
+    idempotencyKey: (0, import_fields5.text)({ isIndexed: "unique", validation: { isRequired: true } }),
+    command: (0, import_fields5.json)({ defaultValue: {} }),
+    result: (0, import_fields5.json)({ defaultValue: {} }),
+    ...trackingFields
+  }
+});
+
+// features/keystone/models/User.ts
+var import_core5 = require("@keystone-6/core");
+var import_access3 = require("@keystone-6/core/access");
+var import_fields6 = require("@keystone-6/core/fields");
+
+// features/keystone/domain/riderAccounts.ts
+async function riderSignupsOpen(prisma) {
+  if (process.env.PUBLIC_SIGNUPS_ALLOWED === "true") return true;
+  return Boolean(await prisma.fleet.findFirst({ where: { riderAccounts: "open", status: "active" }, select: { id: true } }));
+}
+
+// features/keystone/models/User.ts
 var selfOrPeople = async (args) => await permissions.canManagePeople(args) || (await isSignedIn(args) ? { id: { equals: args.session.itemId } } : false);
 var selfField = async (args) => await permissions.canManagePeople(args) || await isSignedIn(args) && args.session.itemId === String(args.item.id);
 async function firstUserAdminRole(context) {
@@ -314,7 +381,9 @@ async function firstUserAdminRole(context) {
   if (!role?.id) throw new Error("The Admin role could not be created.");
   return role.id;
 }
-var User = (0, import_core4.list)({
+var User = (0, import_core5.list)({
+  // The password is write-only (read: denyAll), so a list column would always read "not set".
+  ui: { listView: { initialColumns: ["name", "email", "role", "onboardingStatus"] } },
   hooks: {
     resolveInput: async ({ operation, resolvedData, context }) => {
       if (operation !== "create" || resolvedData.role) return resolvedData;
@@ -323,47 +392,47 @@ var User = (0, import_core4.list)({
     }
   },
   access: {
-    operation: { query: isSignedIn, create: (args) => process.env.PUBLIC_SIGNUPS_ALLOWED === "true" || permissions.canManagePeople(args), update: isSignedIn, delete: import_access3.denyAll },
+    operation: { query: isSignedIn, create: async (args) => await riderSignupsOpen(args.context.prisma) || permissions.canManagePeople(args), update: isSignedIn, delete: import_access3.denyAll },
     filter: { query: selfOrPeople, update: selfOrPeople }
   },
   fields: {
-    name: (0, import_fields5.text)({ validation: { isRequired: true } }),
-    email: (0, import_fields5.text)({ validation: { isRequired: true }, isIndexed: "unique" }),
-    password: (0, import_fields5.password)({ validation: { isRequired: true, length: { min: 10 } }, access: { read: import_access3.denyAll } }),
-    phone: (0, import_fields5.text)({ access: { read: selfField, update: selfField } }),
-    role: (0, import_fields5.relationship)({ ref: "Role.assignedTo", access: { create: permissions.canManageRoles, update: permissions.canManageRoles } }),
-    onboardingStatus: (0, import_fields5.select)({ options: [
+    name: (0, import_fields6.text)({ validation: { isRequired: true } }),
+    email: (0, import_fields6.text)({ validation: { isRequired: true }, isIndexed: "unique" }),
+    password: (0, import_fields6.password)({ validation: { isRequired: true, length: { min: 10 } }, access: { read: import_access3.denyAll } }),
+    phone: (0, import_fields6.text)({ access: { read: selfField, update: selfField } }),
+    role: (0, import_fields6.relationship)({ ref: "Role.assignedTo", access: { create: permissions.canManageRoles, update: permissions.canManageRoles } }),
+    onboardingStatus: (0, import_fields6.select)({ options: [
       { label: "Not started", value: "not_started" },
       { label: "In progress", value: "in_progress" },
       { label: "Completed", value: "completed" },
       { label: "Dismissed", value: "dismissed" }
     ], defaultValue: "not_started", access: { create: () => false, update: () => false } }),
-    fleetMemberships: (0, import_fields5.relationship)({ ref: "FleetMembership.user", many: true, access: { create: () => false, update: () => false } }),
-    driverProfile: (0, import_fields5.relationship)({ ref: "DriverProfile.user", access: { create: () => false, update: () => false } }),
-    riderProfile: (0, import_fields5.relationship)({ ref: "RiderProfile.user", access: { create: () => false, update: () => false } }),
-    requestedRides: (0, import_fields5.relationship)({ ref: "RideRequest.rider", many: true, access: { create: () => false, update: () => false } }),
-    trips: (0, import_fields5.relationship)({ ref: "Trip.rider", many: true, access: { create: () => false, update: () => false } }),
-    reviews: (0, import_fields5.relationship)({ ref: "Review.author", many: true, access: { create: () => false, update: () => false } }),
+    fleetMemberships: (0, import_fields6.relationship)({ ref: "FleetMembership.user", many: true, access: { create: () => false, update: () => false } }),
+    driverProfile: (0, import_fields6.relationship)({ ref: "DriverProfile.user", access: { create: () => false, update: () => false } }),
+    riderProfile: (0, import_fields6.relationship)({ ref: "RiderProfile.user", access: { create: () => false, update: () => false } }),
+    requestedRides: (0, import_fields6.relationship)({ ref: "RideRequest.rider", many: true, access: { create: () => false, update: () => false } }),
+    trips: (0, import_fields6.relationship)({ ref: "Trip.rider", many: true, access: { create: () => false, update: () => false } }),
+    reviews: (0, import_fields6.relationship)({ ref: "Review.author", many: true, access: { create: () => false, update: () => false } }),
     ...trackingFields
   }
 });
 
 // features/keystone/models/Role.ts
-var import_core5 = require("@keystone-6/core");
-var import_fields6 = require("@keystone-6/core/fields");
-var Role = (0, import_core5.list)({
+var import_core6 = require("@keystone-6/core");
+var import_fields7 = require("@keystone-6/core/fields");
+var Role = (0, import_core6.list)({
   access: { operation: { query: isSignedIn, create: permissions.canManageRoles, update: permissions.canManageRoles, delete: permissions.canManageRoles } },
   fields: {
-    name: (0, import_fields6.text)({ validation: { isRequired: true }, isIndexed: "unique" }),
-    ...Object.fromEntries(permissionNames.map((name) => [name, (0, import_fields6.checkbox)({ defaultValue: false })])),
-    assignedTo: (0, import_fields6.relationship)({ ref: "User.role", many: true, access: { create: permissions.canManageRoles, update: permissions.canManageRoles } }),
+    name: (0, import_fields7.text)({ validation: { isRequired: true }, isIndexed: "unique" }),
+    ...Object.fromEntries(permissionNames.map((name) => [name, (0, import_fields7.checkbox)({ defaultValue: false })])),
+    assignedTo: (0, import_fields7.relationship)({ ref: "User.role", many: true, access: { create: permissions.canManageRoles, update: permissions.canManageRoles } }),
     ...trackingFields
   }
 });
 
 // features/keystone/models/Identity.ts
-var import_core6 = require("@keystone-6/core");
-var import_fields7 = require("@keystone-6/core/fields");
+var import_core7 = require("@keystone-6/core");
+var import_fields8 = require("@keystone-6/core/fields");
 
 // features/platform/settings/branding/store-logo.ts
 var DEFAULT_STORE_LOGO_ICON = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" height="100%" width="100%" viewBox="0 0 42 48"><path fill="#155eef" fill-rule="evenodd" d="m22.102 20.86 9.9-9.9L29.88 8.84l-7.339 7.339V3h-3v13.178l-7.339-7.34-2.121 2.122 9.9 9.9 1.06 1.06zm2.12 2.121 9.9-9.9 2.121 2.122-7.339 7.339H42v3H28.904l7.34 7.339L34.121 35l-9.9-9.899-1.06-1.06zM7.96 35.001l9.9-9.899 1.06-1.06-1.06-1.061-9.9-9.9-2.121 2.122 7.339 7.339H.002v3h13.176l-7.34 7.339zm12.02-7.777-9.9 9.9 2.122 2.12 7.339-7.338V45h3V31.906l7.339 7.338L32 37.124l-9.9-9.9-1.06-1.061z" clip-rule="evenodd"/></svg>';
@@ -484,20 +553,21 @@ function sanitizeStoreLogoSvg(svg) {
 }
 
 // features/keystone/models/Identity.ts
-var Fleet = (0, import_core6.list)({
+var Fleet = (0, import_core7.list)({
+  ui: { hideCreate: true, hideDelete: true },
   access: fleetScopedAccess("fleetAdmin"),
   fields: {
-    name: (0, import_fields7.text)({ validation: { isRequired: true } }),
-    slug: (0, import_fields7.text)({ validation: { isRequired: true }, isIndexed: "unique" }),
-    status: (0, import_fields7.select)({ options: [{ label: "Setup", value: "setup" }, { label: "Active", value: "active" }, { label: "Paused", value: "paused" }], defaultValue: "setup" }),
-    publicDescription: (0, import_fields7.text)({ ui: { displayMode: "textarea" } }),
-    publicCity: (0, import_fields7.text)(),
-    countryCode: (0, import_fields7.text)({ defaultValue: "US" }),
-    currencyCode: (0, import_fields7.text)({ defaultValue: "USD" }),
-    timezone: (0, import_fields7.text)({ defaultValue: "UTC" }),
-    supportEmail: (0, import_fields7.text)(),
-    supportPhone: (0, import_fields7.text)(),
-    logoIcon: (0, import_fields7.text)({ defaultValue: DEFAULT_STORE_LOGO_ICON, hooks: {
+    name: (0, import_fields8.text)({ validation: { isRequired: true } }),
+    slug: (0, import_fields8.text)({ validation: { isRequired: true }, isIndexed: "unique" }),
+    status: (0, import_fields8.select)({ options: [{ label: "Setup", value: "setup" }, { label: "Active", value: "active" }, { label: "Paused", value: "paused" }], defaultValue: "setup" }),
+    publicDescription: (0, import_fields8.text)({ ui: { displayMode: "textarea" } }),
+    publicCity: (0, import_fields8.text)(),
+    countryCode: (0, import_fields8.text)({ defaultValue: "US" }),
+    currencyCode: (0, import_fields8.text)({ defaultValue: "USD" }),
+    timezone: (0, import_fields8.text)({ defaultValue: "UTC" }),
+    supportEmail: (0, import_fields8.text)(),
+    supportPhone: (0, import_fields8.text)(),
+    logoIcon: (0, import_fields8.text)({ defaultValue: DEFAULT_STORE_LOGO_ICON, hooks: {
       resolveInput: ({ resolvedData, fieldKey }) => {
         const value = resolvedData[fieldKey];
         return value === void 0 || value === null || value === "" ? value : typeof value === "string" ? sanitizeStoreLogoSvg(value) : "";
@@ -506,171 +576,183 @@ var Fleet = (0, import_core6.list)({
         if (typeof inputData?.[fieldKey] === "string" && inputData[fieldKey].trim() && !resolvedData?.[fieldKey]) addValidationError("Logo must be a safe SVG document.");
       }
     } }),
-    logoColor: (0, import_fields7.text)({ defaultValue: DEFAULT_STORE_LOGO_COLOR, hooks: { resolveInput: ({ resolvedData, fieldKey }) => resolvedData[fieldKey] === void 0 ? void 0 : normalizeStoreLogoColor(resolvedData[fieldKey]) } }),
-    operationsMode: (0, import_fields7.select)({ options: [{ label: "Off", value: "off" }, { label: "Manual dispatch", value: "manual" }], defaultValue: "off", validation: { isRequired: true } }),
-    preciseLocationRetentionDays: (0, import_fields7.text)({ defaultValue: "30" }),
-    memberships: (0, import_fields7.relationship)({ ref: "FleetMembership.fleet", many: true, access: { create: () => false, update: () => false } }),
-    drivers: (0, import_fields7.relationship)({ ref: "DriverProfile.fleet", many: true, access: { create: () => false, update: () => false } }),
-    riders: (0, import_fields7.relationship)({ ref: "RiderProfile.homeFleet", many: true, access: { create: () => false, update: () => false } }),
-    vehicles: (0, import_fields7.relationship)({ ref: "Vehicle.fleet", many: true, access: { create: () => false, update: () => false } }),
-    serviceAreas: (0, import_fields7.relationship)({ ref: "ServiceArea.fleet", many: true, access: { create: () => false, update: () => false } }),
-    services: (0, import_fields7.relationship)({ ref: "RideService.fleet", many: true, access: { create: () => false, update: () => false } }),
-    fareRules: (0, import_fields7.relationship)({ ref: "FareRule.fleet", many: true, access: { create: () => false, update: () => false } }),
-    rides: (0, import_fields7.relationship)({ ref: "RideRequest.fleet", many: true, access: { create: () => false, update: () => false } }),
-    trips: (0, import_fields7.relationship)({ ref: "Trip.fleet", many: true, access: { create: () => false, update: () => false } }),
-    policies: (0, import_fields7.relationship)({ ref: "Policy.fleet", many: true, access: { create: () => false, update: () => false } }),
-    providers: (0, import_fields7.relationship)({ ref: "ProviderConnection.fleet", many: true, access: { create: () => false, update: () => false } }),
-    marketplaceRegistration: (0, import_fields7.relationship)({ ref: "MarketplaceRegistration.fleet", access: { create: () => false, update: () => false } }),
+    logoColor: (0, import_fields8.text)({ defaultValue: DEFAULT_STORE_LOGO_COLOR, hooks: { resolveInput: ({ resolvedData, fieldKey }) => resolvedData[fieldKey] === void 0 ? void 0 : normalizeStoreLogoColor(resolvedData[fieldKey]) } }),
+    riderAccounts: (0, import_fields8.select)({ options: [{ label: "Closed", value: "closed" }, { label: "Open", value: "open" }], defaultValue: "closed", validation: { isRequired: true } }),
+    operationsMode: (0, import_fields8.select)({ options: [{ label: "Off", value: "off" }, { label: "Manual dispatch", value: "manual" }], defaultValue: "off", validation: { isRequired: true } }),
+    preciseLocationRetentionDays: (0, import_fields8.text)({ defaultValue: "30" }),
+    memberships: (0, import_fields8.relationship)({ ref: "FleetMembership.fleet", many: true, access: { create: () => false, update: () => false } }),
+    drivers: (0, import_fields8.relationship)({ ref: "DriverProfile.fleet", many: true, access: { create: () => false, update: () => false } }),
+    riders: (0, import_fields8.relationship)({ ref: "RiderProfile.homeFleet", many: true, access: { create: () => false, update: () => false } }),
+    vehicles: (0, import_fields8.relationship)({ ref: "Vehicle.fleet", many: true, access: { create: () => false, update: () => false } }),
+    serviceAreas: (0, import_fields8.relationship)({ ref: "ServiceArea.fleet", many: true, access: { create: () => false, update: () => false } }),
+    services: (0, import_fields8.relationship)({ ref: "RideService.fleet", many: true, access: { create: () => false, update: () => false } }),
+    fareRules: (0, import_fields8.relationship)({ ref: "FareRule.fleet", many: true, access: { create: () => false, update: () => false } }),
+    rides: (0, import_fields8.relationship)({ ref: "RideRequest.fleet", many: true, access: { create: () => false, update: () => false } }),
+    trips: (0, import_fields8.relationship)({ ref: "Trip.fleet", many: true, access: { create: () => false, update: () => false } }),
+    policies: (0, import_fields8.relationship)({ ref: "Policy.fleet", many: true, access: { create: () => false, update: () => false } }),
+    providers: (0, import_fields8.relationship)({ ref: "ProviderConnection.fleet", many: true, access: { create: () => false, update: () => false } }),
+    marketplaceRegistration: (0, import_fields8.relationship)({ ref: "MarketplaceRegistration.fleet", access: { create: () => false, update: () => false } }),
     ...trackingFields
   }
 });
-var FleetMembership = (0, import_core6.list)({
+var FleetMembership = (0, import_core7.list)({
+  ui: { hideCreate: true, hideDelete: true, labelField: "label", searchFields: ["role"] },
   access: lockedOperationalAccess,
   fields: {
-    fleet: (0, import_fields7.relationship)({ ref: "Fleet.memberships", access: { create: () => false, update: () => false } }),
-    user: (0, import_fields7.relationship)({ ref: "User.fleetMemberships", access: { create: () => false, update: () => false } }),
-    role: (0, import_fields7.select)({ options: ["owner", "dispatcher", "support", "finance", "viewer"].map((value) => ({ label: value, value })), defaultValue: "viewer" }),
-    status: (0, import_fields7.select)({ options: ["invited", "active", "suspended"].map((value) => ({ label: value, value })), defaultValue: "invited" }),
-    invitedAt: (0, import_fields7.timestamp)(),
-    acceptedAt: (0, import_fields7.timestamp)(),
+    label: labels.fleetMembership,
+    fleet: (0, import_fields8.relationship)({ ref: "Fleet.memberships", access: { create: () => false, update: () => false } }),
+    user: (0, import_fields8.relationship)({ ref: "User.fleetMemberships", access: { create: () => false, update: () => false } }),
+    role: (0, import_fields8.select)({ options: ["owner", "dispatcher", "support", "finance", "viewer"].map((value) => ({ label: value, value })), defaultValue: "viewer" }),
+    status: (0, import_fields8.select)({ options: ["invited", "active", "suspended"].map((value) => ({ label: value, value })), defaultValue: "invited" }),
+    invitedAt: (0, import_fields8.timestamp)(),
+    acceptedAt: (0, import_fields8.timestamp)(),
     ...trackingFields
   }
 });
-var DriverProfile = (0, import_core6.list)({
+var DriverProfile = (0, import_core7.list)({
+  ui: { hideCreate: true, hideDelete: true, labelField: "publicName", searchFields: ["publicName"] },
   access: fleetScopedAccess("drivers"),
   fields: {
-    user: (0, import_fields7.relationship)({ ref: "User.driverProfile", access: { create: () => false, update: () => false } }),
-    fleet: (0, import_fields7.relationship)({ ref: "Fleet.drivers", access: { create: () => false, update: () => false } }),
-    publicName: (0, import_fields7.text)({ validation: { isRequired: true } }),
-    publicBio: (0, import_fields7.text)({ ui: { displayMode: "textarea" } }),
-    publicPhotoUrl: (0, import_fields7.text)(),
-    status: (0, import_fields7.select)({ options: ["applicant", "pending_review", "active", "paused", "ineligible", "offboarded"].map((value) => ({ label: value, value })), defaultValue: "applicant", access: { create: () => false, update: () => false } }),
-    dispatchStatus: (0, import_fields7.select)({ options: ["offline", "available", "offered", "assigned", "on_trip"].map((value) => ({ label: value, value })), defaultValue: "offline", access: { create: () => false, update: () => false } }),
-    acceptsScheduled: (0, import_fields7.checkbox)({ defaultValue: true }),
-    languages: (0, import_fields7.json)({ defaultValue: [] }),
-    accessibilityTrainingEvidence: (0, import_fields7.text)(),
-    documents: (0, import_fields7.relationship)({ ref: "ComplianceDocument.driver", many: true, access: { create: () => false, update: () => false } }),
-    vehicles: (0, import_fields7.relationship)({ ref: "Vehicle.drivers", many: true, access: { create: () => false, update: () => false } }),
-    availabilityRules: (0, import_fields7.relationship)({ ref: "AvailabilityRule.driver", many: true, access: { create: () => false, update: () => false } }),
-    availabilityExceptions: (0, import_fields7.relationship)({ ref: "AvailabilityException.driver", many: true, access: { create: () => false, update: () => false } }),
-    policyEvaluations: (0, import_fields7.relationship)({ ref: "PolicyEvaluation.driver", many: true, access: { create: () => false, update: () => false } }),
-    matchOffers: (0, import_fields7.relationship)({ ref: "MatchOffer.driver", many: true, access: { create: () => false, update: () => false } }),
-    trips: (0, import_fields7.relationship)({ ref: "Trip.driver", many: true, access: { create: () => false, update: () => false } }),
+    user: (0, import_fields8.relationship)({ ref: "User.driverProfile", access: { create: () => false, update: () => false } }),
+    fleet: (0, import_fields8.relationship)({ ref: "Fleet.drivers", access: { create: () => false, update: () => false } }),
+    publicName: (0, import_fields8.text)({ validation: { isRequired: true } }),
+    publicBio: (0, import_fields8.text)({ ui: { displayMode: "textarea" } }),
+    publicPhotoUrl: (0, import_fields8.text)(),
+    status: (0, import_fields8.select)({ options: ["applicant", "pending_review", "active", "paused", "ineligible", "offboarded"].map((value) => ({ label: value, value })), defaultValue: "applicant", access: { create: () => false, update: () => false } }),
+    dispatchStatus: (0, import_fields8.select)({ options: ["offline", "available", "offered", "assigned", "on_trip"].map((value) => ({ label: value, value })), defaultValue: "offline", access: { create: () => false, update: () => false } }),
+    acceptsScheduled: (0, import_fields8.checkbox)({ defaultValue: true }),
+    languages: (0, import_fields8.json)({ defaultValue: [] }),
+    accessibilityTrainingEvidence: (0, import_fields8.text)(),
+    documents: (0, import_fields8.relationship)({ ref: "ComplianceDocument.driver", many: true, access: { create: () => false, update: () => false } }),
+    vehicles: (0, import_fields8.relationship)({ ref: "Vehicle.drivers", many: true, access: { create: () => false, update: () => false } }),
+    availabilityRules: (0, import_fields8.relationship)({ ref: "AvailabilityRule.driver", many: true, access: { create: () => false, update: () => false } }),
+    availabilityExceptions: (0, import_fields8.relationship)({ ref: "AvailabilityException.driver", many: true, access: { create: () => false, update: () => false } }),
+    policyEvaluations: (0, import_fields8.relationship)({ ref: "PolicyEvaluation.driver", many: true, access: { create: () => false, update: () => false } }),
+    matchOffers: (0, import_fields8.relationship)({ ref: "MatchOffer.driver", many: true, access: { create: () => false, update: () => false } }),
+    trips: (0, import_fields8.relationship)({ ref: "Trip.driver", many: true, access: { create: () => false, update: () => false } }),
     ...trackingFields
   }
 });
-var RiderProfile = (0, import_core6.list)({
+var RiderProfile = (0, import_core7.list)({
+  ui: { hideCreate: true, hideDelete: true, labelField: "displayName", searchFields: ["displayName"] },
   access: fleetScopedAccess("safety"),
   fields: {
-    user: (0, import_fields7.relationship)({ ref: "User.riderProfile", access: { create: () => false, update: () => false } }),
-    homeFleet: (0, import_fields7.relationship)({ ref: "Fleet.riders", access: { create: () => false, update: () => false } }),
-    displayName: (0, import_fields7.text)({ validation: { isRequired: true } }),
-    savedPlaces: (0, import_fields7.json)({ defaultValue: [], access: { read: permissions.canManagePeople, update: permissions.canManagePeople } }),
-    accessibilityPreferences: (0, import_fields7.json)({ defaultValue: {} }),
-    communicationPreferences: (0, import_fields7.json)({ defaultValue: {} }),
-    emergencyContactEncryptedRef: (0, import_fields7.text)({ access: { read: permissions.canManageSafety, update: permissions.canManageSafety } }),
+    user: (0, import_fields8.relationship)({ ref: "User.riderProfile", access: { create: () => false, update: () => false } }),
+    homeFleet: (0, import_fields8.relationship)({ ref: "Fleet.riders", access: { create: () => false, update: () => false } }),
+    displayName: (0, import_fields8.text)({ validation: { isRequired: true } }),
+    savedPlaces: (0, import_fields8.json)({ defaultValue: [], access: { read: permissions.canManagePeople, update: permissions.canManagePeople } }),
+    accessibilityPreferences: (0, import_fields8.json)({ defaultValue: {} }),
+    communicationPreferences: (0, import_fields8.json)({ defaultValue: {} }),
+    emergencyContactEncryptedRef: (0, import_fields8.text)({ access: { read: permissions.canManageSafety, update: permissions.canManageSafety } }),
     ...trackingFields
   }
 });
 
 // features/keystone/models/Operations.ts
-var import_core7 = require("@keystone-6/core");
+var import_core8 = require("@keystone-6/core");
 var import_access7 = require("@keystone-6/core/access");
-var import_fields8 = require("@keystone-6/core/fields");
+var import_fields9 = require("@keystone-6/core/fields");
 var documentAccess = lockedFleetAccess("drivers");
-var Vehicle = (0, import_core7.list)({
+var Vehicle = (0, import_core8.list)({
+  ui: { hideCreate: true, hideDelete: true, labelField: "label", searchFields: ["label", "plateMasked"] },
   access: operatorAccess,
   fields: {
-    fleet: (0, import_fields8.relationship)({ ref: "Fleet.vehicles", access: { create: () => false, update: () => false } }),
-    drivers: (0, import_fields8.relationship)({ ref: "DriverProfile.vehicles", many: true, access: { create: () => false, update: () => false } }),
-    label: (0, import_fields8.text)({ validation: { isRequired: true } }),
-    make: (0, import_fields8.text)(),
-    model: (0, import_fields8.text)(),
-    year: (0, import_fields8.integer)(),
-    color: (0, import_fields8.text)(),
-    plateMasked: (0, import_fields8.text)(),
-    plateEncryptedRef: (0, import_fields8.text)({ access: { read: import_access7.denyAll, create: permissions.canManageDrivers, update: permissions.canManageDrivers } }),
-    vinEncryptedRef: (0, import_fields8.text)({ access: { read: import_access7.denyAll, create: permissions.canManageDrivers, update: permissions.canManageDrivers } }),
-    capacity: (0, import_fields8.integer)({ defaultValue: 4, validation: { min: 1, max: 50 } }),
-    wheelchairAccessible: (0, import_fields8.checkbox)({ defaultValue: false }),
-    status: (0, import_fields8.select)({ options: ["pending_review", "active", "maintenance", "suspended", "retired"].map((value) => ({ label: value, value })), defaultValue: "pending_review", access: { create: () => false, update: () => false } }),
-    documents: (0, import_fields8.relationship)({ ref: "ComplianceDocument.vehicle", many: true, access: { create: () => false, update: () => false } }),
-    policyEvaluations: (0, import_fields8.relationship)({ ref: "PolicyEvaluation.vehicle", many: true, access: { create: () => false, update: () => false } }),
-    trips: (0, import_fields8.relationship)({ ref: "Trip.vehicle", many: true, access: { create: () => false, update: () => false } }),
+    fleet: (0, import_fields9.relationship)({ ref: "Fleet.vehicles", access: { create: () => false, update: () => false } }),
+    drivers: (0, import_fields9.relationship)({ ref: "DriverProfile.vehicles", many: true, access: { create: () => false, update: () => false } }),
+    label: (0, import_fields9.text)({ validation: { isRequired: true } }),
+    make: (0, import_fields9.text)(),
+    model: (0, import_fields9.text)(),
+    year: (0, import_fields9.integer)(),
+    color: (0, import_fields9.text)(),
+    plateMasked: (0, import_fields9.text)(),
+    plateEncryptedRef: (0, import_fields9.text)({ access: { read: import_access7.denyAll, create: permissions.canManageDrivers, update: permissions.canManageDrivers } }),
+    vinEncryptedRef: (0, import_fields9.text)({ access: { read: import_access7.denyAll, create: permissions.canManageDrivers, update: permissions.canManageDrivers } }),
+    capacity: (0, import_fields9.integer)({ defaultValue: 4, validation: { min: 1, max: 50 } }),
+    wheelchairAccessible: (0, import_fields9.checkbox)({ defaultValue: false }),
+    status: (0, import_fields9.select)({ options: ["pending_review", "active", "maintenance", "suspended", "retired"].map((value) => ({ label: value, value })), defaultValue: "pending_review", access: { create: () => false, update: () => false } }),
+    documents: (0, import_fields9.relationship)({ ref: "ComplianceDocument.vehicle", many: true, access: { create: () => false, update: () => false } }),
+    policyEvaluations: (0, import_fields9.relationship)({ ref: "PolicyEvaluation.vehicle", many: true, access: { create: () => false, update: () => false } }),
+    trips: (0, import_fields9.relationship)({ ref: "Trip.vehicle", many: true, access: { create: () => false, update: () => false } }),
     ...trackingFields
   }
 });
-var ComplianceDocument = (0, import_core7.list)({
+var ComplianceDocument = (0, import_core8.list)({
+  ui: { hideCreate: true, hideDelete: true, labelField: "label", searchFields: ["issuer", "referenceMasked"] },
   access: documentAccess,
   fields: {
-    driver: (0, import_fields8.relationship)({ ref: "DriverProfile.documents", access: { create: () => false, update: () => false } }),
-    vehicle: (0, import_fields8.relationship)({ ref: "Vehicle.documents", access: { create: () => false, update: () => false } }),
-    kind: (0, import_fields8.select)({ options: ["driver_license", "vehicle_registration", "insurance", "inspection", "background_check", "business_license", "other"].map((value) => ({ label: value, value })) }),
-    status: (0, import_fields8.select)({ options: ["submitted", "under_review", "accepted_evidence", "rejected_evidence", "expired", "revoked"].map((value) => ({ label: value, value })), defaultValue: "submitted" }),
-    issuer: (0, import_fields8.text)(),
-    referenceMasked: (0, import_fields8.text)(),
-    secureFileRef: (0, import_fields8.text)({ access: { read: import_access7.denyAll, create: permissions.canManageDrivers, update: permissions.canManageDrivers } }),
-    issuedAt: (0, import_fields8.timestamp)(),
-    expiresAt: (0, import_fields8.timestamp)(),
-    reviewedAt: (0, import_fields8.timestamp)(),
-    reviewer: (0, import_fields8.relationship)({ ref: "User" }),
-    reviewNotes: (0, import_fields8.text)({ ui: { displayMode: "textarea" } }),
-    evidenceMetadata: (0, import_fields8.json)({ defaultValue: {}, access: { read: permissions.canManageDrivers, update: permissions.canManageDrivers } }),
+    label: labels.complianceDocument,
+    driver: (0, import_fields9.relationship)({ ref: "DriverProfile.documents", access: { create: () => false, update: () => false } }),
+    vehicle: (0, import_fields9.relationship)({ ref: "Vehicle.documents", access: { create: () => false, update: () => false } }),
+    kind: (0, import_fields9.select)({ options: ["driver_license", "vehicle_registration", "insurance", "inspection", "background_check", "business_license", "other"].map((value) => ({ label: value, value })) }),
+    status: (0, import_fields9.select)({ options: ["submitted", "under_review", "accepted_evidence", "rejected_evidence", "expired", "revoked"].map((value) => ({ label: value, value })), defaultValue: "submitted" }),
+    issuer: (0, import_fields9.text)(),
+    referenceMasked: (0, import_fields9.text)(),
+    secureFileRef: (0, import_fields9.text)({ access: { read: import_access7.denyAll, create: permissions.canManageDrivers, update: permissions.canManageDrivers } }),
+    issuedAt: (0, import_fields9.timestamp)(),
+    expiresAt: (0, import_fields9.timestamp)(),
+    reviewedAt: (0, import_fields9.timestamp)(),
+    reviewer: (0, import_fields9.relationship)({ ref: "User" }),
+    reviewNotes: (0, import_fields9.text)({ ui: { displayMode: "textarea" } }),
+    evidenceMetadata: (0, import_fields9.json)({ defaultValue: {}, access: { read: permissions.canManageDrivers, update: permissions.canManageDrivers } }),
     ...trackingFields
   }
 });
-var Policy = (0, import_core7.list)({
+var Policy = (0, import_core8.list)({
+  ui: { hideCreate: true, hideDelete: true },
   access: fleetScopedAccess("fleetAdmin"),
   fields: {
-    fleet: (0, import_fields8.relationship)({ ref: "Fleet.policies", access: { create: () => false, update: () => false } }),
-    name: (0, import_fields8.text)({ validation: { isRequired: true } }),
-    version: (0, import_fields8.text)({ validation: { isRequired: true } }),
-    jurisdiction: (0, import_fields8.text)(),
-    kind: (0, import_fields8.select)({ options: ["driver_eligibility", "vehicle_eligibility", "insurance", "licensing", "background_check", "location_retention", "pricing", "cancellation"].map((value) => ({ label: value, value })) }),
-    status: (0, import_fields8.select)({ options: ["draft", "active", "retired"].map((value) => ({ label: value, value })), defaultValue: "draft" }),
-    requirements: (0, import_fields8.json)({ defaultValue: {} }),
-    evidenceSources: (0, import_fields8.json)({ defaultValue: [] }),
-    disclaimer: (0, import_fields8.text)({ defaultValue: "Evidence recording is not legal approval or a compliance certification.", ui: { displayMode: "textarea" } }),
-    evaluations: (0, import_fields8.relationship)({ ref: "PolicyEvaluation.policy", many: true, access: { create: () => false, update: () => false } }),
+    fleet: (0, import_fields9.relationship)({ ref: "Fleet.policies", access: { create: () => false, update: () => false } }),
+    name: (0, import_fields9.text)({ validation: { isRequired: true } }),
+    version: (0, import_fields9.text)({ validation: { isRequired: true } }),
+    jurisdiction: (0, import_fields9.text)(),
+    kind: (0, import_fields9.select)({ options: ["driver_eligibility", "vehicle_eligibility", "insurance", "licensing", "background_check", "location_retention", "pricing", "cancellation"].map((value) => ({ label: value, value })) }),
+    status: (0, import_fields9.select)({ options: ["draft", "active", "retired"].map((value) => ({ label: value, value })), defaultValue: "draft" }),
+    requirements: (0, import_fields9.json)({ defaultValue: {} }),
+    evidenceSources: (0, import_fields9.json)({ defaultValue: [] }),
+    disclaimer: (0, import_fields9.text)({ defaultValue: "Evidence recording is not legal approval or a compliance certification.", ui: { displayMode: "textarea" } }),
+    evaluations: (0, import_fields9.relationship)({ ref: "PolicyEvaluation.policy", many: true, access: { create: () => false, update: () => false } }),
     ...trackingFields
   }
 });
-var PolicyEvaluation = (0, import_core7.list)({
+var PolicyEvaluation = (0, import_core8.list)({
+  ui: { hideCreate: true, hideDelete: true, labelField: "label", searchFields: [] },
   access: lockedFleetAccess("drivers"),
   fields: {
-    policy: (0, import_fields8.relationship)({ ref: "Policy.evaluations" }),
-    driver: (0, import_fields8.relationship)({ ref: "DriverProfile.policyEvaluations" }),
-    vehicle: (0, import_fields8.relationship)({ ref: "Vehicle.policyEvaluations" }),
-    outcome: (0, import_fields8.select)({ options: ["pending", "eligible", "ineligible", "manual_review"].map((value) => ({ label: value, value })), defaultValue: "pending" }),
-    reasons: (0, import_fields8.json)({ defaultValue: [] }),
-    evidenceSnapshot: (0, import_fields8.json)({ defaultValue: [] }),
-    evaluatedAt: (0, import_fields8.timestamp)(),
-    expiresAt: (0, import_fields8.timestamp)(),
-    evaluator: (0, import_fields8.relationship)({ ref: "User" }),
+    label: labels.policyEvaluation,
+    policy: (0, import_fields9.relationship)({ ref: "Policy.evaluations" }),
+    driver: (0, import_fields9.relationship)({ ref: "DriverProfile.policyEvaluations" }),
+    vehicle: (0, import_fields9.relationship)({ ref: "Vehicle.policyEvaluations" }),
+    outcome: (0, import_fields9.select)({ options: ["pending", "eligible", "ineligible", "manual_review"].map((value) => ({ label: value, value })), defaultValue: "pending" }),
+    reasons: (0, import_fields9.json)({ defaultValue: [] }),
+    evidenceSnapshot: (0, import_fields9.json)({ defaultValue: [] }),
+    evaluatedAt: (0, import_fields9.timestamp)(),
+    expiresAt: (0, import_fields9.timestamp)(),
+    evaluator: (0, import_fields9.relationship)({ ref: "User" }),
     ...trackingFields
   }
 });
-var ProviderConnection = (0, import_core7.list)({
+var ProviderConnection = (0, import_core8.list)({
+  ui: { hideCreate: true, hideDelete: true },
   access: fleetScopedAccess("fleetAdmin"),
   fields: {
-    fleet: (0, import_fields8.relationship)({ ref: "Fleet.providers", access: { create: () => false, update: () => false } }),
-    name: (0, import_fields8.text)({ validation: { isRequired: true } }),
-    kind: (0, import_fields8.select)({ options: ["mapping", "payment", "communications", "identity", "background_check", "location", "notification"].map((value) => ({ label: value, value })) }),
-    adapter: (0, import_fields8.text)({ validation: { isRequired: true } }),
-    status: (0, import_fields8.select)({ options: ["unconfigured", "sandbox", "active", "disabled"].map((value) => ({ label: value, value })), defaultValue: "unconfigured" }),
-    config: (0, import_fields8.json)({ defaultValue: {} }),
-    secretReference: (0, import_fields8.text)({ access: { read: import_access7.denyAll } }),
-    evidencePolicyUrl: (0, import_fields8.text)(),
-    lastVerifiedAt: (0, import_fields8.timestamp)(),
-    capabilities: (0, import_fields8.json)({ defaultValue: [] }),
+    fleet: (0, import_fields9.relationship)({ ref: "Fleet.providers", access: { create: () => false, update: () => false } }),
+    name: (0, import_fields9.text)({ validation: { isRequired: true } }),
+    kind: (0, import_fields9.select)({ options: ["mapping", "payment", "communications", "identity", "background_check", "location", "notification"].map((value) => ({ label: value, value })) }),
+    adapter: (0, import_fields9.text)({ validation: { isRequired: true } }),
+    status: (0, import_fields9.select)({ options: ["unconfigured", "sandbox", "active", "disabled"].map((value) => ({ label: value, value })), defaultValue: "unconfigured" }),
+    config: (0, import_fields9.json)({ defaultValue: {} }),
+    secretReference: (0, import_fields9.text)({ access: { read: import_access7.denyAll } }),
+    evidencePolicyUrl: (0, import_fields9.text)(),
+    lastVerifiedAt: (0, import_fields9.timestamp)(),
+    capabilities: (0, import_fields9.json)({ defaultValue: [] }),
     ...trackingFields
   }
 });
 
 // features/keystone/models/Service.ts
-var import_core8 = require("@keystone-6/core");
+var import_core9 = require("@keystone-6/core");
 var import_access9 = require("@keystone-6/core/access");
-var import_fields9 = require("@keystone-6/core/fields");
+var import_fields10 = require("@keystone-6/core/fields");
 
 // features/lib/currency.ts
 function currencyDigits(code) {
@@ -710,65 +792,72 @@ function calculateFare(rule, distanceMeters, durationSeconds) {
 }
 
 // features/keystone/models/Service.ts
-var ServiceArea = (0, import_core8.list)({
+var ServiceArea = (0, import_core9.list)({
+  ui: { hideCreate: true, hideDelete: true },
   access: operatorAccess,
   fields: {
-    fleet: (0, import_fields9.relationship)({ ref: "Fleet.serviceAreas", access: { create: () => false, update: () => false } }),
-    name: (0, import_fields9.text)({ validation: { isRequired: true } }),
-    publicRegionLabel: (0, import_fields9.text)({ validation: { isRequired: true } }),
-    countryCode: (0, import_fields9.text)({ defaultValue: "US" }),
-    status: (0, import_fields9.select)({ options: ["draft", "active", "paused"].map((value) => ({ label: value, value })), defaultValue: "draft" }),
-    coarseBounds: (0, import_fields9.json)({ defaultValue: {} }),
-    providerGeometryRef: (0, import_fields9.text)({ access: { read: import_access9.denyAll, create: permissions.canManageFleet, update: permissions.canManageFleet } }),
-    services: (0, import_fields9.relationship)({ ref: "RideService.serviceAreas", many: true, access: { create: () => false, update: () => false } }),
-    fareRules: (0, import_fields9.relationship)({ ref: "FareRule.serviceArea", many: true, access: { create: () => false, update: () => false } }),
+    fleet: (0, import_fields10.relationship)({ ref: "Fleet.serviceAreas", access: { create: () => false, update: () => false } }),
+    name: (0, import_fields10.text)({ validation: { isRequired: true } }),
+    publicRegionLabel: (0, import_fields10.text)({ validation: { isRequired: true } }),
+    countryCode: (0, import_fields10.text)({ defaultValue: "US" }),
+    status: (0, import_fields10.select)({ options: ["draft", "active", "paused"].map((value) => ({ label: value, value })), defaultValue: "draft" }),
+    coarseBounds: (0, import_fields10.json)({ defaultValue: {} }),
+    providerGeometryRef: (0, import_fields10.text)({ access: { read: import_access9.denyAll, create: permissions.canManageFleet, update: permissions.canManageFleet } }),
+    services: (0, import_fields10.relationship)({ ref: "RideService.serviceAreas", many: true, access: { create: () => false, update: () => false } }),
+    fareRules: (0, import_fields10.relationship)({ ref: "FareRule.serviceArea", many: true, access: { create: () => false, update: () => false } }),
     ...trackingFields
   }
 });
-var RideService = (0, import_core8.list)({
+var RideService = (0, import_core9.list)({
+  ui: { hideCreate: true, hideDelete: true },
   access: operatorAccess,
   fields: {
-    fleet: (0, import_fields9.relationship)({ ref: "Fleet.services", access: { create: () => false, update: () => false } }),
-    name: (0, import_fields9.text)({ validation: { isRequired: true } }),
-    slug: (0, import_fields9.text)({ validation: { isRequired: true }, isIndexed: "unique" }),
-    description: (0, import_fields9.text)({ ui: { displayMode: "textarea" } }),
-    status: (0, import_fields9.select)({ options: ["draft", "active", "paused"].map((value) => ({ label: value, value })), defaultValue: "draft" }),
-    category: (0, import_fields9.select)({ options: ["standard", "comfort", "xl", "accessible", "pet_friendly", "scheduled"].map((value) => ({ label: value, value })), defaultValue: "standard" }),
-    passengerCapacity: (0, import_fields9.integer)({ defaultValue: 4, validation: { min: 1, max: 50 } }),
-    wheelchairAccessible: (0, import_fields9.checkbox)({ defaultValue: false }),
-    advanceBookingMinutes: (0, import_fields9.integer)({ defaultValue: 0 }),
-    serviceAreas: (0, import_fields9.relationship)({ ref: "ServiceArea.services", many: true, access: { create: () => false, update: () => false } }),
-    fareRules: (0, import_fields9.relationship)({ ref: "FareRule.service", many: true, access: { create: () => false, update: () => false } }),
-    quotes: (0, import_fields9.relationship)({ ref: "RideQuote.service", many: true, access: { create: () => false, update: () => false } }),
+    fleet: (0, import_fields10.relationship)({ ref: "Fleet.services", access: { create: () => false, update: () => false } }),
+    name: (0, import_fields10.text)({ validation: { isRequired: true } }),
+    slug: (0, import_fields10.text)({ validation: { isRequired: true }, isIndexed: "unique" }),
+    description: (0, import_fields10.text)({ ui: { displayMode: "textarea" } }),
+    status: (0, import_fields10.select)({ options: ["draft", "active", "paused"].map((value) => ({ label: value, value })), defaultValue: "draft" }),
+    category: (0, import_fields10.select)({ options: ["standard", "comfort", "xl", "accessible", "pet_friendly", "scheduled"].map((value) => ({ label: value, value })), defaultValue: "standard" }),
+    passengerCapacity: (0, import_fields10.integer)({ defaultValue: 4, validation: { min: 1, max: 50 } }),
+    wheelchairAccessible: (0, import_fields10.checkbox)({ defaultValue: false }),
+    advanceBookingMinutes: (0, import_fields10.integer)({ defaultValue: 0 }),
+    serviceAreas: (0, import_fields10.relationship)({ ref: "ServiceArea.services", many: true, access: { create: () => false, update: () => false } }),
+    fareRules: (0, import_fields10.relationship)({ ref: "FareRule.service", many: true, access: { create: () => false, update: () => false } }),
+    quotes: (0, import_fields10.relationship)({ ref: "RideQuote.service", many: true, access: { create: () => false, update: () => false } }),
     ...trackingFields
   }
 });
-var AvailabilityRule = (0, import_core8.list)({
+var AvailabilityRule = (0, import_core9.list)({
+  ui: { hideCreate: true, hideDelete: true, labelField: "label", searchFields: ["timezone"] },
   access: lockedOperationalAccess,
   fields: {
-    driver: (0, import_fields9.relationship)({ ref: "DriverProfile.availabilityRules" }),
-    dayOfWeek: (0, import_fields9.integer)({ validation: { min: 0, max: 6 } }),
-    startTime: (0, import_fields9.text)(),
-    endTime: (0, import_fields9.text)(),
-    timezone: (0, import_fields9.text)({ defaultValue: "UTC" }),
-    effectiveFrom: (0, import_fields9.timestamp)(),
-    effectiveUntil: (0, import_fields9.timestamp)(),
-    status: (0, import_fields9.select)({ options: ["active", "paused"].map((value) => ({ label: value, value })), defaultValue: "active" }),
+    label: labels.availabilityRule,
+    driver: (0, import_fields10.relationship)({ ref: "DriverProfile.availabilityRules" }),
+    dayOfWeek: (0, import_fields10.integer)({ label: "Day (0 Sunday \u2013 6 Saturday)", validation: { min: 0, max: 6 } }),
+    startTime: (0, import_fields10.text)(),
+    endTime: (0, import_fields10.text)(),
+    timezone: (0, import_fields10.text)({ defaultValue: "UTC" }),
+    effectiveFrom: (0, import_fields10.timestamp)(),
+    effectiveUntil: (0, import_fields10.timestamp)(),
+    status: (0, import_fields10.select)({ options: ["active", "paused"].map((value) => ({ label: value, value })), defaultValue: "active" }),
     ...trackingFields
   }
 });
-var AvailabilityException = (0, import_core8.list)({
+var AvailabilityException = (0, import_core9.list)({
+  ui: { hideCreate: true, hideDelete: true, labelField: "label", searchFields: ["reason"] },
   access: lockedOperationalAccess,
   fields: {
-    driver: (0, import_fields9.relationship)({ ref: "DriverProfile.availabilityExceptions" }),
-    startsAt: (0, import_fields9.timestamp)({ validation: { isRequired: true } }),
-    endsAt: (0, import_fields9.timestamp)({ validation: { isRequired: true } }),
-    kind: (0, import_fields9.select)({ options: ["available", "blocked"].map((value) => ({ label: value, value })), defaultValue: "blocked" }),
-    reason: (0, import_fields9.text)(),
+    label: labels.availabilityException,
+    driver: (0, import_fields10.relationship)({ ref: "DriverProfile.availabilityExceptions" }),
+    startsAt: (0, import_fields10.timestamp)({ validation: { isRequired: true } }),
+    endsAt: (0, import_fields10.timestamp)({ validation: { isRequired: true } }),
+    kind: (0, import_fields10.select)({ options: ["available", "blocked"].map((value) => ({ label: value, value })), defaultValue: "blocked" }),
+    reason: (0, import_fields10.text)(),
     ...trackingFields
   }
 });
-var FareRule = (0, import_core8.list)({
+var FareRule = (0, import_core9.list)({
+  ui: { hideCreate: true, hideDelete: true },
   access: fleetScopedAccess("fleetAdmin"),
   hooks: { validateInput: ({ resolvedData, item, addValidationError }) => {
     try {
@@ -778,380 +867,410 @@ var FareRule = (0, import_core8.list)({
     }
   } },
   fields: {
-    fleet: (0, import_fields9.relationship)({ ref: "Fleet.fareRules", access: { create: () => false, update: () => false } }),
-    service: (0, import_fields9.relationship)({ ref: "RideService.fareRules", access: { create: () => false, update: () => false } }),
-    serviceArea: (0, import_fields9.relationship)({ ref: "ServiceArea.fareRules", access: { create: () => false, update: () => false } }),
-    name: (0, import_fields9.text)({ validation: { isRequired: true } }),
-    version: (0, import_fields9.integer)({ defaultValue: 1 }),
-    status: (0, import_fields9.select)({ options: ["draft", "active", "retired"].map((value) => ({ label: value, value })), defaultValue: "draft" }),
-    currencyCode: (0, import_fields9.text)({ defaultValue: "USD" }),
-    baseFareMinor: (0, import_fields9.integer)({ defaultValue: 0 }),
-    perDistanceUnitMinor: (0, import_fields9.integer)({ defaultValue: 0 }),
-    distanceUnit: (0, import_fields9.select)({ options: ["kilometer", "mile"].map((value) => ({ label: value, value })), defaultValue: "mile" }),
-    perMinuteMinor: (0, import_fields9.integer)({ defaultValue: 0 }),
-    bookingFeeMinor: (0, import_fields9.integer)({ defaultValue: 0 }),
-    minimumFareMinor: (0, import_fields9.integer)({ defaultValue: 0 }),
-    cancellationFeeMinor: (0, import_fields9.integer)({ defaultValue: 0 }),
-    noShowFeeMinor: (0, import_fields9.integer)({ defaultValue: 0 }),
-    maximumMultiplierBasisPoints: (0, import_fields9.integer)({ defaultValue: 1e4, validation: { min: 1e4, max: 3e4 } }),
-    rules: (0, import_fields9.json)({ defaultValue: {} }),
-    quotes: (0, import_fields9.relationship)({ ref: "RideQuote.fareRule", many: true, access: { create: () => false, update: () => false } }),
+    fleet: (0, import_fields10.relationship)({ ref: "Fleet.fareRules", access: { create: () => false, update: () => false } }),
+    service: (0, import_fields10.relationship)({ ref: "RideService.fareRules", access: { create: () => false, update: () => false } }),
+    serviceArea: (0, import_fields10.relationship)({ ref: "ServiceArea.fareRules", access: { create: () => false, update: () => false } }),
+    name: (0, import_fields10.text)({ validation: { isRequired: true } }),
+    version: (0, import_fields10.integer)({ defaultValue: 1 }),
+    status: (0, import_fields10.select)({ options: ["draft", "active", "retired"].map((value) => ({ label: value, value })), defaultValue: "draft" }),
+    fareSummary: labels.fareSummary,
+    currencyCode: (0, import_fields10.text)({ defaultValue: "USD" }),
+    baseFareMinor: (0, import_fields10.integer)({ label: "Base fare (cents)", defaultValue: 0 }),
+    perDistanceUnitMinor: (0, import_fields10.integer)({ label: "Per distance unit (cents)", defaultValue: 0 }),
+    distanceUnit: (0, import_fields10.select)({ options: ["kilometer", "mile"].map((value) => ({ label: value, value })), defaultValue: "mile" }),
+    perMinuteMinor: (0, import_fields10.integer)({ label: "Per minute (cents)", defaultValue: 0 }),
+    bookingFeeMinor: (0, import_fields10.integer)({ label: "Booking fee (cents)", defaultValue: 0 }),
+    minimumFareMinor: (0, import_fields10.integer)({ label: "Minimum fare (cents)", defaultValue: 0 }),
+    cancellationFeeMinor: (0, import_fields10.integer)({ label: "Cancellation fee (cents)", defaultValue: 0 }),
+    noShowFeeMinor: (0, import_fields10.integer)({ label: "No-show fee (cents)", defaultValue: 0 }),
+    maximumMultiplierBasisPoints: (0, import_fields10.integer)({ defaultValue: 1e4, validation: { min: 1e4, max: 3e4 } }),
+    rules: (0, import_fields10.json)({ defaultValue: {} }),
+    quotes: (0, import_fields10.relationship)({ ref: "RideQuote.fareRule", many: true, access: { create: () => false, update: () => false } }),
     ...trackingFields
   }
 });
-var RideQuote = (0, import_core8.list)({
+var RideQuote = (0, import_core9.list)({
+  ui: { hideCreate: true, hideDelete: true, labelField: "publicId", searchFields: ["publicId", "pickupLabel", "dropoffLabel"] },
   access: lockedOperationalAccess,
   fields: {
-    service: (0, import_fields9.relationship)({ ref: "RideService.quotes", access: { create: () => false, update: () => false } }),
-    fareRule: (0, import_fields9.relationship)({ ref: "FareRule.quotes", access: { create: () => false, update: () => false } }),
-    publicId: (0, import_fields9.text)({ isIndexed: "unique", validation: { isRequired: true } }),
-    handoffId: (0, import_fields9.text)({ isIndexed: true }),
-    status: (0, import_fields9.select)({ options: ["active", "accepted", "expired", "void"].map((value) => ({ label: value, value })), defaultValue: "active" }),
-    pickupLabel: (0, import_fields9.text)(),
-    dropoffLabel: (0, import_fields9.text)(),
-    routeInputHash: (0, import_fields9.text)({ access: { read: import_access9.denyAll } }),
-    routeEvidence: (0, import_fields9.json)({ defaultValue: {} }),
-    estimatedDistanceMeters: (0, import_fields9.integer)(),
-    estimatedDurationSeconds: (0, import_fields9.integer)(),
-    fareSnapshot: (0, import_fields9.json)({ defaultValue: {} }),
-    totalMinor: (0, import_fields9.integer)({ validation: { min: 0 } }),
-    currencyCode: (0, import_fields9.text)(),
-    scheduledFor: (0, import_fields9.timestamp)(),
-    expiresAt: (0, import_fields9.timestamp)({ validation: { isRequired: true } }),
-    guestProofHash: (0, import_fields9.text)({ access: { read: import_access9.denyAll } }),
-    rider: (0, import_fields9.relationship)({ ref: "User", access: { create: () => false, update: () => false } }),
-    request: (0, import_fields9.relationship)({ ref: "RideRequest.quote", access: { create: () => false, update: () => false } }),
+    service: (0, import_fields10.relationship)({ ref: "RideService.quotes", access: { create: () => false, update: () => false } }),
+    fareRule: (0, import_fields10.relationship)({ ref: "FareRule.quotes", access: { create: () => false, update: () => false } }),
+    publicId: (0, import_fields10.text)({ isIndexed: "unique", validation: { isRequired: true } }),
+    handoffId: (0, import_fields10.text)({ isIndexed: true }),
+    status: (0, import_fields10.select)({ options: ["active", "accepted", "expired", "void"].map((value) => ({ label: value, value })), defaultValue: "active" }),
+    pickupLabel: (0, import_fields10.text)(),
+    dropoffLabel: (0, import_fields10.text)(),
+    routeInputHash: (0, import_fields10.text)({ access: { read: import_access9.denyAll } }),
+    routeEvidence: (0, import_fields10.json)({ defaultValue: {} }),
+    estimatedDistanceMeters: (0, import_fields10.integer)(),
+    estimatedDurationSeconds: (0, import_fields10.integer)(),
+    fareSnapshot: (0, import_fields10.json)({ defaultValue: {} }),
+    totalMinor: (0, import_fields10.integer)({ validation: { min: 0 } }),
+    currencyCode: (0, import_fields10.text)(),
+    scheduledFor: (0, import_fields10.timestamp)(),
+    expiresAt: (0, import_fields10.timestamp)({ validation: { isRequired: true } }),
+    guestProofHash: (0, import_fields10.text)({ access: { read: import_access9.denyAll } }),
+    rider: (0, import_fields10.relationship)({ ref: "User", access: { create: () => false, update: () => false } }),
+    request: (0, import_fields10.relationship)({ ref: "RideRequest.quote", access: { create: () => false, update: () => false } }),
     ...trackingFields
   }
 });
 
 // features/keystone/models/Ride.ts
-var import_core9 = require("@keystone-6/core");
+var import_core10 = require("@keystone-6/core");
 var import_access11 = require("@keystone-6/core/access");
-var import_fields10 = require("@keystone-6/core/fields");
-var RideRequest = (0, import_core9.list)({
+var import_fields11 = require("@keystone-6/core/fields");
+var RideRequest = (0, import_core10.list)({
+  ui: { hideCreate: true, hideDelete: true, labelField: "requestNumber", searchFields: ["requestNumber", "pickupLabel", "dropoffLabel"] },
   access: lockedOperationalAccess,
   fields: {
-    fleet: (0, import_fields10.relationship)({ ref: "Fleet.rides", access: { create: () => false, update: () => false } }),
-    rider: (0, import_fields10.relationship)({ ref: "User.requestedRides", access: { create: () => false, update: () => false } }),
-    quote: (0, import_fields10.relationship)({ ref: "RideQuote.request", access: { create: () => false, update: () => false } }),
-    requestNumber: (0, import_fields10.text)({ isIndexed: "unique", validation: { isRequired: true } }),
-    status: (0, import_fields10.select)({ options: ["requested", "matching", "matched", "cancelled", "expired"].map((value) => ({ label: value, value })), defaultValue: "requested" }),
-    requestedFor: (0, import_fields10.timestamp)(),
-    passengerCount: (0, import_fields10.integer)({ defaultValue: 1, validation: { min: 1, max: 50 } }),
-    accessibilityNeeds: (0, import_fields10.json)({ defaultValue: {} }),
-    riderNotes: (0, import_fields10.text)({ ui: { displayMode: "textarea" } }),
-    pickupLabel: (0, import_fields10.text)(),
-    dropoffLabel: (0, import_fields10.text)(),
-    preciseRouteEncryptedRef: (0, import_fields10.text)({ access: { read: import_access11.denyAll } }),
-    quoteSnapshot: (0, import_fields10.json)({ defaultValue: {} }),
-    guestProofHash: (0, import_fields10.text)({ access: { read: import_access11.denyAll } }),
-    guestProofExpiresAt: (0, import_fields10.timestamp)(),
-    matchOffers: (0, import_fields10.relationship)({ ref: "MatchOffer.request", many: true, access: { create: () => false, update: () => false } }),
-    trip: (0, import_fields10.relationship)({ ref: "Trip.request", access: { create: () => false, update: () => false } }),
+    fleet: (0, import_fields11.relationship)({ ref: "Fleet.rides", access: { create: () => false, update: () => false } }),
+    rider: (0, import_fields11.relationship)({ ref: "User.requestedRides", access: { create: () => false, update: () => false } }),
+    quote: (0, import_fields11.relationship)({ ref: "RideQuote.request", access: { create: () => false, update: () => false } }),
+    requestNumber: (0, import_fields11.text)({ isIndexed: "unique", validation: { isRequired: true } }),
+    status: (0, import_fields11.select)({ options: ["requested", "matching", "matched", "cancelled", "expired"].map((value) => ({ label: value, value })), defaultValue: "requested" }),
+    requestedFor: (0, import_fields11.timestamp)(),
+    passengerCount: (0, import_fields11.integer)({ defaultValue: 1, validation: { min: 1, max: 50 } }),
+    accessibilityNeeds: (0, import_fields11.json)({ defaultValue: {} }),
+    riderNotes: (0, import_fields11.text)({ ui: { displayMode: "textarea" } }),
+    pickupLabel: (0, import_fields11.text)(),
+    dropoffLabel: (0, import_fields11.text)(),
+    preciseRouteEncryptedRef: (0, import_fields11.text)({ access: { read: import_access11.denyAll } }),
+    quoteSnapshot: (0, import_fields11.json)({ defaultValue: {} }),
+    guestProofHash: (0, import_fields11.text)({ access: { read: import_access11.denyAll } }),
+    guestProofExpiresAt: (0, import_fields11.timestamp)(),
+    matchOffers: (0, import_fields11.relationship)({ ref: "MatchOffer.request", many: true, access: { create: () => false, update: () => false } }),
+    trip: (0, import_fields11.relationship)({ ref: "Trip.request", access: { create: () => false, update: () => false } }),
     ...trackingFields
   }
 });
-var MatchOffer = (0, import_core9.list)({
+var MatchOffer = (0, import_core10.list)({
+  ui: { hideCreate: true, hideDelete: true, labelField: "label", searchFields: [] },
   access: lockedOperationalAccess,
   fields: {
-    request: (0, import_fields10.relationship)({ ref: "RideRequest.matchOffers", access: { create: () => false, update: () => false } }),
-    driver: (0, import_fields10.relationship)({ ref: "DriverProfile.matchOffers", access: { create: () => false, update: () => false } }),
-    vehicle: (0, import_fields10.relationship)({ ref: "Vehicle", access: { create: () => false, update: () => false } }),
-    status: (0, import_fields10.select)({ options: ["offered", "accepted", "declined", "expired", "withdrawn"].map((value) => ({ label: value, value })), defaultValue: "offered" }),
-    offeredAt: (0, import_fields10.timestamp)({ defaultValue: { kind: "now" } }),
-    reservationStartAt: (0, import_fields10.timestamp)({ validation: { isRequired: true }, defaultValue: { kind: "now" }, access: { read: import_access11.denyAll, create: () => false, update: () => false } }),
-    reservationReleasedAt: (0, import_fields10.timestamp)({ access: { read: import_access11.denyAll, create: () => false, update: () => false } }),
-    expiresAt: (0, import_fields10.timestamp)({ validation: { isRequired: true } }),
-    respondedAt: (0, import_fields10.timestamp)(),
-    declineReason: (0, import_fields10.text)(),
-    idempotencyKey: (0, import_fields10.text)({ isIndexed: "unique", access: { read: import_access11.denyAll } }),
-    eligibilitySnapshot: (0, import_fields10.json)({ defaultValue: {} }),
-    acceptedTrip: (0, import_fields10.relationship)({ ref: "Trip.acceptedOffer", access: { create: () => false, update: () => false } }),
+    label: labels.matchOffer,
+    request: (0, import_fields11.relationship)({ ref: "RideRequest.matchOffers", access: { create: () => false, update: () => false } }),
+    driver: (0, import_fields11.relationship)({ ref: "DriverProfile.matchOffers", access: { create: () => false, update: () => false } }),
+    vehicle: (0, import_fields11.relationship)({ ref: "Vehicle", access: { create: () => false, update: () => false } }),
+    status: (0, import_fields11.select)({ options: ["offered", "accepted", "declined", "expired", "withdrawn"].map((value) => ({ label: value, value })), defaultValue: "offered" }),
+    offeredAt: (0, import_fields11.timestamp)({ defaultValue: { kind: "now" } }),
+    reservationStartAt: (0, import_fields11.timestamp)({ validation: { isRequired: true }, defaultValue: { kind: "now" }, access: { read: import_access11.denyAll, create: () => false, update: () => false } }),
+    reservationReleasedAt: (0, import_fields11.timestamp)({ access: { read: import_access11.denyAll, create: () => false, update: () => false } }),
+    expiresAt: (0, import_fields11.timestamp)({ validation: { isRequired: true } }),
+    respondedAt: (0, import_fields11.timestamp)(),
+    declineReason: (0, import_fields11.text)(),
+    idempotencyKey: (0, import_fields11.text)({ isIndexed: "unique", access: { read: import_access11.denyAll } }),
+    eligibilitySnapshot: (0, import_fields11.json)({ defaultValue: {} }),
+    acceptedTrip: (0, import_fields11.relationship)({ ref: "Trip.acceptedOffer", access: { create: () => false, update: () => false } }),
     ...trackingFields
   }
 });
-var Trip = (0, import_core9.list)({
+var Trip = (0, import_core10.list)({
+  ui: { hideCreate: true, hideDelete: true, labelField: "confirmationCode", searchFields: ["confirmationCode", "pickupLabel", "dropoffLabel"] },
   access: lockedOperationalAccess,
   fields: {
-    fleet: (0, import_fields10.relationship)({ ref: "Fleet.trips", access: { create: () => false, update: () => false } }),
-    request: (0, import_fields10.relationship)({ ref: "RideRequest.trip", db: { foreignKey: { map: "request" } }, access: { create: () => false, update: () => false } }),
-    acceptedOffer: (0, import_fields10.relationship)({ ref: "MatchOffer.acceptedTrip", db: { foreignKey: { map: "acceptedOffer" } }, access: { create: () => false, update: () => false } }),
-    rider: (0, import_fields10.relationship)({ ref: "User.trips", access: { create: () => false, update: () => false } }),
-    driver: (0, import_fields10.relationship)({ ref: "DriverProfile.trips", access: { create: () => false, update: () => false } }),
-    vehicle: (0, import_fields10.relationship)({ ref: "Vehicle.trips", access: { create: () => false, update: () => false } }),
-    confirmationCode: (0, import_fields10.text)({ isIndexed: "unique", validation: { isRequired: true } }),
-    status: (0, import_fields10.select)({ options: ["driver_assigned", "driver_en_route", "driver_arrived", "in_progress", "completed", "cancelled", "no_show"].map((value) => ({ label: value, value })), defaultValue: "driver_assigned" }),
-    scheduledFor: (0, import_fields10.timestamp)(),
-    acceptedAt: (0, import_fields10.timestamp)(),
-    enRouteAt: (0, import_fields10.timestamp)(),
-    arrivedAt: (0, import_fields10.timestamp)(),
-    startedAt: (0, import_fields10.timestamp)(),
-    completedAt: (0, import_fields10.timestamp)(),
-    cancelledAt: (0, import_fields10.timestamp)(),
-    pickupLabel: (0, import_fields10.text)(),
-    dropoffLabel: (0, import_fields10.text)(),
-    bookingSnapshot: (0, import_fields10.json)({ defaultValue: {} }),
-    finalFareSnapshot: (0, import_fields10.json)(),
-    managementTokenHash: (0, import_fields10.text)({ access: { read: import_access11.denyAll } }),
-    managementTokenExpiresAt: (0, import_fields10.timestamp)(),
-    managementTokenRevokedAt: (0, import_fields10.timestamp)(),
-    events: (0, import_fields10.relationship)({ ref: "TripEvent.trip", many: true, access: { create: () => false, update: () => false } }),
-    locationEvents: (0, import_fields10.relationship)({ ref: "LocationEvent.trip", many: true, access: { create: () => false, update: () => false } }),
-    cancellations: (0, import_fields10.relationship)({ ref: "Cancellation.trip", many: true, access: { create: () => false, update: () => false } }),
-    payments: (0, import_fields10.relationship)({ ref: "Payment.trip", many: true, access: { create: () => false, update: () => false } }),
-    ledgerEntries: (0, import_fields10.relationship)({ ref: "LedgerEntry.trip", many: true, access: { create: () => false, update: () => false } }),
-    incidents: (0, import_fields10.relationship)({ ref: "SafetyIncident.trip", many: true, access: { create: () => false, update: () => false } }),
-    supportCases: (0, import_fields10.relationship)({ ref: "SupportCase.trip", many: true, access: { create: () => false, update: () => false } }),
-    conversation: (0, import_fields10.relationship)({ ref: "Conversation.trip", access: { create: () => false, update: () => false } }),
-    reviews: (0, import_fields10.relationship)({ ref: "Review.trip", many: true, access: { create: () => false, update: () => false } }),
+    fleet: (0, import_fields11.relationship)({ ref: "Fleet.trips", access: { create: () => false, update: () => false } }),
+    request: (0, import_fields11.relationship)({ ref: "RideRequest.trip", db: { foreignKey: { map: "request" } }, access: { create: () => false, update: () => false } }),
+    acceptedOffer: (0, import_fields11.relationship)({ ref: "MatchOffer.acceptedTrip", db: { foreignKey: { map: "acceptedOffer" } }, access: { create: () => false, update: () => false } }),
+    rider: (0, import_fields11.relationship)({ ref: "User.trips", access: { create: () => false, update: () => false } }),
+    driver: (0, import_fields11.relationship)({ ref: "DriverProfile.trips", access: { create: () => false, update: () => false } }),
+    vehicle: (0, import_fields11.relationship)({ ref: "Vehicle.trips", access: { create: () => false, update: () => false } }),
+    confirmationCode: (0, import_fields11.text)({ isIndexed: "unique", validation: { isRequired: true } }),
+    status: (0, import_fields11.select)({ options: ["driver_assigned", "driver_en_route", "driver_arrived", "in_progress", "completed", "cancelled", "no_show"].map((value) => ({ label: value, value })), defaultValue: "driver_assigned" }),
+    scheduledFor: (0, import_fields11.timestamp)(),
+    acceptedAt: (0, import_fields11.timestamp)(),
+    enRouteAt: (0, import_fields11.timestamp)(),
+    arrivedAt: (0, import_fields11.timestamp)(),
+    startedAt: (0, import_fields11.timestamp)(),
+    completedAt: (0, import_fields11.timestamp)(),
+    cancelledAt: (0, import_fields11.timestamp)(),
+    pickupLabel: (0, import_fields11.text)(),
+    dropoffLabel: (0, import_fields11.text)(),
+    bookingSnapshot: (0, import_fields11.json)({ defaultValue: {} }),
+    finalFareSnapshot: (0, import_fields11.json)(),
+    managementTokenHash: (0, import_fields11.text)({ access: { read: import_access11.denyAll } }),
+    managementTokenExpiresAt: (0, import_fields11.timestamp)(),
+    managementTokenRevokedAt: (0, import_fields11.timestamp)(),
+    events: (0, import_fields11.relationship)({ ref: "TripEvent.trip", many: true, access: { create: () => false, update: () => false } }),
+    locationEvents: (0, import_fields11.relationship)({ ref: "LocationEvent.trip", many: true, access: { create: () => false, update: () => false } }),
+    cancellations: (0, import_fields11.relationship)({ ref: "Cancellation.trip", many: true, access: { create: () => false, update: () => false } }),
+    payments: (0, import_fields11.relationship)({ ref: "Payment.trip", many: true, access: { create: () => false, update: () => false } }),
+    ledgerEntries: (0, import_fields11.relationship)({ ref: "LedgerEntry.trip", many: true, access: { create: () => false, update: () => false } }),
+    incidents: (0, import_fields11.relationship)({ ref: "SafetyIncident.trip", many: true, access: { create: () => false, update: () => false } }),
+    supportCases: (0, import_fields11.relationship)({ ref: "SupportCase.trip", many: true, access: { create: () => false, update: () => false } }),
+    conversation: (0, import_fields11.relationship)({ ref: "Conversation.trip", access: { create: () => false, update: () => false } }),
+    reviews: (0, import_fields11.relationship)({ ref: "Review.trip", many: true, access: { create: () => false, update: () => false } }),
     ...trackingFields
   }
 });
-var TripEvent = (0, import_core9.list)({
+var TripEvent = (0, import_core10.list)({
+  ui: { hideCreate: true, hideDelete: true, labelField: "eventType", searchFields: ["eventType", "toStatus"] },
   access: lockedOperationalAccess,
   fields: {
-    trip: (0, import_fields10.relationship)({ ref: "Trip.events", access: { create: () => false, update: () => false } }),
-    eventType: (0, import_fields10.text)({ validation: { isRequired: true } }),
-    fromStatus: (0, import_fields10.text)(),
-    toStatus: (0, import_fields10.text)(),
-    actorType: (0, import_fields10.select)({ options: ["rider", "driver", "operator", "provider", "system"].map((value) => ({ label: value, value })) }),
-    actorUser: (0, import_fields10.relationship)({ ref: "User", access: { create: () => false, update: () => false } }),
-    idempotencyKey: (0, import_fields10.text)({ isIndexed: "unique", validation: { isRequired: true } }),
-    occurredAt: (0, import_fields10.timestamp)({ defaultValue: { kind: "now" } }),
-    metadata: (0, import_fields10.json)({ defaultValue: {} }),
+    trip: (0, import_fields11.relationship)({ ref: "Trip.events", access: { create: () => false, update: () => false } }),
+    eventType: (0, import_fields11.text)({ validation: { isRequired: true } }),
+    fromStatus: (0, import_fields11.text)(),
+    toStatus: (0, import_fields11.text)(),
+    actorType: (0, import_fields11.select)({ options: ["rider", "driver", "operator", "provider", "system"].map((value) => ({ label: value, value })) }),
+    actorUser: (0, import_fields11.relationship)({ ref: "User", access: { create: () => false, update: () => false } }),
+    idempotencyKey: (0, import_fields11.text)({ isIndexed: "unique", validation: { isRequired: true } }),
+    occurredAt: (0, import_fields11.timestamp)({ defaultValue: { kind: "now" } }),
+    metadata: (0, import_fields11.json)({ defaultValue: {} }),
     ...trackingFields
   }
 });
-var LocationEvent = (0, import_core9.list)({
+var LocationEvent = (0, import_core10.list)({
+  ui: { hideCreate: true, hideDelete: true, labelField: "label", searchFields: [] },
   access: { ...lockedOperationalAccess, filter: { ...lockedOperationalAccess.filter, query: async (args) => {
     const scope = await lockedOperationalAccess.filter.query(args);
     return scope === false ? false : { AND: [...scope === true ? [] : [scope], { expiresAt: { gt: (/* @__PURE__ */ new Date()).toISOString() } }] };
   } } },
   fields: {
-    trip: (0, import_fields10.relationship)({ ref: "Trip.locationEvents", access: { create: () => false, update: () => false } }),
-    actorType: (0, import_fields10.select)({ options: ["driver", "rider", "operator", "provider"].map((value) => ({ label: value, value })) }),
-    recordedAt: (0, import_fields10.timestamp)({ validation: { isRequired: true } }),
-    coarseGeohash: (0, import_fields10.text)(),
-    encryptedCoordinateRef: (0, import_fields10.text)({ access: { read: import_access11.denyAll } }),
-    accuracyMeters: (0, import_fields10.integer)(),
-    providerEvidence: (0, import_fields10.json)({ defaultValue: {}, access: { read: import_access11.denyAll } }),
-    expiresAt: (0, import_fields10.timestamp)(),
+    label: labels.locationEvent,
+    trip: (0, import_fields11.relationship)({ ref: "Trip.locationEvents", access: { create: () => false, update: () => false } }),
+    actorType: (0, import_fields11.select)({ options: ["driver", "rider", "operator", "provider"].map((value) => ({ label: value, value })) }),
+    recordedAt: (0, import_fields11.timestamp)({ validation: { isRequired: true } }),
+    coarseGeohash: (0, import_fields11.text)(),
+    encryptedCoordinateRef: (0, import_fields11.text)({ access: { read: import_access11.denyAll } }),
+    accuracyMeters: (0, import_fields11.integer)(),
+    providerEvidence: (0, import_fields11.json)({ defaultValue: {}, access: { read: import_access11.denyAll } }),
+    expiresAt: (0, import_fields11.timestamp)(),
     ...trackingFields
   }
 });
-var Cancellation = (0, import_core9.list)({
+var Cancellation = (0, import_core10.list)({
+  ui: { hideCreate: true, hideDelete: true, labelField: "label", searchFields: ["reasonCode"] },
   access: lockedOperationalAccess,
   fields: {
-    trip: (0, import_fields10.relationship)({ ref: "Trip.cancellations", access: { create: () => false, update: () => false } }),
-    actorType: (0, import_fields10.select)({ options: ["rider", "driver", "operator", "system"].map((value) => ({ label: value, value })) }),
-    reasonCode: (0, import_fields10.text)(),
-    reason: (0, import_fields10.text)(),
-    policySnapshot: (0, import_fields10.json)({ defaultValue: {} }),
-    feeMinor: (0, import_fields10.integer)({ defaultValue: 0 }),
-    currencyCode: (0, import_fields10.text)(),
-    refundRequired: (0, import_fields10.select)({ options: ["no", "partial", "full", "manual_review"].map((value) => ({ label: value, value })), defaultValue: "no" }),
+    label: labels.cancellation,
+    trip: (0, import_fields11.relationship)({ ref: "Trip.cancellations", access: { create: () => false, update: () => false } }),
+    actorType: (0, import_fields11.select)({ options: ["rider", "driver", "operator", "system"].map((value) => ({ label: value, value })) }),
+    reasonCode: (0, import_fields11.text)(),
+    reason: (0, import_fields11.text)(),
+    policySnapshot: (0, import_fields11.json)({ defaultValue: {} }),
+    feeMinor: (0, import_fields11.integer)({ defaultValue: 0 }),
+    currencyCode: (0, import_fields11.text)(),
+    refundRequired: (0, import_fields11.select)({ options: ["no", "partial", "full", "manual_review"].map((value) => ({ label: value, value })), defaultValue: "no" }),
     ...trackingFields
   }
 });
 
 // features/keystone/models/Safety.ts
-var import_core10 = require("@keystone-6/core");
+var import_core11 = require("@keystone-6/core");
 var import_access13 = require("@keystone-6/core/access");
-var import_fields11 = require("@keystone-6/core/fields");
-var SafetyIncident = (0, import_core10.list)({
+var import_fields12 = require("@keystone-6/core/fields");
+var SafetyIncident = (0, import_core11.list)({
+  ui: { hideCreate: true, hideDelete: true, labelField: "caseNumber", searchFields: ["caseNumber", "summary"] },
   access: lockedFleetAccess("safety"),
   fields: {
-    trip: (0, import_fields11.relationship)({ ref: "Trip.incidents", access: { create: () => false, update: () => false } }),
-    caseNumber: (0, import_fields11.text)({ isIndexed: "unique" }),
-    severity: (0, import_fields11.select)({ options: ["low", "medium", "high", "critical"].map((value) => ({ label: value, value })), defaultValue: "medium" }),
-    status: (0, import_fields11.select)({ options: ["open", "triage", "investigating", "resolved", "closed"].map((value) => ({ label: value, value })), defaultValue: "open" }),
-    category: (0, import_fields11.text)(),
-    summary: (0, import_fields11.text)(),
-    restrictedDetails: (0, import_fields11.json)({ defaultValue: {}, access: { read: safetyAccess.operation.query, update: safetyAccess.operation.update } }),
-    evidenceRefs: (0, import_fields11.json)({ defaultValue: [] }),
-    reportedBy: (0, import_fields11.relationship)({ ref: "User" }),
-    assignedTo: (0, import_fields11.relationship)({ ref: "User" }),
-    reportedAt: (0, import_fields11.timestamp)({ defaultValue: { kind: "now" } }),
-    resolvedAt: (0, import_fields11.timestamp)(),
+    trip: (0, import_fields12.relationship)({ ref: "Trip.incidents", access: { create: () => false, update: () => false } }),
+    caseNumber: (0, import_fields12.text)({ isIndexed: "unique" }),
+    severity: (0, import_fields12.select)({ options: ["low", "medium", "high", "critical"].map((value) => ({ label: value, value })), defaultValue: "medium" }),
+    status: (0, import_fields12.select)({ options: ["open", "triage", "investigating", "resolved", "closed"].map((value) => ({ label: value, value })), defaultValue: "open" }),
+    category: (0, import_fields12.text)(),
+    summary: (0, import_fields12.text)(),
+    restrictedDetails: (0, import_fields12.json)({ defaultValue: {}, access: { read: safetyAccess.operation.query, update: safetyAccess.operation.update } }),
+    evidenceRefs: (0, import_fields12.json)({ defaultValue: [] }),
+    reportedBy: (0, import_fields12.relationship)({ ref: "User" }),
+    assignedTo: (0, import_fields12.relationship)({ ref: "User" }),
+    reportedAt: (0, import_fields12.timestamp)({ defaultValue: { kind: "now" } }),
+    resolvedAt: (0, import_fields12.timestamp)(),
     ...trackingFields
   }
 });
-var SupportCase = (0, import_core10.list)({
+var SupportCase = (0, import_core11.list)({
+  ui: { hideCreate: true, hideDelete: true, labelField: "caseNumber", searchFields: ["caseNumber"] },
   access: lockedFleetAccess("safety"),
   fields: {
-    trip: (0, import_fields11.relationship)({ ref: "Trip.supportCases", access: { create: () => false, update: () => false } }),
-    caseNumber: (0, import_fields11.text)({ isIndexed: "unique" }),
-    status: (0, import_fields11.select)({ options: ["open", "waiting", "resolved", "closed"].map((value) => ({ label: value, value })), defaultValue: "open" }),
-    category: (0, import_fields11.text)(),
-    subject: (0, import_fields11.text)(),
-    description: (0, import_fields11.text)({ ui: { displayMode: "textarea" } }),
-    priority: (0, import_fields11.select)({ options: ["low", "normal", "high", "urgent"].map((value) => ({ label: value, value })), defaultValue: "normal" }),
-    requester: (0, import_fields11.relationship)({ ref: "User" }),
-    assignedTo: (0, import_fields11.relationship)({ ref: "User" }),
-    resolvedAt: (0, import_fields11.timestamp)(),
+    trip: (0, import_fields12.relationship)({ ref: "Trip.supportCases", access: { create: () => false, update: () => false } }),
+    caseNumber: (0, import_fields12.text)({ isIndexed: "unique" }),
+    status: (0, import_fields12.select)({ options: ["open", "waiting", "resolved", "closed"].map((value) => ({ label: value, value })), defaultValue: "open" }),
+    category: (0, import_fields12.text)(),
+    subject: (0, import_fields12.text)(),
+    description: (0, import_fields12.text)({ ui: { displayMode: "textarea" } }),
+    priority: (0, import_fields12.select)({ options: ["low", "normal", "high", "urgent"].map((value) => ({ label: value, value })), defaultValue: "normal" }),
+    requester: (0, import_fields12.relationship)({ ref: "User" }),
+    assignedTo: (0, import_fields12.relationship)({ ref: "User" }),
+    resolvedAt: (0, import_fields12.timestamp)(),
     ...trackingFields
   }
 });
-var Conversation = (0, import_core10.list)({
+var Conversation = (0, import_core11.list)({
+  ui: { hideCreate: true, hideDelete: true, labelField: "label", searchFields: [] },
   access: lockedOperationalAccess,
-  fields: { trip: (0, import_fields11.relationship)({ ref: "Trip.conversation", access: { create: () => false, update: () => false } }), status: (0, import_fields11.select)({ options: ["open", "closed", "blocked"].map((value) => ({ label: value, value })), defaultValue: "open" }), messages: (0, import_fields11.relationship)({ ref: "Message.conversation", many: true, access: { create: () => false, update: () => false } }), ...trackingFields }
+  fields: { label: labels.conversation, trip: (0, import_fields12.relationship)({ ref: "Trip.conversation", access: { create: () => false, update: () => false } }), status: (0, import_fields12.select)({ options: ["open", "closed", "blocked"].map((value) => ({ label: value, value })), defaultValue: "open" }), messages: (0, import_fields12.relationship)({ ref: "Message.conversation", many: true, access: { create: () => false, update: () => false } }), ...trackingFields }
 });
-var Message = (0, import_core10.list)({
+var Message = (0, import_core11.list)({
+  ui: { hideCreate: true, hideDelete: true, labelField: "label", searchFields: [] },
   access: lockedOperationalAccess,
   fields: {
-    conversation: (0, import_fields11.relationship)({ ref: "Conversation.messages", access: { create: () => false, update: () => false } }),
-    senderType: (0, import_fields11.select)({ options: ["rider", "driver", "operator", "system"].map((value) => ({ label: value, value })) }),
-    sender: (0, import_fields11.relationship)({ ref: "User", access: { create: () => false, update: () => false } }),
-    body: (0, import_fields11.text)({ ui: { displayMode: "textarea" } }),
-    relayProviderReference: (0, import_fields11.text)({ access: { read: import_access13.denyAll } }),
-    status: (0, import_fields11.select)({ options: ["queued", "sent", "delivered", "failed", "blocked"].map((value) => ({ label: value, value })), defaultValue: "queued" }),
-    sentAt: (0, import_fields11.timestamp)(),
-    metadata: (0, import_fields11.json)({ defaultValue: {} }),
+    label: labels.message,
+    conversation: (0, import_fields12.relationship)({ ref: "Conversation.messages", access: { create: () => false, update: () => false } }),
+    senderType: (0, import_fields12.select)({ options: ["rider", "driver", "operator", "system"].map((value) => ({ label: value, value })) }),
+    sender: (0, import_fields12.relationship)({ ref: "User", access: { create: () => false, update: () => false } }),
+    body: (0, import_fields12.text)({ ui: { displayMode: "textarea" } }),
+    relayProviderReference: (0, import_fields12.text)({ access: { read: import_access13.denyAll } }),
+    status: (0, import_fields12.select)({ options: ["queued", "sent", "delivered", "failed", "blocked"].map((value) => ({ label: value, value })), defaultValue: "queued" }),
+    sentAt: (0, import_fields12.timestamp)(),
+    metadata: (0, import_fields12.json)({ defaultValue: {} }),
     ...trackingFields
   }
 });
-var Review = (0, import_core10.list)({
+var Review = (0, import_core11.list)({
+  ui: { hideCreate: true, hideDelete: true, labelField: "label", searchFields: [] },
   access: lockedOperationalAccess,
   fields: {
-    trip: (0, import_fields11.relationship)({ ref: "Trip.reviews", access: { create: () => false, update: () => false } }),
-    author: (0, import_fields11.relationship)({ ref: "User.reviews", access: { create: () => false, update: () => false } }),
-    direction: (0, import_fields11.select)({ options: ["rider_to_driver", "driver_to_rider"].map((value) => ({ label: value, value })) }),
-    rating: (0, import_fields11.integer)({ validation: { min: 1, max: 5 } }),
-    body: (0, import_fields11.text)({ ui: { displayMode: "textarea" } }),
-    status: (0, import_fields11.select)({ options: ["pending", "published", "hidden", "removed"].map((value) => ({ label: value, value })), defaultValue: "pending" }),
-    submittedAt: (0, import_fields11.timestamp)({ defaultValue: { kind: "now" } }),
-    moderatedAt: (0, import_fields11.timestamp)(),
-    moderationReason: (0, import_fields11.text)(),
+    label: labels.review,
+    trip: (0, import_fields12.relationship)({ ref: "Trip.reviews", access: { create: () => false, update: () => false } }),
+    author: (0, import_fields12.relationship)({ ref: "User.reviews", access: { create: () => false, update: () => false } }),
+    direction: (0, import_fields12.select)({ options: ["rider_to_driver", "driver_to_rider"].map((value) => ({ label: value, value })) }),
+    rating: (0, import_fields12.integer)({ validation: { min: 1, max: 5 } }),
+    body: (0, import_fields12.text)({ ui: { displayMode: "textarea" } }),
+    status: (0, import_fields12.select)({ options: ["pending", "published", "hidden", "removed"].map((value) => ({ label: value, value })), defaultValue: "pending" }),
+    submittedAt: (0, import_fields12.timestamp)({ defaultValue: { kind: "now" } }),
+    moderatedAt: (0, import_fields12.timestamp)(),
+    moderationReason: (0, import_fields12.text)(),
     ...trackingFields
   }
 });
 
 // features/keystone/models/Finance.ts
-var import_core11 = require("@keystone-6/core");
+var import_core12 = require("@keystone-6/core");
 var import_access15 = require("@keystone-6/core/access");
-var import_fields12 = require("@keystone-6/core/fields");
-var PaymentProvider = (0, import_core11.list)({
+var import_fields13 = require("@keystone-6/core/fields");
+var PaymentProvider = (0, import_core12.list)({
   access: { operation: { query: permissions.canManageFinance, create: permissions.canManageIntegrations, update: permissions.canManageIntegrations, delete: permissions.canManageIntegrations } },
   fields: {
-    name: (0, import_fields12.text)({ validation: { isRequired: true } }),
-    code: (0, import_fields12.text)({ validation: { isRequired: true }, isIndexed: "unique" }),
-    isInstalled: (0, import_fields12.select)({ options: [{ label: "Yes", value: "yes" }, { label: "No", value: "no" }], defaultValue: "no" }),
-    credentialsReference: (0, import_fields12.text)({ access: { read: import_access15.denyAll } }),
-    metadata: (0, import_fields12.json)({ defaultValue: {} }),
-    createPaymentFunction: (0, import_fields12.text)({ validation: { isRequired: true } }),
-    capturePaymentFunction: (0, import_fields12.text)({ validation: { isRequired: true } }),
-    refundPaymentFunction: (0, import_fields12.text)({ validation: { isRequired: true } }),
-    getPaymentStatusFunction: (0, import_fields12.text)({ validation: { isRequired: true } }),
-    handleWebhookFunction: (0, import_fields12.text)({ validation: { isRequired: true } }),
-    payments: (0, import_fields12.relationship)({ ref: "Payment.provider", many: true, access: { create: () => false, update: () => false } }),
-    refunds: (0, import_fields12.relationship)({ ref: "Refund.provider", many: true, access: { create: () => false, update: () => false } }),
-    payouts: (0, import_fields12.relationship)({ ref: "Payout.provider", many: true, access: { create: () => false, update: () => false } }),
+    name: (0, import_fields13.text)({ validation: { isRequired: true } }),
+    code: (0, import_fields13.text)({ validation: { isRequired: true }, isIndexed: "unique" }),
+    isInstalled: (0, import_fields13.select)({ options: [{ label: "Yes", value: "yes" }, { label: "No", value: "no" }], defaultValue: "no" }),
+    credentialsReference: (0, import_fields13.text)({ access: { read: import_access15.denyAll } }),
+    metadata: (0, import_fields13.json)({ defaultValue: {} }),
+    createPaymentFunction: (0, import_fields13.text)({ validation: { isRequired: true } }),
+    capturePaymentFunction: (0, import_fields13.text)({ validation: { isRequired: true } }),
+    refundPaymentFunction: (0, import_fields13.text)({ validation: { isRequired: true } }),
+    getPaymentStatusFunction: (0, import_fields13.text)({ validation: { isRequired: true } }),
+    handleWebhookFunction: (0, import_fields13.text)({ validation: { isRequired: true } }),
+    payments: (0, import_fields13.relationship)({ ref: "Payment.provider", many: true, access: { create: () => false, update: () => false } }),
+    refunds: (0, import_fields13.relationship)({ ref: "Refund.provider", many: true, access: { create: () => false, update: () => false } }),
+    payouts: (0, import_fields13.relationship)({ ref: "Payout.provider", many: true, access: { create: () => false, update: () => false } }),
     ...trackingFields
   }
 });
-var Payment = (0, import_core11.list)({
+var Payment = (0, import_core12.list)({
+  ui: { hideCreate: true, hideDelete: true, labelField: "label", searchFields: ["providerReference"] },
   access: financeAccess,
   fields: {
-    trip: (0, import_fields12.relationship)({ ref: "Trip.payments", access: { create: () => false, update: () => false } }),
-    provider: (0, import_fields12.relationship)({ ref: "PaymentProvider.payments", access: { create: () => false, update: () => false } }),
-    amountMinor: (0, import_fields12.integer)({ validation: { min: 0 } }),
-    currencyCode: (0, import_fields12.text)(),
-    status: (0, import_fields12.select)({ options: ["pending", "authorized", "captured", "failed", "partially_refunded", "refunded", "cancelled"].map((value) => ({ label: value, value })), defaultValue: "pending" }),
-    providerReference: (0, import_fields12.text)(),
-    idempotencyKey: (0, import_fields12.text)({ isIndexed: "unique", access: { read: import_access15.denyAll } }),
-    providerEvidence: (0, import_fields12.json)({ defaultValue: {}, access: { read: permissions.canManageFinance } }),
-    capturedAt: (0, import_fields12.timestamp)(),
-    refunds: (0, import_fields12.relationship)({ ref: "Refund.payment", many: true, access: { create: () => false, update: () => false } }),
-    ledgerEntries: (0, import_fields12.relationship)({ ref: "LedgerEntry.payment", many: true, access: { create: () => false, update: () => false } }),
+    label: labels.payment,
+    trip: (0, import_fields13.relationship)({ ref: "Trip.payments", access: { create: () => false, update: () => false } }),
+    provider: (0, import_fields13.relationship)({ ref: "PaymentProvider.payments", access: { create: () => false, update: () => false } }),
+    amountMinor: (0, import_fields13.integer)({ validation: { min: 0 } }),
+    currencyCode: (0, import_fields13.text)(),
+    status: (0, import_fields13.select)({ options: ["pending", "authorized", "captured", "failed", "partially_refunded", "refunded", "cancelled"].map((value) => ({ label: value, value })), defaultValue: "pending" }),
+    providerReference: (0, import_fields13.text)(),
+    idempotencyKey: (0, import_fields13.text)({ isIndexed: "unique", access: { read: import_access15.denyAll } }),
+    providerEvidence: (0, import_fields13.json)({ defaultValue: {}, access: { read: permissions.canManageFinance } }),
+    capturedAt: (0, import_fields13.timestamp)(),
+    refunds: (0, import_fields13.relationship)({ ref: "Refund.payment", many: true, access: { create: () => false, update: () => false } }),
+    ledgerEntries: (0, import_fields13.relationship)({ ref: "LedgerEntry.payment", many: true, access: { create: () => false, update: () => false } }),
     ...trackingFields
   }
 });
-var Refund = (0, import_core11.list)({
+var Refund = (0, import_core12.list)({
+  ui: { hideCreate: true, hideDelete: true, labelField: "label", searchFields: ["reason"] },
   access: financeAccess,
   fields: {
-    payment: (0, import_fields12.relationship)({ ref: "Payment.refunds", access: { create: () => false, update: () => false } }),
-    provider: (0, import_fields12.relationship)({ ref: "PaymentProvider.refunds", access: { create: () => false, update: () => false } }),
-    amountMinor: (0, import_fields12.integer)({ validation: { min: 0 } }),
-    currencyCode: (0, import_fields12.text)(),
-    reason: (0, import_fields12.text)(),
-    status: (0, import_fields12.select)({ options: ["requested", "processing", "succeeded", "failed", "cancelled"].map((value) => ({ label: value, value })), defaultValue: "requested" }),
-    providerReference: (0, import_fields12.text)(),
-    idempotencyKey: (0, import_fields12.text)({ isIndexed: "unique", access: { read: import_access15.denyAll } }),
-    processedAt: (0, import_fields12.timestamp)(),
+    label: labels.refund,
+    payment: (0, import_fields13.relationship)({ ref: "Payment.refunds", access: { create: () => false, update: () => false } }),
+    provider: (0, import_fields13.relationship)({ ref: "PaymentProvider.refunds", access: { create: () => false, update: () => false } }),
+    amountMinor: (0, import_fields13.integer)({ validation: { min: 0 } }),
+    currencyCode: (0, import_fields13.text)(),
+    reason: (0, import_fields13.text)(),
+    status: (0, import_fields13.select)({ options: ["requested", "processing", "succeeded", "failed", "cancelled"].map((value) => ({ label: value, value })), defaultValue: "requested" }),
+    providerReference: (0, import_fields13.text)(),
+    idempotencyKey: (0, import_fields13.text)({ isIndexed: "unique", access: { read: import_access15.denyAll } }),
+    processedAt: (0, import_fields13.timestamp)(),
     ...trackingFields
   }
 });
-var LedgerEntry = (0, import_core11.list)({
+var LedgerEntry = (0, import_core12.list)({
+  ui: { hideCreate: true, hideDelete: true, labelField: "label", searchFields: [] },
   access: financeAccess,
   fields: {
-    trip: (0, import_fields12.relationship)({ ref: "Trip.ledgerEntries", access: { create: () => false, update: () => false } }),
-    payment: (0, import_fields12.relationship)({ ref: "Payment.ledgerEntries", access: { create: () => false, update: () => false } }),
-    payout: (0, import_fields12.relationship)({ ref: "Payout.ledgerEntries", access: { create: () => false, update: () => false } }),
-    entryKey: (0, import_fields12.text)({ isIndexed: "unique", validation: { isRequired: true } }),
-    kind: (0, import_fields12.select)({ options: ["rider_charge", "tax", "platform_fee", "driver_earning", "fleet_share", "tip", "refund", "adjustment", "payout_transfer"].map((value) => ({ label: value, value })) }),
-    account: (0, import_fields12.text)({ validation: { isRequired: true } }),
-    direction: (0, import_fields12.select)({ options: ["debit", "credit"].map((value) => ({ label: value, value })) }),
-    amountMinor: (0, import_fields12.integer)({ validation: { min: 0 } }),
-    currencyCode: (0, import_fields12.text)(),
-    effectiveAt: (0, import_fields12.timestamp)({ defaultValue: { kind: "now" } }),
-    memo: (0, import_fields12.text)(),
-    metadata: (0, import_fields12.json)({ defaultValue: {} }),
+    label: labels.ledgerEntry,
+    trip: (0, import_fields13.relationship)({ ref: "Trip.ledgerEntries", access: { create: () => false, update: () => false } }),
+    payment: (0, import_fields13.relationship)({ ref: "Payment.ledgerEntries", access: { create: () => false, update: () => false } }),
+    payout: (0, import_fields13.relationship)({ ref: "Payout.ledgerEntries", access: { create: () => false, update: () => false } }),
+    entryKey: (0, import_fields13.text)({ isIndexed: "unique", validation: { isRequired: true } }),
+    kind: (0, import_fields13.select)({ options: ["rider_charge", "tax", "platform_fee", "driver_earning", "fleet_share", "tip", "refund", "adjustment", "payout_transfer"].map((value) => ({ label: value, value })) }),
+    account: (0, import_fields13.text)({ validation: { isRequired: true } }),
+    direction: (0, import_fields13.select)({ options: ["debit", "credit"].map((value) => ({ label: value, value })) }),
+    amountMinor: (0, import_fields13.integer)({ validation: { min: 0 } }),
+    currencyCode: (0, import_fields13.text)(),
+    effectiveAt: (0, import_fields13.timestamp)({ defaultValue: { kind: "now" } }),
+    memo: (0, import_fields13.text)(),
+    metadata: (0, import_fields13.json)({ defaultValue: {} }),
     ...trackingFields
   }
 });
-var Payout = (0, import_core11.list)({
+var Payout = (0, import_core12.list)({
+  ui: { hideCreate: true, hideDelete: true, labelField: "label", searchFields: [] },
   access: financeAccess,
   fields: {
-    driver: (0, import_fields12.relationship)({ ref: "DriverProfile", access: { create: () => false, update: () => false } }),
-    provider: (0, import_fields12.relationship)({ ref: "PaymentProvider.payouts", access: { create: () => false, update: () => false } }),
-    amountMinor: (0, import_fields12.integer)({ validation: { min: 0 } }),
-    currencyCode: (0, import_fields12.text)(),
-    status: (0, import_fields12.select)({ options: ["pending", "approved", "submitted", "paid", "failed", "cancelled"].map((value) => ({ label: value, value })), defaultValue: "pending" }),
-    periodStart: (0, import_fields12.timestamp)(),
-    periodEnd: (0, import_fields12.timestamp)(),
-    providerReference: (0, import_fields12.text)(),
-    evidence: (0, import_fields12.json)({ defaultValue: {} }),
-    ledgerEntries: (0, import_fields12.relationship)({ ref: "LedgerEntry.payout", many: true, access: { create: () => false, update: () => false } }),
-    paidAt: (0, import_fields12.timestamp)(),
+    label: labels.payout,
+    driver: (0, import_fields13.relationship)({ ref: "DriverProfile", access: { create: () => false, update: () => false } }),
+    provider: (0, import_fields13.relationship)({ ref: "PaymentProvider.payouts", access: { create: () => false, update: () => false } }),
+    amountMinor: (0, import_fields13.integer)({ validation: { min: 0 } }),
+    currencyCode: (0, import_fields13.text)(),
+    status: (0, import_fields13.select)({ options: ["pending", "approved", "submitted", "paid", "failed", "cancelled"].map((value) => ({ label: value, value })), defaultValue: "pending" }),
+    periodStart: (0, import_fields13.timestamp)(),
+    periodEnd: (0, import_fields13.timestamp)(),
+    providerReference: (0, import_fields13.text)(),
+    evidence: (0, import_fields13.json)({ defaultValue: {} }),
+    ledgerEntries: (0, import_fields13.relationship)({ ref: "LedgerEntry.payout", many: true, access: { create: () => false, update: () => false } }),
+    paidAt: (0, import_fields13.timestamp)(),
     ...trackingFields
   }
 });
 
 // features/keystone/models/Integration.ts
-var import_core12 = require("@keystone-6/core");
+var import_core13 = require("@keystone-6/core");
 var import_access17 = require("@keystone-6/core/access");
-var import_fields13 = require("@keystone-6/core/fields");
-var Notification = (0, import_core12.list)({
+var import_fields14 = require("@keystone-6/core/fields");
+var Notification = (0, import_core13.list)({
+  ui: { hideCreate: true, hideDelete: true, labelField: "label", searchFields: [] },
   access: lockedFleetAccess("fleetAdmin"),
   fields: {
-    trip: (0, import_fields13.relationship)({ ref: "Trip", access: { create: () => false, update: () => false } }),
-    recipient: (0, import_fields13.relationship)({ ref: "User", access: { create: () => false, update: () => false } }),
-    channel: (0, import_fields13.select)({ options: ["email", "sms", "push", "webhook"].map((value) => ({ label: value, value })) }),
-    templateKey: (0, import_fields13.text)(),
-    status: (0, import_fields13.select)({ options: ["queued", "sending", "sent", "delivered", "failed", "dead_letter"].map((value) => ({ label: value, value })), defaultValue: "queued" }),
-    payload: (0, import_fields13.json)({ defaultValue: {} }),
-    providerReference: (0, import_fields13.text)({ access: { read: import_access17.denyAll } }),
-    idempotencyKey: (0, import_fields13.text)({ isIndexed: "unique" }),
-    attemptCount: (0, import_fields13.integer)({ defaultValue: 0 }),
-    nextAttemptAt: (0, import_fields13.timestamp)(),
-    sentAt: (0, import_fields13.timestamp)(),
-    lastError: (0, import_fields13.text)(),
+    label: labels.notification,
+    trip: (0, import_fields14.relationship)({ ref: "Trip", access: { create: () => false, update: () => false } }),
+    recipient: (0, import_fields14.relationship)({ ref: "User", access: { create: () => false, update: () => false } }),
+    channel: (0, import_fields14.select)({ options: ["email", "sms", "push", "webhook"].map((value) => ({ label: value, value })) }),
+    templateKey: (0, import_fields14.text)(),
+    status: (0, import_fields14.select)({ options: ["queued", "sending", "sent", "delivered", "failed", "dead_letter"].map((value) => ({ label: value, value })), defaultValue: "queued" }),
+    payload: (0, import_fields14.json)({ defaultValue: {} }),
+    providerReference: (0, import_fields14.text)({ access: { read: import_access17.denyAll } }),
+    idempotencyKey: (0, import_fields14.text)({ isIndexed: "unique" }),
+    attemptCount: (0, import_fields14.integer)({ defaultValue: 0 }),
+    nextAttemptAt: (0, import_fields14.timestamp)(),
+    sentAt: (0, import_fields14.timestamp)(),
+    lastError: (0, import_fields14.text)(),
     ...trackingFields
   }
 });
-var MarketplaceRegistration = (0, import_core12.list)({
+var MarketplaceRegistration = (0, import_core13.list)({
+  ui: { hideCreate: true, hideDelete: true, labelField: "label", searchFields: ["sourceId", "platform"] },
   access: lockedFleetAccess("fleetAdmin"),
   fields: {
-    fleet: (0, import_fields13.relationship)({ ref: "Fleet.marketplaceRegistration", access: { create: () => false, update: () => false } }),
-    sourceId: (0, import_fields13.text)({ validation: { isRequired: true }, isIndexed: "unique" }),
-    platform: (0, import_fields13.text)({ defaultValue: "openfront-rideshare" }),
-    status: (0, import_fields13.select)({ options: ["draft", "active", "paused", "revoked"].map((value) => ({ label: value, value })), defaultValue: "draft" }),
-    manifestVersion: (0, import_fields13.text)({ defaultValue: "1" }),
-    publicBaseUrl: (0, import_fields13.text)(),
-    capabilities: (0, import_fields13.json)({ defaultValue: ["marketplace.discovery", "rideshare.quote", "rideshare.request", "rideshare.trip.view"] }),
-    lastVerifiedAt: (0, import_fields13.timestamp)(),
-    verificationEvidence: (0, import_fields13.json)({ defaultValue: {} }),
+    label: labels.marketplaceRegistration,
+    fleet: (0, import_fields14.relationship)({ ref: "Fleet.marketplaceRegistration", access: { create: () => false, update: () => false } }),
+    sourceId: (0, import_fields14.text)({ validation: { isRequired: true }, isIndexed: "unique" }),
+    platform: (0, import_fields14.text)({ defaultValue: "openfront-rideshare" }),
+    status: (0, import_fields14.select)({ options: ["draft", "active", "paused", "revoked"].map((value) => ({ label: value, value })), defaultValue: "draft" }),
+    manifestVersion: (0, import_fields14.text)({ defaultValue: "1" }),
+    publicBaseUrl: (0, import_fields14.text)(),
+    capabilities: (0, import_fields14.json)({ defaultValue: ["marketplace.discovery", "rideshare.quote", "rideshare.request", "rideshare.trip.view"] }),
+    lastVerifiedAt: (0, import_fields14.timestamp)(),
+    verificationEvidence: (0, import_fields14.json)({ defaultValue: {} }),
     ...trackingFields
   }
 });
@@ -1280,6 +1399,29 @@ async function redirectToInit(root, args, context) {
   return false;
 }
 var redirectToInit_default = redirectToInit;
+
+// features/keystone/domain/dateTimeFields.ts
+function toDateTime(value) {
+  if (value === null || value === void 0 || value === "") return null;
+  if (value instanceof Date) return Number.isFinite(value.getTime()) ? value : null;
+  if (typeof value === "string" || typeof value === "number") {
+    const date = new Date(value);
+    return Number.isFinite(date.getTime()) ? date : null;
+  }
+  return null;
+}
+function dateTimeFieldResolvers(typeDefs2) {
+  const resolvers = {};
+  for (const match of typeDefs2.matchAll(/\btype\s+(\w+)\s*\{([^}]*)\}/g)) {
+    const [, typeName, body] = match;
+    if (typeName === "Query" || typeName === "Mutation") continue;
+    for (const field of body.matchAll(/(\w+)\s*:\s*DateTime!?/g)) {
+      const name = field[1];
+      (resolvers[typeName] ??= {})[name] = (parent) => toDateTime(parent?.[name]);
+    }
+  }
+  return resolvers;
+}
 
 // features/keystone/mutations/marketplaceRideshare.ts
 var import_node_crypto5 = require("node:crypto");
@@ -1574,6 +1716,7 @@ async function estimateRoute({ pickupLabel, dropoffLabel }) {
 }
 
 // features/keystone/domain/operationalReadiness.ts
+var import_graphql = require("graphql");
 function operationsEnabled(mode) {
   return mode === "manual" || process.env.NODE_ENV !== "production";
 }
@@ -1588,7 +1731,7 @@ function rideReadiness(mode) {
 var OPERATIONS_OFF_MESSAGE = "Manual dispatch is off for this fleet. Turn it on in Platform \u2192 Settings \u2192 Operations.";
 async function requireFleetOperations(db, fleetId) {
   const fleet = fleetId ? await db.fleet.findUnique({ where: { id: fleetId }, select: { operationsMode: true } }) : null;
-  if (!fleet || !operationsEnabled(fleet.operationsMode)) throw new Error(OPERATIONS_OFF_MESSAGE);
+  if (!fleet || !operationsEnabled(fleet.operationsMode)) throw new import_graphql.GraphQLError(OPERATIONS_OFF_MESSAGE, { extensions: { code: "RIDESHARE_OPERATIONS_OFF" } });
 }
 
 // features/keystone/domain/serviceReadiness.ts
@@ -1703,7 +1846,7 @@ async function marketplaceRideshareQuote(_root, args, context) {
     await context2.sudo().query.RideQuote.createOne({ data: {
       publicId,
       ...riderId ? { rider: { connect: { id: riderId } } } : {},
-      handoffId: args.handoffId?.trim() || null,
+      handoffId: args.handoffId?.trim() || "",
       status: "active",
       service: { connect: { id: service.id } },
       fareRule: { connect: { id: rule.id } },
@@ -2839,11 +2982,11 @@ async function inspectExistingDemoFleet(sudo, context, fleet, userId, mode) {
   ];
   const missing = [];
   const fleetId = typeof fleet.id === "string" ? fleet.id : "";
-  if (!fleetId) missing.push("existing demo fleet identifier could not be verified");
+  if (!fleetId) missing.push("The sample fleet could not be found");
   if (mode !== "minimal" && mode !== "full") {
     missing.push("supported demo seed mode (minimal or full)");
   }
-  if (fleet.status !== "active") missing.push("active demo fleet fixture status");
+  if (fleet.status !== "active") missing.push("Fleet status set to Active");
   if (!fleetId || mode !== "minimal" && mode !== "full") {
     return makeDiagnostic(mode, missing, limitations);
   }
@@ -2908,35 +3051,35 @@ async function inspectExistingDemoFleet(sudo, context, fleet, userId, mode) {
     if (!result.readable) missing.push(`${name} could not be verified`);
   }
   const ownerMembership = memberships.rows.some((row) => rowInFleet(row, fleetId) && row.user?.id === userId && row.role === "owner" && row.status === "active");
-  if (memberships.readable && !ownerMembership) missing.push("active owner membership for the current user");
+  if (memberships.readable && !ownerMembership) missing.push("You as an owner of the fleet");
   const activeAreas = areas.rows.filter((row) => activeInFleet(row, fleetId) && typeof row.id === "string");
-  if (areas.readable && activeAreas.length === 0) missing.push("active service area in the demo fleet");
+  if (areas.readable && activeAreas.length === 0) missing.push("An active service area");
   const activeAreaIds = new Set(activeAreas.map((row) => row.id));
   const activeServices = services.rows.filter((row) => activeInFleet(row, fleetId) && expectedServiceSlugs.includes(row.slug));
   for (const slug of expectedServiceSlugs) {
     const service = activeServices.find((row) => row.slug === slug);
     if (!services.readable || !service) {
-      if (services.readable) missing.push(`active demo service '${slug}'`);
+      if (services.readable) missing.push(`Active service ${serviceLabel(slug)}`);
       continue;
     }
     const linkedAreaIds = new Set((Array.isArray(service.serviceAreas) ? service.serviceAreas : []).filter((area) => activeInFleet(area, fleetId) && activeAreaIds.has(area.id)).map((area) => area.id));
-    if (linkedAreaIds.size === 0) missing.push(`active service-area relationship for '${slug}'`);
+    if (linkedAreaIds.size === 0) missing.push(`Service area for ${serviceLabel(slug)}`);
     const hasMatchingFare = (Array.isArray(service.fareRules) ? service.fareRules : []).some((fare) => fare.status === "active" && rowInFleet(fare, fleetId) && fare.service?.id === service.id && rowInFleet(fare.service, fleetId) && linkedAreaIds.has(fare.serviceArea?.id) && activeInFleet(fare.serviceArea, fleetId));
     if (linkedAreaIds.size > 0 && !hasMatchingFare) {
-      missing.push(`active fare rule for '${slug}' linked to that same active service area and fleet`);
+      missing.push(`Active fare rule for ${serviceLabel(slug)}`);
     }
   }
   const demoPolicy = policies.rows.find((row) => activeInFleet(row, fleetId) && row.name === "Demo driver and vehicle evidence policy" && row.kind === "driver_eligibility");
-  if (policies.readable && !demoPolicy) missing.push("active demo driver/vehicle evidence policy");
+  if (policies.readable && !demoPolicy) missing.push("Active driver eligibility policy");
   const demoDriver = drivers.rows.find((row) => activeInFleet(row, fleetId) && row.user?.id === userId);
-  if (drivers.readable && !demoDriver) missing.push("active demo driver profile linked to the current user");
+  if (drivers.readable && !demoDriver) missing.push("Active sample driver linked to your account");
   const weekdayRules = Array.isArray(demoDriver?.availabilityRules) ? demoDriver.availabilityRules : [];
   const missingDays = [1, 2, 3, 4, 5].filter((day) => !weekdayRules.some((rule) => rule.status === "active" && rule.dayOfWeek === day));
-  if (demoDriver && missingDays.length) missing.push(`active weekday availability fixtures for demo driver (missing days ${missingDays.join(", ")})`);
+  if (demoDriver && missingDays.length) missing.push(`Sample driver hours (missing days ${missingDays.join(", ")})`);
   const activeVehicles = vehicles.rows.filter((row) => activeInFleet(row, fleetId) && typeof row.id === "string");
-  if (vehicles.readable && activeVehicles.length === 0) missing.push("active demo vehicle");
+  if (vehicles.readable && activeVehicles.length === 0) missing.push("An active vehicle");
   const pairedVehicles = activeVehicles.filter((vehicle) => Array.isArray(vehicle.drivers) && vehicle.drivers.some((driver) => activeInFleet(driver, fleetId) && driver.id === demoDriver?.id));
-  if (demoDriver && vehicles.readable && pairedVehicles.length === 0) missing.push("active vehicle-to-demo-driver relationship in the same fleet");
+  if (demoDriver && vehicles.readable && pairedVehicles.length === 0) missing.push("A vehicle assigned to the sample driver");
   if (demoDriver) {
     const documentBranches = [
       { driver: { id: { equals: demoDriver.id } } },
@@ -2949,19 +3092,19 @@ async function inspectExistingDemoFleet(sudo, context, fleet, userId, mode) {
       query: demoSeedInspectionSelections.document
     }));
     if (!documents.readable) {
-      missing.push("driver/vehicle document-kind metadata could not be verified under normal driver List access");
+      missing.push("Driver and vehicle documents could not be checked with your access");
     } else {
       const driverDocuments = documents.rows.filter((row) => row.kind && row.driver?.id === demoDriver.id && rowInFleet(row.driver, fleetId));
       for (const kind of ["driver_license", "insurance"]) {
         if (!driverDocuments.some((row) => row.kind === kind)) {
-          missing.push(`demo driver '${kind}' document record absent or not visible under existing driver List access`);
+          missing.push(`Sample driver: ${kind.replaceAll("_", " ")} document`);
         }
       }
       for (const vehicle of pairedVehicles) {
         const vehicleDocuments = documents.rows.filter((row) => row.kind && row.vehicle?.id === vehicle.id && rowInFleet(row.vehicle, fleetId));
         for (const kind of ["vehicle_registration", "inspection"]) {
           if (!vehicleDocuments.some((row) => row.kind === kind)) {
-            missing.push(`demo vehicle '${kind}' document record absent or not visible under existing driver List access`);
+            missing.push(`Sample vehicle: ${kind.replaceAll("_", " ")} document`);
           }
         }
       }
@@ -2969,28 +3112,28 @@ async function inspectExistingDemoFleet(sudo, context, fleet, userId, mode) {
   }
   const policyEvaluations = demoPolicy && Array.isArray(demoPolicy.evaluations) ? demoPolicy.evaluations : [];
   if (demoPolicy && demoDriver && !policyEvaluations.some((evaluation) => evaluation.policy?.id === demoPolicy.id && rowInFleet(evaluation.policy, fleetId) && evaluation.driver?.id === demoDriver.id && activeInFleet(evaluation.driver, fleetId))) {
-    missing.push("demo driver policy-evaluation fixture relationship");
+    missing.push("Eligibility check for the sample driver");
   }
   const vehiclePolicy = policies.rows.find((row) => activeInFleet(row, fleetId) && row.kind === "vehicle_eligibility");
   const vehicleEvaluations = Array.isArray(vehiclePolicy?.evaluations) ? vehiclePolicy.evaluations : [];
   if (pairedVehicles.length && !pairedVehicles.some((vehicle) => vehicleEvaluations.some((evaluation) => evaluation.policy?.id === vehiclePolicy?.id && rowInFleet(evaluation.policy, fleetId) && evaluation.vehicle?.id === vehicle.id && activeInFleet(evaluation.vehicle, fleetId)))) {
-    missing.push("demo vehicle policy-evaluation fixture relationship");
+    missing.push("Eligibility check for the sample vehicle");
   }
   if (mode === "full") {
     const accessibleService = activeServices.find((row) => row.slug === accessibleSlug && row.wheelchairAccessible === true);
     const accessibleVehicle = accessibleService && pairedVehicles.some((vehicle) => vehicle.wheelchairAccessible === true && typeof vehicle.capacity === "number" && typeof accessibleService.passengerCapacity === "number" && vehicle.capacity >= accessibleService.passengerCapacity);
-    if (accessibleService && !accessibleVehicle) missing.push("active wheelchair-capable vehicle linked to the demo driver for the accessible service fixture");
+    if (accessibleService && !accessibleVehicle) missing.push("A wheelchair-accessible vehicle for the accessible service");
   }
   if (fleet && !hasExpectedProviderFixtures(fleet.providers)) {
-    missing.push("all four fleet-scoped demo provider-configuration fixtures (mapping, notification, identity, background-check)");
+    missing.push("Provider connections (mapping, notifications, identity, background check)");
   }
   const registration = fleet.marketplaceRegistration;
   if (!registration || !["source-openfront-rideshare-local", `source-rideshare-${fleetId}`].includes(registration.sourceId) || registration.platform !== "openfront-rideshare" || registration.status !== "active" || registration.manifestVersion !== "1") {
-    missing.push("active source Marketplace registration fixture");
+    missing.push("Marketplace registration");
   }
   const manualProvider = paymentProviders.rows.find((row) => row.code === "pp_manual");
   if (paymentProviders.readable && !hasManualPaymentFixture(manualProvider)) {
-    missing.push("manual payment-provider configuration is absent, incomplete, or not visible under existing finance List access");
+    missing.push("Manual payment provider");
   }
   return makeDiagnostic(mode, [...new Set(missing)], limitations);
 }
@@ -3004,6 +3147,7 @@ function hasExpectedProviderFixtures(value) {
   ];
   return expected.every(([kind, adapter, status]) => value.some((row) => row.kind === kind && row.adapter === adapter && row.status === status));
 }
+var serviceLabel = (slug) => slug.endsWith("-accessible") ? "Accessible Ride" : slug.endsWith("-standard") ? "Independent Standard" : slug;
 function hasManualPaymentFixture(row) {
   return row?.code === "pp_manual" && row.isInstalled === "yes" && row.createPaymentFunction === "manual" && row.capturePaymentFunction === "manual" && row.refundPaymentFunction === "manual" && row.getPaymentStatusFunction === "manual" && row.handleWebhookFunction === "manual";
 }
@@ -3037,7 +3181,6 @@ async function dismissRideshareOnboarding(_root, _args, context) {
   }, { isolationLevel: "Serializable" });
 }
 async function bootstrapRideshare(_root, args, context) {
-  if (process.env.NODE_ENV === "production") throw new Error("Demonstration onboarding is disabled in production.");
   if (!context.session?.itemId || !await permissions.canManageOnboarding({ context, session: context.session })) throw new Error("Onboarding permission is required.");
   if (args.mode !== "minimal" && args.mode !== "full") throw new Error("Demo setup mode must be minimal or full.");
   const userId = context.session.itemId;
@@ -3066,7 +3209,7 @@ async function bootstrapRideshare(_root, args, context) {
       return { fleetId: racedFleet[0].id, created: false, summary: diagnostic2 };
     }
     const full = args.mode === "full";
-    const fleet = await transactionSudo.query.Fleet.createOne({ data: { name: "Harbor Independent Mobility", logoIcon: DEFAULT_STORE_LOGO_ICON, logoColor: DEFAULT_STORE_LOGO_COLOR, slug: demoSlug, status: "active", publicDescription: "A driver-owned cooperative serving central neighborhoods with transparent source-owned pricing.", publicCity: "Harbor City", countryCode: "US", currencyCode: "USD", timezone: "America/New_York", supportEmail: "support@example.invalid", preciseLocationRetentionDays: "30" }, query: "id" });
+    const fleet = await transactionSudo.query.Fleet.createOne({ data: { name: "Harbor Independent Mobility", logoIcon: DEFAULT_STORE_LOGO_ICON, logoColor: DEFAULT_STORE_LOGO_COLOR, slug: demoSlug, status: "active", operationsMode: "manual", publicDescription: "A driver-owned cooperative serving central neighborhoods with transparent source-owned pricing.", publicCity: "Harbor City", countryCode: "US", currencyCode: "USD", timezone: "America/New_York", supportEmail: "support@example.invalid", preciseLocationRetentionDays: "30" }, query: "id" });
     await transactionSudo.query.FleetMembership.createOne({ data: { fleet: { connect: { id: fleet.id } }, user: { connect: { id: userId } }, role: "owner", status: "active", acceptedAt: /* @__PURE__ */ new Date() } });
     const area = await transactionSudo.query.ServiceArea.createOne({ data: { fleet: { connect: { id: fleet.id } }, name: "Harbor City Core", publicRegionLabel: "Harbor City central neighborhoods", countryCode: "US", status: "active", coarseBounds: { disclosure: "Coarse public service region; exact driver locations are not published." } }, query: "id" });
     const service = await transactionSudo.query.RideService.createOne({ data: { fleet: { connect: { id: fleet.id } }, serviceAreas: { connect: [{ id: area.id }] }, name: "Independent Standard", slug: `${demoSlug}-standard`, description: "Everyday rides from locally operated independent drivers.", status: "active", category: "standard", passengerCapacity: 4, advanceBookingMinutes: 30 }, query: "id" });
@@ -3078,15 +3221,24 @@ async function bootstrapRideshare(_root, args, context) {
     const vehiclePolicy = await transactionSudo.query.Policy.createOne({ data: { fleet: { connect: { id: fleet.id } }, name: "Demonstration vehicle evidence policy", version: "2026-demo-1", kind: "vehicle_eligibility", status: "active", requirements: { demonstrationOnly: true }, evidenceSources: [{ authoritative: false }], disclaimer: "Demonstration metadata; no inspection, insurance or legal approval." }, query: "id" });
     const driver = await transactionSudo.query.DriverProfile.createOne({ data: { fleet: { connect: { id: fleet.id } }, user: { connect: { id: userId } }, publicName: "Maya R.", publicBio: "Independent local driver and cooperative member.", status: "active", dispatchStatus: "available", acceptsScheduled: true, languages: ["English", "Spanish"] }, query: "id" });
     const vehicle = await transactionSudo.query.Vehicle.createOne({ data: { fleet: { connect: { id: fleet.id } }, drivers: { connect: [{ id: driver.id }] }, label: "Blue 2022 Hybrid", make: "Example", model: "Hybrid Sedan", year: 2022, color: "Blue", plateMasked: "\u2022\u2022\u2022 482", capacity: 4, wheelchairAccessible: full, status: "active" }, query: "id" });
+    const documentExpiry = new Date(Date.now() + 365 * 24 * 60 * 6e4);
+    for (const document of [
+      { owner: { driver: { connect: { id: driver.id } } }, kind: "driver_license", issuer: "Sample licensing office" },
+      { owner: { driver: { connect: { id: driver.id } } }, kind: "insurance", issuer: "Sample insurer" },
+      { owner: { vehicle: { connect: { id: vehicle.id } } }, kind: "vehicle_registration", issuer: "Sample registry" },
+      { owner: { vehicle: { connect: { id: vehicle.id } } }, kind: "inspection", issuer: "Sample inspection station" }
+    ]) {
+      await transactionSudo.query.ComplianceDocument.createOne({ data: { ...document.owner, kind: document.kind, status: "accepted_evidence", issuer: document.issuer, referenceMasked: "SAMPLE", issuedAt: /* @__PURE__ */ new Date(), expiresAt: documentExpiry, reviewedAt: /* @__PURE__ */ new Date(), reviewer: { connect: { id: userId } }, reviewNotes: "Sample document from starter setup." } });
+    }
     const evalExpiry = new Date(Date.now() + 90 * 24 * 60 * 6e4);
     await transactionSudo.query.PolicyEvaluation.createOne({ data: { policy: { connect: { id: policy.id } }, driver: { connect: { id: driver.id } }, outcome: "eligible", reasons: ["Demo operator review recorded; not a legal determination."], evidenceSnapshot: { policyVersion: "2026-demo-1", authoritative: false, kind: "demonstration" }, evaluatedAt: /* @__PURE__ */ new Date(), expiresAt: evalExpiry, evaluator: { connect: { id: userId } } } });
     await transactionSudo.query.PolicyEvaluation.createOne({ data: { policy: { connect: { id: vehiclePolicy.id } }, vehicle: { connect: { id: vehicle.id } }, outcome: "eligible", reasons: ["Demo vehicle evidence review recorded; not an inspection certification."], evidenceSnapshot: { policyVersion: "2026-demo-1", authoritative: false, kind: "demonstration" }, evaluatedAt: /* @__PURE__ */ new Date(), expiresAt: evalExpiry, evaluator: { connect: { id: userId } } } });
-    for (const dayOfWeek of [1, 2, 3, 4, 5]) {
-      await transactionSudo.query.AvailabilityRule.createOne({ data: { driver: { connect: { id: driver.id } }, dayOfWeek, startTime: "07:00", endTime: "19:00", timezone: "America/New_York", status: "active" } });
+    for (const dayOfWeek of [0, 1, 2, 3, 4, 5, 6]) {
+      await transactionSudo.query.AvailabilityRule.createOne({ data: { driver: { connect: { id: driver.id } }, dayOfWeek, startTime: "00:00", endTime: "23:59", timezone: "America/New_York", status: "active" } });
     }
     await transactionContext.prisma.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${"provider:pp_manual"}, 0))::text IS NOT NULL`;
     const manualProvider = await transactionSudo.query.PaymentProvider.findOne({ where: { code: "pp_manual" }, query: "id" });
-    if (!manualProvider) await transactionSudo.query.PaymentProvider.createOne({ data: { name: "Manual development ledger", code: "pp_manual", isInstalled: "yes", createPaymentFunction: "manual", capturePaymentFunction: "manual", refundPaymentFunction: "manual", getPaymentStatusFunction: "manual", handleWebhookFunction: "manual", metadata: { disclosure: "Records payment evidence only; does not move money." } } });
+    if (!manualProvider) await transactionSudo.query.PaymentProvider.createOne({ data: { name: "Manual payments", code: "pp_manual", isInstalled: "yes", createPaymentFunction: "manual", capturePaymentFunction: "manual", refundPaymentFunction: "manual", getPaymentStatusFunction: "manual", handleWebhookFunction: "manual", metadata: { disclosure: "Records payment evidence only; does not move money." } } });
     for (const [name, kind, adapter] of [["Manual route estimate", "mapping", "manual"], ["Console notifications", "notification", "console"], ["Unconfigured identity evidence", "identity", "manual"], ["Unconfigured background-check evidence", "background_check", "manual"]]) {
       await transactionSudo.query.ProviderConnection.createOne({ data: { fleet: { connect: { id: fleet.id } }, name, kind, adapter, status: kind === "mapping" || kind === "notification" ? "sandbox" : "unconfigured", capabilities: [], evidencePolicyUrl: "https://example.invalid/provider-policy" } });
     }
@@ -3095,7 +3247,7 @@ async function bootstrapRideshare(_root, args, context) {
     const diagnostic = await inspectExistingDemoFleet(transactionSudo, transactionContext, persistedFleet, userId, args.mode);
     await transactionSudo.query.User.updateOne({ where: { id: userId }, data: { onboardingStatus: diagnostic.onboardingStatus } });
     return { fleetId: fleet.id, created: true, summary: diagnostic };
-  });
+  }, { maxWait: 1e4, timeout: 6e4 });
 }
 
 // features/keystone/mutations/accountViews.ts
@@ -3284,10 +3436,263 @@ async function dispatchCandidatePage(_root, args, context) {
   }, { isolationLevel: "RepeatableRead" });
 }
 
+// features/keystone/mutations/fleetSetup.ts
+var import_node_crypto9 = require("node:crypto");
+var import_graphql2 = require("graphql");
+var fail = (message) => {
+  throw new import_graphql2.GraphQLError(message, { extensions: { code: "RIDESHARE_SETUP_INVALID" } });
+};
+var text13 = (value, label, { required = false, max = 200 } = {}) => {
+  const clean = typeof value === "string" ? value.trim() : "";
+  if (required && !clean) fail(`${label} is required.`);
+  if (clean.length > max) fail(`${label} must be ${max} characters or fewer.`);
+  return clean;
+};
+var whole = (value, label, min, max, fallback) => {
+  if ((value === null || value === void 0 || value === "") && fallback !== void 0) return fallback;
+  const number = Number(value);
+  if (!Number.isSafeInteger(number) || number < min || number > max) fail(`${label} must be a whole number from ${min} to ${max}.`);
+  return number;
+};
+var oneOf = (value, options, label, fallback) => {
+  if ((value === null || value === void 0 || value === "") && fallback) return fallback;
+  if (!options.includes(value)) fail(`${label} must be one of: ${options.join(", ").replaceAll("_", " ")}.`);
+  return value;
+};
+var dateOrNull = (value, label) => {
+  if (value === null || value === void 0 || value === "") return null;
+  const date = new Date(String(value));
+  if (!Number.isFinite(date.getTime())) fail(`${label} is not a valid date.`);
+  return date;
+};
+var slugify = (value) => value.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "item";
+var TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
+async function requireActor(context) {
+  const actor = await currentHumanActor(context.prisma, context.session);
+  if (!actor) fail("Sign in to continue.");
+  return actor;
+}
+async function requireFleet(context, fleetId, capability) {
+  if (typeof fleetId !== "string" || !fleetId || !await canAccessFleet(context, context.session, fleetId, capability)) fail("Fleet not found or outside your access.");
+  return fleetId;
+}
+var DRIVER_DOCUMENTS = ["driver_license", "insurance"];
+var VEHICLE_DOCUMENTS = ["vehicle_registration", "inspection"];
+var DOCUMENT_KINDS = ["driver_license", "vehicle_registration", "insurance", "inspection", "background_check", "business_license", "other"];
+function missingDocuments(documents, required, now = /* @__PURE__ */ new Date()) {
+  return required.filter((kind) => !documents.some((document) => document.kind === kind && document.status === "accepted_evidence" && (!document.expiresAt || new Date(document.expiresAt).getTime() > now.getTime())));
+}
+async function eligibilityPolicy(tx, fleetId, kind) {
+  const policies = await tx.policy.findMany({ where: { fleetId, kind, status: "active" }, orderBy: { id: "asc" }, take: 2, select: { id: true, version: true } });
+  if (policies.length > 1) fail("This fleet has more than one active eligibility policy of this kind. Retire one before reviewing.");
+  if (policies[0]) return policies[0];
+  return tx.policy.create({ data: { fleetId, kind, status: "active", name: kind === "driver_eligibility" ? "Driver document review" : "Vehicle document review", version: "1", requirements: { documents: kind === "driver_eligibility" ? DRIVER_DOCUMENTS : VEHICLE_DOCUMENTS } }, select: { id: true, version: true } });
+}
+async function createFleet(_root, args, context) {
+  const actor = await requireActor(context);
+  if (!await permissions.canManageFleet({ context, session: context.session })) fail("Fleet management permission is required.");
+  const name = text13(args.name, "Fleet name", { required: true, max: 120 });
+  const currencyCode = text13(args.currencyCode, "Currency", { max: 3 }).toUpperCase() || "USD";
+  if (!/^[A-Z]{3}$/.test(currencyCode)) fail("Currency must be a three-letter code such as USD.");
+  const timezone = text13(args.timezone, "Time zone", { max: 64 }) || "UTC";
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: timezone });
+  } catch {
+    fail("Time zone is not recognised.");
+  }
+  return context.prisma.$transaction(async (tx) => {
+    const fleet = await tx.fleet.create({ data: { name, slug: `${slugify(name)}-${(0, import_node_crypto9.randomUUID)().slice(0, 6)}`, status: "setup", publicCity: text13(args.publicCity, "City", { max: 120 }), countryCode: text13(args.countryCode, "Country", { max: 2 }).toUpperCase() || "US", currencyCode, timezone }, select: { id: true, name: true, status: true } });
+    await tx.fleetMembership.create({ data: { fleetId: fleet.id, userId: actor.id, role: "owner", status: "active", acceptedAt: /* @__PURE__ */ new Date() } });
+    return fleet;
+  });
+}
+async function addFleetDriver(_root, args, context) {
+  await requireActor(context);
+  const fleetId = await requireFleet(context, args.fleetId, "drivers");
+  const publicName = text13(args.publicName, "Driver name", { required: true, max: 80 });
+  const email = text13(args.email, "Email", { max: 200 }).toLowerCase();
+  return context.prisma.$transaction(async (tx) => {
+    let userId = null;
+    if (email) {
+      const user = await tx.user.findUnique({ where: { email }, select: { id: true, driverProfile: { select: { id: true } } } });
+      if (!user) fail("No account uses that email. The driver signs up first, or leave email empty.");
+      if (user.driverProfile) fail("That account already has a driver profile.");
+      userId = user.id;
+    }
+    return tx.driverProfile.create({ data: { fleetId, userId, publicName, publicBio: text13(args.publicBio, "Bio", { max: 500 }), acceptsScheduled: args.acceptsScheduled !== false, status: "pending_review", dispatchStatus: "offline" }, select: { id: true, publicName: true, status: true } });
+  });
+}
+async function addFleetVehicle(_root, args, context) {
+  await requireActor(context);
+  const fleetId = await requireFleet(context, args.fleetId, "operations");
+  const label = text13(args.label, "Vehicle name", { required: true, max: 80 });
+  const year = args.year === null || args.year === void 0 ? null : whole(args.year, "Year", 1980, (/* @__PURE__ */ new Date()).getFullYear() + 1);
+  const driverIds = [...new Set((args.driverIds || []).filter((id) => typeof id === "string"))].slice(0, 20);
+  return context.prisma.$transaction(async (tx) => {
+    if (driverIds.length && await tx.driverProfile.count({ where: { id: { in: driverIds }, fleetId } }) !== driverIds.length) fail("Every assigned driver must belong to this fleet.");
+    return tx.vehicle.create({ data: {
+      fleetId,
+      label,
+      make: text13(args.make, "Make", { max: 60 }),
+      model: text13(args.model, "Model", { max: 60 }),
+      year,
+      color: text13(args.color, "Colour", { max: 40 }),
+      plateMasked: text13(args.plateMasked, "Plate", { max: 20 }),
+      capacity: whole(args.capacity, "Seats", 1, 50, 4),
+      wheelchairAccessible: args.wheelchairAccessible === true,
+      status: "pending_review",
+      ...driverIds.length ? { drivers: { connect: driverIds.map((id) => ({ id })) } } : {}
+    }, select: { id: true, label: true, status: true } });
+  });
+}
+async function assignVehicleDrivers(_root, args, context) {
+  await requireActor(context);
+  const vehicle = await context.prisma.vehicle.findUnique({ where: { id: args.vehicleId }, select: { id: true, fleetId: true } });
+  const fleetId = await requireFleet(context, vehicle?.fleetId, "operations");
+  const driverIds = [...new Set((args.driverIds || []).filter((id) => typeof id === "string"))].slice(0, 20);
+  if (driverIds.length && await context.prisma.driverProfile.count({ where: { id: { in: driverIds }, fleetId } }) !== driverIds.length) fail("Every assigned driver must belong to this fleet.");
+  return context.prisma.vehicle.update({ where: { id: vehicle.id }, data: { drivers: { set: driverIds.map((id) => ({ id })) } }, select: { id: true, label: true } });
+}
+async function addComplianceDocument(_root, args, context) {
+  await requireActor(context);
+  if (Boolean(args.driverId) === Boolean(args.vehicleId)) fail("Attach the document to one driver or one vehicle.");
+  const owner = args.driverId ? await context.prisma.driverProfile.findUnique({ where: { id: args.driverId }, select: { id: true, fleetId: true } }) : await context.prisma.vehicle.findUnique({ where: { id: args.vehicleId }, select: { id: true, fleetId: true } });
+  await requireFleet(context, owner?.fleetId, "drivers");
+  const kind = oneOf(args.kind, DOCUMENT_KINDS, "Document type");
+  const issuedAt = dateOrNull(args.issuedAt, "Issue date");
+  const expiresAt = dateOrNull(args.expiresAt, "Expiry date");
+  if (issuedAt && expiresAt && expiresAt <= issuedAt) fail("Expiry date must be after the issue date.");
+  return context.prisma.complianceDocument.create({ data: { ...args.driverId ? { driverId: owner.id } : { vehicleId: owner.id }, kind, status: "submitted", issuer: text13(args.issuer, "Issuer", { max: 120 }), referenceMasked: text13(args.referenceMasked, "Reference", { max: 40 }), issuedAt, expiresAt }, select: { id: true, kind: true, status: true } });
+}
+async function reviewComplianceDocument(_root, args, context) {
+  const actor = await requireActor(context);
+  const document = await context.prisma.complianceDocument.findUnique({ where: { id: args.documentId }, select: { id: true, expiresAt: true, driver: { select: { fleetId: true } }, vehicle: { select: { fleetId: true } } } });
+  await requireFleet(context, document?.driver?.fleetId || document?.vehicle?.fleetId, "drivers");
+  const decision = oneOf(args.decision, ["accepted_evidence", "rejected_evidence", "revoked"], "Decision");
+  if (decision === "accepted_evidence" && document.expiresAt && new Date(document.expiresAt).getTime() <= Date.now()) fail("This document has expired and cannot be accepted.");
+  return context.prisma.complianceDocument.update({ where: { id: document.id }, data: { status: decision, reviewedAt: /* @__PURE__ */ new Date(), reviewerId: actor.id, reviewNotes: text13(args.notes, "Notes", { max: 1e3 }) }, select: { id: true, status: true } });
+}
+async function reviewDriver(_root, args, context) {
+  const actor = await requireActor(context);
+  const driver = await context.prisma.driverProfile.findUnique({ where: { id: args.driverId }, select: { id: true, fleetId: true, status: true, dispatchStatus: true } });
+  const fleetId = await requireFleet(context, driver?.fleetId, "drivers");
+  const decision = oneOf(args.decision, ["active", "paused", "ineligible", "offboarded"], "Decision");
+  if (decision !== "active" && ["offered", "assigned", "on_trip"].includes(driver.dispatchStatus || "")) fail("This driver has a live offer or trip. Finish or reassign it first.");
+  const notes = text13(args.notes, "Notes", { max: 1e3 });
+  return context.prisma.$transaction(async (tx) => {
+    const documents = await tx.complianceDocument.findMany({ where: { driverId: driver.id }, select: { kind: true, status: true, expiresAt: true } });
+    const missing = missingDocuments(documents, DRIVER_DOCUMENTS);
+    if (decision === "active" && missing.length) fail(`Accept the driver's ${missing.map((kind) => kind.replaceAll("_", " ")).join(" and ")} first.`);
+    const policy = await eligibilityPolicy(tx, fleetId, "driver_eligibility");
+    const expiries = documents.filter((document) => DRIVER_DOCUMENTS.includes(document.kind) && document.expiresAt).map((document) => new Date(document.expiresAt).getTime());
+    await tx.policyEvaluation.create({ data: { policyId: policy.id, driverId: driver.id, outcome: decision === "active" ? "eligible" : "ineligible", reasons: [notes || `Driver ${decision === "active" ? "approved" : decision} by operator review.`], evidenceSnapshot: { policyVersion: policy.version, documents: documents.map((document) => ({ kind: document.kind, status: document.status })) }, evaluatedAt: /* @__PURE__ */ new Date(), expiresAt: expiries.length ? new Date(Math.min(...expiries)) : null, evaluatorId: actor.id } });
+    return tx.driverProfile.update({ where: { id: driver.id }, data: { status: decision, ...decision === "active" ? {} : { dispatchStatus: "offline" } }, select: { id: true, status: true } });
+  });
+}
+async function reviewVehicle(_root, args, context) {
+  const actor = await requireActor(context);
+  const vehicle = await context.prisma.vehicle.findUnique({ where: { id: args.vehicleId }, select: { id: true, fleetId: true } });
+  const fleetId = await requireFleet(context, vehicle?.fleetId, "drivers");
+  const decision = oneOf(args.decision, ["active", "maintenance", "suspended", "retired"], "Decision");
+  const notes = text13(args.notes, "Notes", { max: 1e3 });
+  return context.prisma.$transaction(async (tx) => {
+    const documents = await tx.complianceDocument.findMany({ where: { vehicleId: vehicle.id }, select: { kind: true, status: true, expiresAt: true } });
+    const missing = missingDocuments(documents, VEHICLE_DOCUMENTS);
+    if (decision === "active" && missing.length) fail(`Accept the vehicle's ${missing.map((kind) => kind.replaceAll("_", " ")).join(" and ")} first.`);
+    const policy = await eligibilityPolicy(tx, fleetId, "vehicle_eligibility");
+    const expiries = documents.filter((document) => VEHICLE_DOCUMENTS.includes(document.kind) && document.expiresAt).map((document) => new Date(document.expiresAt).getTime());
+    await tx.policyEvaluation.create({ data: { policyId: policy.id, vehicleId: vehicle.id, outcome: decision === "active" ? "eligible" : "ineligible", reasons: [notes || `Vehicle ${decision === "active" ? "approved" : decision} by operator review.`], evidenceSnapshot: { policyVersion: policy.version, documents: documents.map((document) => ({ kind: document.kind, status: document.status })) }, evaluatedAt: /* @__PURE__ */ new Date(), expiresAt: expiries.length ? new Date(Math.min(...expiries)) : null, evaluatorId: actor.id } });
+    return tx.vehicle.update({ where: { id: vehicle.id }, data: { status: decision }, select: { id: true, status: true } });
+  });
+}
+async function setDriverAvailability(_root, args, context) {
+  await requireActor(context);
+  const driver = await context.prisma.driverProfile.findUnique({ where: { id: args.driverId }, select: { id: true, fleetId: true } });
+  await requireFleet(context, driver?.fleetId, "operations");
+  const timezone = text13(args.timezone, "Time zone", { required: true, max: 64 });
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: timezone });
+  } catch {
+    fail("Time zone is not recognised.");
+  }
+  if (!Array.isArray(args.rules) || args.rules.length > 21) fail("Up to 21 time windows can be saved.");
+  const rules = args.rules.map((rule) => {
+    const dayOfWeek = whole(rule.dayOfWeek, "Day", 0, 6);
+    if (!TIME.test(rule.startTime) || !TIME.test(rule.endTime) || rule.endTime <= rule.startTime) fail("Each window needs a start before its end, in HH:MM.");
+    return { dayOfWeek, startTime: rule.startTime, endTime: rule.endTime };
+  });
+  return context.prisma.$transaction(async (tx) => {
+    await tx.availabilityRule.updateMany({ where: { driverId: driver.id, status: "active" }, data: { status: "paused" } });
+    for (const rule of rules) await tx.availabilityRule.create({ data: { driverId: driver.id, ...rule, timezone, status: "active" } });
+    return { driverId: driver.id, rules: rules.length };
+  });
+}
+async function createServiceArea(_root, args, context) {
+  await requireActor(context);
+  const fleetId = await requireFleet(context, args.fleetId, "fleetAdmin");
+  return context.prisma.serviceArea.create({ data: { fleetId, name: text13(args.name, "Area name", { required: true, max: 120 }), publicRegionLabel: text13(args.publicRegionLabel, "Public area label", { required: true, max: 160 }), countryCode: text13(args.countryCode, "Country", { max: 2 }).toUpperCase() || "US", status: oneOf(args.status, ["draft", "active", "paused"], "Status", "active") }, select: { id: true, name: true, status: true } });
+}
+async function createRideService(_root, args, context) {
+  await requireActor(context);
+  const fleetId = await requireFleet(context, args.fleetId, "fleetAdmin");
+  const name = text13(args.name, "Service name", { required: true, max: 80 });
+  const areaIds = [...new Set((args.serviceAreaIds || []).filter((id) => typeof id === "string"))].slice(0, 50);
+  if (!areaIds.length) fail("Choose at least one service area.");
+  return context.prisma.$transaction(async (tx) => {
+    if (await tx.serviceArea.count({ where: { id: { in: areaIds }, fleetId } }) !== areaIds.length) fail("Every service area must belong to this fleet.");
+    return tx.rideService.create({ data: {
+      fleetId,
+      name,
+      slug: `${slugify(name)}-${(0, import_node_crypto9.randomUUID)().slice(0, 6)}`,
+      description: text13(args.description, "Description", { max: 500 }),
+      category: oneOf(args.category, ["standard", "comfort", "xl", "accessible", "pet_friendly", "scheduled"], "Category", "standard"),
+      passengerCapacity: whole(args.passengerCapacity, "Seats", 1, 50, 4),
+      wheelchairAccessible: args.wheelchairAccessible === true,
+      advanceBookingMinutes: whole(args.advanceBookingMinutes, "Book-ahead minutes", 0, 43200, 0),
+      status: oneOf(args.status, ["draft", "active", "paused"], "Status", "draft"),
+      serviceAreas: { connect: areaIds.map((id) => ({ id })) }
+    }, select: { id: true, name: true, status: true } });
+  });
+}
+async function createFareRule(_root, args, context) {
+  await requireActor(context);
+  const service = await context.prisma.rideService.findUnique({ where: { id: args.serviceId }, select: { id: true, fleetId: true, fleet: { select: { currencyCode: true } } } });
+  const fleetId = await requireFleet(context, service?.fleetId, "fleetAdmin");
+  const area = await context.prisma.serviceArea.findFirst({ where: { id: args.serviceAreaId, fleetId, services: { some: { id: service.id } } }, select: { id: true } });
+  if (!area) fail("Choose a service area this service runs in.");
+  const minor = (value, label) => whole(value, label, 0, 1e7, 0);
+  const data = {
+    fleetId,
+    serviceId: service.id,
+    serviceAreaId: area.id,
+    name: text13(args.name, "Fare name", { required: true, max: 120 }),
+    currencyCode: (text13(args.currencyCode, "Currency", { max: 3 }) || service.fleet?.currencyCode || "USD").toUpperCase(),
+    distanceUnit: oneOf(args.distanceUnit, ["kilometer", "mile"], "Distance unit", "mile"),
+    baseFareMinor: minor(args.baseFareMinor, "Base fare"),
+    perDistanceUnitMinor: minor(args.perDistanceUnitMinor, "Distance rate"),
+    perMinuteMinor: minor(args.perMinuteMinor, "Time rate"),
+    bookingFeeMinor: minor(args.bookingFeeMinor, "Booking fee"),
+    minimumFareMinor: minor(args.minimumFareMinor, "Minimum fare"),
+    cancellationFeeMinor: minor(args.cancellationFeeMinor, "Cancellation fee"),
+    noShowFeeMinor: minor(args.noShowFeeMinor, "No-show fee"),
+    status: oneOf(args.status, ["draft", "active", "retired"], "Status", "active")
+  };
+  return context.prisma.$transaction(async (tx) => {
+    const latest = await tx.fareRule.findFirst({ where: { serviceId: service.id, serviceAreaId: area.id }, orderBy: { version: "desc" }, select: { version: true } });
+    const version = (latest?.version || 0) + 1;
+    try {
+      validateFareRule({ ...data, version });
+    } catch {
+      fail("Check the currency and amounts.");
+    }
+    if (data.status === "active") await tx.fareRule.updateMany({ where: { serviceId: service.id, serviceAreaId: area.id, status: "active" }, data: { status: "retired" } });
+    return tx.fareRule.create({ data: { ...data, version }, select: { id: true, name: true, version: true, status: true } });
+  });
+}
+
 // features/keystone/mutations/index.ts
-var graphql = String.raw;
-function extendGraphqlSchema(baseSchema) {
-  return (0, import_schema.mergeSchemas)({ schemas: [baseSchema], typeDefs: graphql`
+var graphql2 = String.raw;
+var typeDefs = graphql2`
     type MarketplaceFleet { logoIcon: String, logoColor: String, id: ID!, name: String!, publicDescription: String, publicCity: String, countryCode: String }
     type RideshareExtension { schema: String!, value: JSON! }
     type RideReadiness { bookingEnabled: Boolean!, mode: String!, reason: String! }
@@ -3362,8 +3767,23 @@ function extendGraphqlSchema(baseSchema) {
       bootstrapRideshare(mode: String!): RideshareBootstrapResult!
       expireRideOffers(fleetId: ID!): OfferMaintenanceResult!
       expireRequestFleetOffers(requestId: ID!): OfferMaintenanceResult!
+      setupFleet(name: String!, publicCity: String, countryCode: String, currencyCode: String, timezone: String): JSON!
+      addFleetDriver(fleetId: ID!, publicName: String!, email: String, acceptsScheduled: Boolean, publicBio: String): JSON!
+      addFleetVehicle(fleetId: ID!, label: String!, make: String, model: String, year: Int, color: String, plateMasked: String, capacity: Int, wheelchairAccessible: Boolean, driverIds: [ID!]): JSON!
+      assignVehicleDrivers(vehicleId: ID!, driverIds: [ID!]!): JSON!
+      addComplianceDocument(driverId: ID, vehicleId: ID, kind: String!, issuer: String, referenceMasked: String, issuedAt: DateTime, expiresAt: DateTime): JSON!
+      reviewComplianceDocument(documentId: ID!, decision: String!, notes: String): JSON!
+      reviewDriver(driverId: ID!, decision: String!, notes: String): JSON!
+      reviewVehicle(vehicleId: ID!, decision: String!, notes: String): JSON!
+      setDriverAvailability(driverId: ID!, timezone: String!, rules: JSON!): JSON!
+      setupServiceArea(fleetId: ID!, name: String!, publicRegionLabel: String!, countryCode: String, status: String): JSON!
+      setupRideService(fleetId: ID!, name: String!, description: String, category: String, passengerCapacity: Int, wheelchairAccessible: Boolean, advanceBookingMinutes: Int, serviceAreaIds: [ID!]!, status: String): JSON!
+      setupFareRule(serviceId: ID!, serviceAreaId: ID!, name: String!, currencyCode: String, distanceUnit: String, baseFareMinor: Int!, perDistanceUnitMinor: Int!, perMinuteMinor: Int!, bookingFeeMinor: Int, minimumFareMinor: Int, cancellationFeeMinor: Int, noShowFeeMinor: Int, status: String): JSON!
     }
-  `, resolvers: {
+  `;
+function extendGraphqlSchema(baseSchema) {
+  return (0, import_schema.mergeSchemas)({ schemas: [baseSchema], typeDefs, resolvers: {
+    ...dateTimeFieldResolvers(typeDefs),
     Query: {
       redirectToInit: redirectToInit_default,
       marketplaceRideshareServices,
@@ -3385,9 +3805,9 @@ function extendGraphqlSchema(baseSchema) {
       fleetBranding,
       dispatchCandidatePage,
       dispatchQueueScope: (_root, _args, context) => hasAnyFleetScope(context, context.session, "operations"),
-      riderAccountOptions: () => ({ registrationEnabled: process.env.PUBLIC_SIGNUPS_ALLOWED === "true" })
+      riderAccountOptions: async (_root, _args, context) => ({ registrationEnabled: await riderSignupsOpen(context.prisma) })
     },
-    Mutation: { saveFleetBranding, marketplaceRideshareQuote, requestRide, resolveRideRequestIntent, offerRideToDriver, respondToRideOffer, transitionTrip, cancelRideRequest, cancelRide, recordTripLocation, submitTripReview, reportSafetyIncident, openSupportCase, sendTripMessage, initiateTripPayment, requestTripRefund, bootstrapRideshare, dismissRideshareOnboarding, expireRideOffers, expireRequestFleetOffers }
+    Mutation: { setupFleet: createFleet, addFleetDriver, addFleetVehicle, assignVehicleDrivers, addComplianceDocument, reviewComplianceDocument, reviewDriver, reviewVehicle, setDriverAvailability, setupServiceArea: createServiceArea, setupRideService: createRideService, setupFareRule: createFareRule, saveFleetBranding, marketplaceRideshareQuote, requestRide, resolveRideRequestIntent, offerRideToDriver, respondToRideOffer, transitionTrip, cancelRideRequest, cancelRide, recordTripLocation, submitTripReview, reportSafetyIncident, openSupportCase, sendTripMessage, initiateTripPayment, requestTripRefund, bootstrapRideshare, dismissRideshareOnboarding, expireRideOffers, expireRequestFleetOffers }
   } });
 }
 
@@ -3487,7 +3907,7 @@ var storage = process.env.S3_BUCKET_NAME ? {
     signed: { expiry: 5e3 }
   }
 } : void 0;
-var keystone_default = withAuth((0, import_core13.config)({
+var keystone_default = withAuth((0, import_core14.config)({
   db: { provider: "postgresql", url: databaseURL },
   lists: models,
   session,

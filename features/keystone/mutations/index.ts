@@ -3,6 +3,8 @@ import { mergeSchemas } from '@graphql-tools/schema'
 import type { GraphQLSchema } from 'graphql'
 import { hasAnyFleetScope } from '../access'
 import redirectToInit from './redirectToInit'
+import { dateTimeFieldResolvers } from '../domain/dateTimeFields'
+import { riderSignupsOpen } from '../domain/riderAccounts'
 import { marketplaceRideshareQuote, marketplaceRideshareServices, publicRideshareRequest, requestRide, resolveRideRequestIntent, marketplaceRideshareService, marketplaceRideshareServiceAreas } from './marketplaceRideshare'
 import { offerRideToDriver, publicRideshareTrip, respondToRideOffer, transitionTrip } from './rideLifecycle'
 import { cancelRide, cancelRideRequest, openSupportCase, recordTripLocation, reportSafetyIncident, sendTripMessage, submitTripReview, tripCancellationPreview, riderRequestCancellationPreview } from './tripOperations'
@@ -14,11 +16,11 @@ import { operatorTripHandoff } from './operatorHandoffs'
 import { expireRideOffers, expireRequestFleetOffers } from './offerMaintenance'
 import { riderTripHistory } from './riderTripHistory'
 import { dispatchCandidatePage } from './dispatchCandidates'
+import { addComplianceDocument, addFleetDriver, addFleetVehicle, assignVehicleDrivers, createFareRule, createFleet, createRideService, createServiceArea, reviewComplianceDocument, reviewDriver, reviewVehicle, setDriverAvailability, setDriverOnline } from './fleetSetup'
 
 const graphql = String.raw
 
-export function extendGraphqlSchema(baseSchema: GraphQLSchema) {
-  return mergeSchemas({ schemas: [baseSchema], typeDefs: graphql`
+export const typeDefs = graphql`
     type MarketplaceFleet { logoIcon: String, logoColor: String, id: ID!, name: String!, publicDescription: String, publicCity: String, countryCode: String }
     type RideshareExtension { schema: String!, value: JSON! }
     type RideReadiness { bookingEnabled: Boolean!, mode: String!, reason: String! }
@@ -93,8 +95,25 @@ export function extendGraphqlSchema(baseSchema: GraphQLSchema) {
       bootstrapRideshare(mode: String!): RideshareBootstrapResult!
       expireRideOffers(fleetId: ID!): OfferMaintenanceResult!
       expireRequestFleetOffers(requestId: ID!): OfferMaintenanceResult!
+      setupFleet(name: String!, publicCity: String, countryCode: String, currencyCode: String, timezone: String): JSON!
+      addFleetDriver(fleetId: ID!, publicName: String!, email: String, acceptsScheduled: Boolean, publicBio: String): JSON!
+      addFleetVehicle(fleetId: ID!, label: String!, make: String, model: String, year: Int, color: String, plateMasked: String, capacity: Int, wheelchairAccessible: Boolean, driverIds: [ID!]): JSON!
+      assignVehicleDrivers(vehicleId: ID!, driverIds: [ID!]!): JSON!
+      setDriverOnline(online: Boolean!, driverId: ID): JSON!
+      addComplianceDocument(driverId: ID, vehicleId: ID, kind: String!, issuer: String, referenceMasked: String, issuedAt: DateTime, expiresAt: DateTime): JSON!
+      reviewComplianceDocument(documentId: ID!, decision: String!, notes: String): JSON!
+      reviewDriver(driverId: ID!, decision: String!, notes: String): JSON!
+      reviewVehicle(vehicleId: ID!, decision: String!, notes: String): JSON!
+      setDriverAvailability(driverId: ID!, timezone: String!, rules: JSON!): JSON!
+      setupServiceArea(fleetId: ID!, name: String!, publicRegionLabel: String!, countryCode: String, status: String): JSON!
+      setupRideService(fleetId: ID!, name: String!, description: String, category: String, passengerCapacity: Int, wheelchairAccessible: Boolean, advanceBookingMinutes: Int, serviceAreaIds: [ID!]!, status: String): JSON!
+      setupFareRule(serviceId: ID!, serviceAreaId: ID!, name: String!, currencyCode: String, distanceUnit: String, baseFareMinor: Int!, perDistanceUnitMinor: Int!, perMinuteMinor: Int!, bookingFeeMinor: Int, minimumFareMinor: Int, cancellationFeeMinor: Int, noShowFeeMinor: Int, status: String): JSON!
     }
-  `, resolvers: {
+  `
+
+export function extendGraphqlSchema(baseSchema: GraphQLSchema) {
+  return mergeSchemas({ schemas: [baseSchema], typeDefs, resolvers: {
+    ...dateTimeFieldResolvers(typeDefs),
     Query: {
       redirectToInit, marketplaceRideshareServices, marketplaceRideshareService, marketplaceRideshareServiceAreas, publicRideshareTrip, publicRideshareRequest, myDriverWorkspace, myRideshareTrips, riderRequestStatus, myRideshareRequests, operatorTripHandoff,
       safetyQueueScope: (_root, _args, context) => hasAnyFleetScope(context, context.session, 'safety'),
@@ -102,8 +121,8 @@ export function extendGraphqlSchema(baseSchema: GraphQLSchema) {
       rideshareCapabilities: async (_root, _args, context) => Object.fromEntries(await Promise.all((['operations', 'drivers', 'finance', 'safety', 'fleetAdmin'] as const).map(async capability => [capability, await hasAnyFleetScope(context, context.session, capability)]))),
       tripCancellationPreview, riderRequestCancellationPreview, riderTripHistory, fleetBranding, dispatchCandidatePage,
       dispatchQueueScope: (_root, _args, context) => hasAnyFleetScope(context, context.session, 'operations'),
-      riderAccountOptions: () => ({ registrationEnabled: process.env.PUBLIC_SIGNUPS_ALLOWED === 'true' }),
+      riderAccountOptions: async (_root, _args, context) => ({ registrationEnabled: await riderSignupsOpen(context.prisma) }),
     },
-    Mutation: { saveFleetBranding, marketplaceRideshareQuote, requestRide, resolveRideRequestIntent, offerRideToDriver, respondToRideOffer, transitionTrip, cancelRideRequest, cancelRide, recordTripLocation, submitTripReview, reportSafetyIncident, openSupportCase, sendTripMessage, initiateTripPayment, requestTripRefund, bootstrapRideshare, dismissRideshareOnboarding, expireRideOffers, expireRequestFleetOffers },
+    Mutation: { setupFleet: createFleet, addFleetDriver, addFleetVehicle, assignVehicleDrivers, addComplianceDocument, reviewComplianceDocument, reviewDriver, reviewVehicle, setDriverAvailability, setDriverOnline, setupServiceArea: createServiceArea, setupRideService: createRideService, setupFareRule: createFareRule, saveFleetBranding, marketplaceRideshareQuote, requestRide, resolveRideRequestIntent, offerRideToDriver, respondToRideOffer, transitionTrip, cancelRideRequest, cancelRide, recordTripLocation, submitTripReview, reportSafetyIncident, openSupportCase, sendTripMessage, initiateTripPayment, requestTripRefund, bootstrapRideshare, dismissRideshareOnboarding, expireRideOffers, expireRequestFleetOffers },
   } })
 }

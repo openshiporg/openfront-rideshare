@@ -8,9 +8,10 @@ import { PlatformEmpty, PlatformHeader } from './PlatformPage'
 export type BoardColumn = { key: string; label: string }
 
 /** The queue layout every rideshare operations screen shares: header, status track, search, rows, then pages. */
-export function OperationsBoard({ title, meta, items, columns, empty, render, error, selectedStatus = 'all', queryParams, searchLabel = 'Search', before, after, rowKey = item => item.id }: {
+export function OperationsBoard({ title, meta, actions, items, columns, empty, render, error, selectedStatus = 'all', queryParams, searchLabel = 'Search', before, after, rowKey = item => item.id }: {
   title: string
   meta?: React.ReactNode
+  actions?: React.ReactNode
   items: any[]
   columns: BoardColumn[]
   empty: string
@@ -35,7 +36,7 @@ export function OperationsBoard({ title, meta, items, columns, empty, render, er
   return <>
     <PageBreadcrumbs items={[{ type: 'link', label: 'Dashboard', href: '' }, { type: 'page', label: 'Platform' }, { type: 'page', label: title }]} />
     <div className="mx-auto w-full max-w-6xl space-y-5 p-4 md:p-6">
-      <PlatformHeader title={title} meta={meta} actions={<OperationalRefresh revision={new Date().toISOString()} />} />
+      <PlatformHeader title={title} meta={meta} actions={<>{actions}<OperationalRefresh revision={new Date().toISOString()} /></>} />
       {before}
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <PillTrack label={`${title} status`}>

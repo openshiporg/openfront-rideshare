@@ -6,7 +6,7 @@
     "vehicle": "Blue 2022 Hybrid",
     "serviceArea": "Harbor City central neighborhoods",
     "farePolicy": "Transparent fixed fare with dynamic pricing disabled",
-    "providers": ["Manual route estimate", "Manual development ledger", "Console notifications"],
+    "providers": ["Manual route estimate", "Manual payments", "Console notifications"],
     "disclosure": "Demonstration evidence only; no legal, insurance, licensing, identity, inspection, or background-check approval is claimed."
   },
   "minimal": {

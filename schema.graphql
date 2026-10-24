@@ -430,6 +430,7 @@ input UserRelateToManyForCreateInput {
 
 type FleetBrandingChange {
   id: ID!
+  label: String
   fleet: Fleet
   actor: User
   idempotencyKey: String
@@ -524,6 +525,7 @@ type Fleet {
   supportPhone: String
   logoIcon: String
   logoColor: String
+  riderAccounts: String
   operationsMode: String
   preciseLocationRetentionDays: String
   memberships(where: FleetMembershipWhereInput! = {}, orderBy: [FleetMembershipOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: FleetMembershipWhereUniqueInput): [FleetMembership!]
@@ -576,6 +578,7 @@ input FleetWhereInput {
   supportPhone: StringFilter
   logoIcon: StringFilter
   logoColor: StringFilter
+  riderAccounts: StringFilter
   operationsMode: StringFilter
   preciseLocationRetentionDays: StringFilter
   memberships: FleetMembershipManyRelationFilter
@@ -656,6 +659,7 @@ input FleetOrderByInput {
   supportPhone: OrderDirection
   logoIcon: OrderDirection
   logoColor: OrderDirection
+  riderAccounts: OrderDirection
   operationsMode: OrderDirection
   preciseLocationRetentionDays: OrderDirection
   createdAt: OrderDirection
@@ -675,6 +679,7 @@ input FleetUpdateInput {
   supportPhone: String
   logoIcon: String
   logoColor: String
+  riderAccounts: String
   operationsMode: String
   preciseLocationRetentionDays: String
   memberships: FleetMembershipRelateToManyForUpdateInput
@@ -773,6 +778,7 @@ input FleetCreateInput {
   supportPhone: String
   logoIcon: String
   logoColor: String
+  riderAccounts: String
   operationsMode: String
   preciseLocationRetentionDays: String
   memberships: FleetMembershipRelateToManyForCreateInput
@@ -838,6 +844,7 @@ input MarketplaceRegistrationRelateToOneForCreateInput {
 
 type FleetMembership {
   id: ID!
+  label: String
   fleet: Fleet
   user: User
   role: String
@@ -1316,6 +1323,7 @@ input VehicleCreateInput {
 
 type ComplianceDocument {
   id: ID!
+  label: String
   driver: DriverProfile
   vehicle: Vehicle
   kind: String
@@ -1512,6 +1520,7 @@ input PolicyCreateInput {
 
 type PolicyEvaluation {
   id: ID!
+  label: String
   policy: Policy
   driver: DriverProfile
   vehicle: Vehicle
@@ -1885,6 +1894,7 @@ input RideQuoteRelateToManyForCreateInput {
 
 type AvailabilityRule {
   id: ID!
+  label: String
   driver: DriverProfile
   dayOfWeek: Int
   startTime: String
@@ -1964,6 +1974,7 @@ input AvailabilityRuleCreateInput {
 
 type AvailabilityException {
   id: ID!
+  label: String
   driver: DriverProfile
   startsAt: DateTime
   endsAt: DateTime
@@ -2045,6 +2056,7 @@ type FareRule {
   name: String
   version: Int
   status: String
+  fareSummary: String
   currencyCode: String
   baseFareMinor: Int
   perDistanceUnitMinor: Int
@@ -2479,6 +2491,7 @@ input TripRelateToOneForCreateInput {
 
 type RequestCancellationCommand {
   id: ID!
+  label: String
   request: RideRequest
   idempotencyKey: String
   command: JSON
@@ -2535,6 +2548,7 @@ input RequestCancellationCommandCreateInput {
 
 type MatchOffer {
   id: ID!
+  label: String
   request: RideRequest
   driver: DriverProfile
   vehicle: Vehicle
@@ -3054,6 +3068,7 @@ input TripEventCreateInput {
 
 type LocationEvent {
   id: ID!
+  label: String
   trip: Trip
   actorType: String
   recordedAt: DateTime
@@ -3131,6 +3146,7 @@ input LocationEventCreateInput {
 
 type Cancellation {
   id: ID!
+  label: String
   trip: Trip
   actorType: String
   reasonCode: String
@@ -3390,6 +3406,7 @@ input SupportCaseCreateInput {
 
 type Conversation {
   id: ID!
+  label: String
   trip: Trip
   status: String
   messages(where: MessageWhereInput! = {}, orderBy: [MessageOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: MessageWhereUniqueInput): [Message!]
@@ -3463,6 +3480,7 @@ input MessageRelateToManyForCreateInput {
 
 type Message {
   id: ID!
+  label: String
   conversation: Conversation
   senderType: String
   sender: User
@@ -3539,6 +3557,7 @@ input MessageCreateInput {
 
 type Review {
   id: ID!
+  label: String
   trip: Trip
   author: User
   direction: String
@@ -3762,6 +3781,7 @@ input PayoutRelateToManyForCreateInput {
 
 type Payment {
   id: ID!
+  label: String
   trip: Trip
   provider: PaymentProvider
   amountMinor: Int
@@ -3865,6 +3885,7 @@ input PaymentProviderRelateToOneForCreateInput {
 
 type Refund {
   id: ID!
+  label: String
   payment: Payment
   provider: PaymentProvider
   amountMinor: Int
@@ -3960,6 +3981,7 @@ input PaymentRelateToOneForCreateInput {
 
 type PaymentObservation {
   id: ID!
+  label: String
   payment: Payment
   refund: Refund
   observationKey: String
@@ -4028,6 +4050,7 @@ input RefundRelateToOneForCreateInput {
 
 type LedgerEntry {
   id: ID!
+  label: String
   trip: Trip
   payment: Payment
   payout: Payout
@@ -4135,6 +4158,7 @@ input PayoutRelateToOneForCreateInput {
 
 type Payout {
   id: ID!
+  label: String
   driver: DriverProfile
   provider: PaymentProvider
   amountMinor: Int
@@ -4226,6 +4250,7 @@ input PayoutCreateInput {
 
 type Notification {
   id: ID!
+  label: String
   trip: Trip
   recipient: User
   channel: String
@@ -4323,6 +4348,7 @@ input NotificationCreateInput {
 
 type MarketplaceRegistration {
   id: ID!
+  label: String
   fleet: Fleet
   sourceId: String
   platform: String
@@ -4662,6 +4688,18 @@ type Mutation {
   bootstrapRideshare(mode: String!): RideshareBootstrapResult!
   expireRideOffers(fleetId: ID!): OfferMaintenanceResult!
   expireRequestFleetOffers(requestId: ID!): OfferMaintenanceResult!
+  setupFleet(name: String!, publicCity: String, countryCode: String, currencyCode: String, timezone: String): JSON!
+  addFleetDriver(fleetId: ID!, publicName: String!, email: String, acceptsScheduled: Boolean, publicBio: String): JSON!
+  addFleetVehicle(fleetId: ID!, label: String!, make: String, model: String, year: Int, color: String, plateMasked: String, capacity: Int, wheelchairAccessible: Boolean, driverIds: [ID!]): JSON!
+  assignVehicleDrivers(vehicleId: ID!, driverIds: [ID!]!): JSON!
+  addComplianceDocument(driverId: ID, vehicleId: ID, kind: String!, issuer: String, referenceMasked: String, issuedAt: DateTime, expiresAt: DateTime): JSON!
+  reviewComplianceDocument(documentId: ID!, decision: String!, notes: String): JSON!
+  reviewDriver(driverId: ID!, decision: String!, notes: String): JSON!
+  reviewVehicle(vehicleId: ID!, decision: String!, notes: String): JSON!
+  setDriverAvailability(driverId: ID!, timezone: String!, rules: JSON!): JSON!
+  setupServiceArea(fleetId: ID!, name: String!, publicRegionLabel: String!, countryCode: String, status: String): JSON!
+  setupRideService(fleetId: ID!, name: String!, description: String, category: String, passengerCapacity: Int, wheelchairAccessible: Boolean, advanceBookingMinutes: Int, serviceAreaIds: [ID!]!, status: String): JSON!
+  setupFareRule(serviceId: ID!, serviceAreaId: ID!, name: String!, currencyCode: String, distanceUnit: String, baseFareMinor: Int!, perDistanceUnitMinor: Int!, perMinuteMinor: Int!, bookingFeeMinor: Int, minimumFareMinor: Int, cancellationFeeMinor: Int, noShowFeeMinor: Int, status: String): JSON!
 }
 
 union UserAuthenticationWithPasswordResult = UserAuthenticationWithPasswordSuccess | UserAuthenticationWithPasswordFailure

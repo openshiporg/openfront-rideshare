@@ -3,8 +3,10 @@ import { denyAll } from '@keystone-6/core/access'
 import { integer, json, relationship, select, text, timestamp } from '@keystone-6/core/fields'
 import { lockedOperationalAccess } from '../access'
 import { trackingFields } from './trackingFields'
+import { labels } from './labels'
 
 export const RideRequest = list({
+  ui: { hideCreate: true, hideDelete: true, labelField: 'requestNumber', searchFields: ['requestNumber', 'pickupLabel', 'dropoffLabel'] },
   access: lockedOperationalAccess,
   fields: {
     fleet: relationship({ ref: 'Fleet.rides', access: { create: () => false, update: () => false } }), rider: relationship({ ref: 'User.requestedRides', access: { create: () => false, update: () => false } }), quote: relationship({ ref: 'RideQuote.request', access: { create: () => false, update: () => false } }),
@@ -18,8 +20,10 @@ export const RideRequest = list({
 })
 
 export const MatchOffer = list({
+  ui: { hideCreate: true, hideDelete: true, labelField: 'label', searchFields: [] },
   access: lockedOperationalAccess,
   fields: {
+    label: labels.matchOffer,
     request: relationship({ ref: 'RideRequest.matchOffers', access: { create: () => false, update: () => false } }), driver: relationship({ ref: 'DriverProfile.matchOffers', access: { create: () => false, update: () => false } }), vehicle: relationship({ ref: 'Vehicle', access: { create: () => false, update: () => false } }),
     status: select({ options: ['offered', 'accepted', 'declined', 'expired', 'withdrawn'].map(value => ({ label: value, value })), defaultValue: 'offered' }),
     offeredAt: timestamp({ defaultValue: { kind: 'now' } }), reservationStartAt: timestamp({ validation: { isRequired: true }, defaultValue: { kind: 'now' }, access: { read: denyAll, create: () => false, update: () => false } }), reservationReleasedAt: timestamp({ access: { read: denyAll, create: () => false, update: () => false } }), expiresAt: timestamp({ validation: { isRequired: true } }), respondedAt: timestamp(), declineReason: text(),
@@ -30,6 +34,7 @@ export const MatchOffer = list({
 })
 
 export const Trip = list({
+  ui: { hideCreate: true, hideDelete: true, labelField: 'confirmationCode', searchFields: ['confirmationCode', 'pickupLabel', 'dropoffLabel'] },
   access: lockedOperationalAccess,
   fields: {
     fleet: relationship({ ref: 'Fleet.trips', access: { create: () => false, update: () => false } }), request: relationship({ ref: 'RideRequest.trip', db: { foreignKey: { map: 'request' } }, access: { create: () => false, update: () => false } }), acceptedOffer: relationship({ ref: 'MatchOffer.acceptedTrip', db: { foreignKey: { map: 'acceptedOffer' } }, access: { create: () => false, update: () => false } }), rider: relationship({ ref: 'User.trips', access: { create: () => false, update: () => false } }), driver: relationship({ ref: 'DriverProfile.trips', access: { create: () => false, update: () => false } }), vehicle: relationship({ ref: 'Vehicle.trips', access: { create: () => false, update: () => false } }),
@@ -45,6 +50,7 @@ export const Trip = list({
 })
 
 export const TripEvent = list({
+  ui: { hideCreate: true, hideDelete: true, labelField: 'eventType', searchFields: ['eventType', 'toStatus'] },
   access: lockedOperationalAccess,
   fields: {
     trip: relationship({ ref: 'Trip.events', access: { create: () => false, update: () => false } }), eventType: text({ validation: { isRequired: true } }), fromStatus: text(), toStatus: text(), actorType: select({ options: ['rider', 'driver', 'operator', 'provider', 'system'].map(value => ({ label: value, value })) }),
@@ -54,11 +60,13 @@ export const TripEvent = list({
 })
 
 export const LocationEvent = list({
+  ui: { hideCreate: true, hideDelete: true, labelField: 'label', searchFields: [] },
   access: { ...lockedOperationalAccess, filter: { ...lockedOperationalAccess.filter, query: async args => {
     const scope = await lockedOperationalAccess.filter.query(args)
     return scope === false ? false : { AND: [...(scope === true ? [] : [scope]), { expiresAt: { gt: new Date().toISOString() } }] }
   } } },
   fields: {
+    label: labels.locationEvent,
     trip: relationship({ ref: 'Trip.locationEvents', access: { create: () => false, update: () => false } }), actorType: select({ options: ['driver', 'rider', 'operator', 'provider'].map(value => ({ label: value, value })) }),
     recordedAt: timestamp({ validation: { isRequired: true } }), coarseGeohash: text(), encryptedCoordinateRef: text({ access: { read: denyAll } }), accuracyMeters: integer(), providerEvidence: json({ defaultValue: {}, access: { read: denyAll } }), expiresAt: timestamp(),
     ...trackingFields,
@@ -66,8 +74,10 @@ export const LocationEvent = list({
 })
 
 export const Cancellation = list({
+  ui: { hideCreate: true, hideDelete: true, labelField: 'label', searchFields: ['reasonCode'] },
   access: lockedOperationalAccess,
   fields: {
+    label: labels.cancellation,
     trip: relationship({ ref: 'Trip.cancellations', access: { create: () => false, update: () => false } }), actorType: select({ options: ['rider', 'driver', 'operator', 'system'].map(value => ({ label: value, value })) }), reasonCode: text(), reason: text(),
     policySnapshot: json({ defaultValue: {} }), feeMinor: integer({ defaultValue: 0 }), currencyCode: text(), refundRequired: select({ options: ['no', 'partial', 'full', 'manual_review'].map(value => ({ label: value, value })), defaultValue: 'no' }),
     ...trackingFields,

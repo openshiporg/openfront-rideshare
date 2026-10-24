@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
-import { CarFront, CircleDollarSign, Package, RadioTower, Settings, ShieldAlert, Users } from 'lucide-react'
+import { CarFront, CircleDollarSign, MapPinned, Package, RadioTower, Settings, ShieldAlert, Users } from 'lucide-react'
 
 export interface PlatformNavItem {
   title: string
@@ -25,6 +25,7 @@ export const platformNavItems: PlatformNavItem[] = [
 
   // Operations
   { title: 'Trips', href: '/platform/trips', color: 'blue', description: 'Operate scheduled, active, and completed trips.', icon: CarFront, group: 'operations' },
+  { title: 'Services & fares', href: '/platform/services', color: 'orange', description: 'Service areas, ride services and fare versions.', icon: MapPinned, group: 'operations' },
 
   // People & safety
   { title: 'Drivers', href: '/platform/drivers', color: 'purple', description: 'Review fleet-scoped driver readiness records.', icon: Users, group: 'people' },

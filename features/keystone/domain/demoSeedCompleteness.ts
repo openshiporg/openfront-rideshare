@@ -60,11 +60,11 @@ export async function inspectExistingDemoFleet(
   ]
   const missing: string[] = []
   const fleetId = typeof fleet.id === 'string' ? fleet.id : ''
-  if (!fleetId) missing.push('existing demo fleet identifier could not be verified')
+  if (!fleetId) missing.push('The sample fleet could not be found')
   if (mode !== 'minimal' && mode !== 'full') {
     missing.push('supported demo seed mode (minimal or full)')
   }
-  if (fleet.status !== 'active') missing.push('active demo fleet fixture status')
+  if (fleet.status !== 'active') missing.push('Fleet status set to Active')
   if (!fleetId || (mode !== 'minimal' && mode !== 'full')) {
     return makeDiagnostic(mode, missing, limitations)
   }
@@ -134,23 +134,23 @@ export async function inspectExistingDemoFleet(
 
   const ownerMembership = memberships.rows.some(row => rowInFleet(row, fleetId)
     && row.user?.id === userId && row.role === 'owner' && row.status === 'active')
-  if (memberships.readable && !ownerMembership) missing.push('active owner membership for the current user')
+  if (memberships.readable && !ownerMembership) missing.push('You as an owner of the fleet')
 
   const activeAreas = areas.rows.filter(row => activeInFleet(row, fleetId) && typeof row.id === 'string')
-  if (areas.readable && activeAreas.length === 0) missing.push('active service area in the demo fleet')
+  if (areas.readable && activeAreas.length === 0) missing.push('An active service area')
   const activeAreaIds = new Set(activeAreas.map(row => row.id))
 
   const activeServices = services.rows.filter(row => activeInFleet(row, fleetId) && expectedServiceSlugs.includes(row.slug))
   for (const slug of expectedServiceSlugs) {
     const service = activeServices.find(row => row.slug === slug)
     if (!services.readable || !service) {
-      if (services.readable) missing.push(`active demo service '${slug}'`)
+      if (services.readable) missing.push(`Active service ${serviceLabel(slug)}`)
       continue
     }
     const linkedAreaIds = new Set((Array.isArray(service.serviceAreas) ? service.serviceAreas : [])
       .filter((area: Record<string, any>) => activeInFleet(area, fleetId) && activeAreaIds.has(area.id))
       .map((area: Record<string, any>) => area.id))
-    if (linkedAreaIds.size === 0) missing.push(`active service-area relationship for '${slug}'`)
+    if (linkedAreaIds.size === 0) missing.push(`Service area for ${serviceLabel(slug)}`)
 
     const hasMatchingFare = (Array.isArray(service.fareRules) ? service.fareRules : []).some((fare: Record<string, any>) =>
       fare.status === 'active'
@@ -160,25 +160,25 @@ export async function inspectExistingDemoFleet(
       && linkedAreaIds.has(fare.serviceArea?.id)
       && activeInFleet(fare.serviceArea, fleetId))
     if (linkedAreaIds.size > 0 && !hasMatchingFare) {
-      missing.push(`active fare rule for '${slug}' linked to that same active service area and fleet`)
+      missing.push(`Active fare rule for ${serviceLabel(slug)}`)
     }
   }
 
   const demoPolicy = policies.rows.find(row => activeInFleet(row, fleetId)
     && row.name === 'Demo driver and vehicle evidence policy' && row.kind === 'driver_eligibility')
-  if (policies.readable && !demoPolicy) missing.push('active demo driver/vehicle evidence policy')
+  if (policies.readable && !demoPolicy) missing.push('Active driver eligibility policy')
 
   const demoDriver = drivers.rows.find(row => activeInFleet(row, fleetId) && row.user?.id === userId)
-  if (drivers.readable && !demoDriver) missing.push('active demo driver profile linked to the current user')
+  if (drivers.readable && !demoDriver) missing.push('Active sample driver linked to your account')
   const weekdayRules = Array.isArray(demoDriver?.availabilityRules) ? demoDriver.availabilityRules : []
   const missingDays = [1, 2, 3, 4, 5].filter(day => !weekdayRules.some((rule: Record<string, any>) => rule.status === 'active' && rule.dayOfWeek === day))
-  if (demoDriver && missingDays.length) missing.push(`active weekday availability fixtures for demo driver (missing days ${missingDays.join(', ')})`)
+  if (demoDriver && missingDays.length) missing.push(`Sample driver hours (missing days ${missingDays.join(', ')})`)
 
   const activeVehicles = vehicles.rows.filter(row => activeInFleet(row, fleetId) && typeof row.id === 'string')
-  if (vehicles.readable && activeVehicles.length === 0) missing.push('active demo vehicle')
+  if (vehicles.readable && activeVehicles.length === 0) missing.push('An active vehicle')
   const pairedVehicles = activeVehicles.filter(vehicle => Array.isArray(vehicle.drivers)
     && vehicle.drivers.some((driver: Record<string, any>) => activeInFleet(driver, fleetId) && driver.id === demoDriver?.id))
-  if (demoDriver && vehicles.readable && pairedVehicles.length === 0) missing.push('active vehicle-to-demo-driver relationship in the same fleet')
+  if (demoDriver && vehicles.readable && pairedVehicles.length === 0) missing.push('A vehicle assigned to the sample driver')
 
   if (demoDriver) {
     const documentBranches = [
@@ -192,19 +192,19 @@ export async function inspectExistingDemoFleet(
       query: demoSeedInspectionSelections.document,
     }))
     if (!documents.readable) {
-      missing.push('driver/vehicle document-kind metadata could not be verified under normal driver List access')
+      missing.push('Driver and vehicle documents could not be checked with your access')
     } else {
       const driverDocuments = documents.rows.filter(row => row.kind && row.driver?.id === demoDriver.id && rowInFleet(row.driver, fleetId))
       for (const kind of ['driver_license', 'insurance']) {
         if (!driverDocuments.some(row => row.kind === kind)) {
-          missing.push(`demo driver '${kind}' document record absent or not visible under existing driver List access`)
+          missing.push(`Sample driver: ${kind.replaceAll('_', ' ')} document`)
         }
       }
       for (const vehicle of pairedVehicles) {
         const vehicleDocuments = documents.rows.filter(row => row.kind && row.vehicle?.id === vehicle.id && rowInFleet(row.vehicle, fleetId))
         for (const kind of ['vehicle_registration', 'inspection']) {
           if (!vehicleDocuments.some(row => row.kind === kind)) {
-            missing.push(`demo vehicle '${kind}' document record absent or not visible under existing driver List access`)
+            missing.push(`Sample vehicle: ${kind.replaceAll('_', ' ')} document`)
           }
         }
       }
@@ -215,14 +215,14 @@ export async function inspectExistingDemoFleet(
   if (demoPolicy && demoDriver && !policyEvaluations.some((evaluation: Record<string, any>) =>
     evaluation.policy?.id === demoPolicy.id && rowInFleet(evaluation.policy, fleetId)
     && evaluation.driver?.id === demoDriver.id && activeInFleet(evaluation.driver, fleetId))) {
-    missing.push('demo driver policy-evaluation fixture relationship')
+    missing.push('Eligibility check for the sample driver')
   }
   const vehiclePolicy = policies.rows.find(row => activeInFleet(row, fleetId) && row.kind === 'vehicle_eligibility')
   const vehicleEvaluations = Array.isArray(vehiclePolicy?.evaluations) ? vehiclePolicy.evaluations : []
   if (pairedVehicles.length && !pairedVehicles.some(vehicle => vehicleEvaluations.some((evaluation: Record<string, any>) =>
     evaluation.policy?.id === vehiclePolicy?.id && rowInFleet(evaluation.policy, fleetId)
     && evaluation.vehicle?.id === vehicle.id && activeInFleet(evaluation.vehicle, fleetId)))) {
-    missing.push('demo vehicle policy-evaluation fixture relationship')
+    missing.push('Eligibility check for the sample vehicle')
   }
 
   if (mode === 'full') {
@@ -231,20 +231,20 @@ export async function inspectExistingDemoFleet(
       && typeof vehicle.capacity === 'number'
       && typeof accessibleService.passengerCapacity === 'number'
       && vehicle.capacity >= accessibleService.passengerCapacity)
-    if (accessibleService && !accessibleVehicle) missing.push('active wheelchair-capable vehicle linked to the demo driver for the accessible service fixture')
+    if (accessibleService && !accessibleVehicle) missing.push('A wheelchair-accessible vehicle for the accessible service')
   }
 
   if (fleet && !hasExpectedProviderFixtures(fleet.providers)) {
-    missing.push('all four fleet-scoped demo provider-configuration fixtures (mapping, notification, identity, background-check)')
+    missing.push('Provider connections (mapping, notifications, identity, background check)')
   }
   const registration = fleet.marketplaceRegistration
   if (!registration || !['source-openfront-rideshare-local', `source-rideshare-${fleetId}`].includes(registration.sourceId)
     || registration.platform !== 'openfront-rideshare' || registration.status !== 'active' || registration.manifestVersion !== '1') {
-    missing.push('active source Marketplace registration fixture')
+    missing.push('Marketplace registration')
   }
   const manualProvider = paymentProviders.rows.find(row => row.code === 'pp_manual')
   if (paymentProviders.readable && !hasManualPaymentFixture(manualProvider)) {
-    missing.push('manual payment-provider configuration is absent, incomplete, or not visible under existing finance List access')
+    missing.push('Manual payment provider')
   }
 
   return makeDiagnostic(mode, [...new Set(missing)], limitations)
@@ -261,6 +261,8 @@ function hasExpectedProviderFixtures(value: unknown) {
   return expected.every(([kind, adapter, status]) => value.some((row: Record<string, unknown>) =>
     row.kind === kind && row.adapter === adapter && row.status === status))
 }
+
+const serviceLabel = (slug: string) => slug.endsWith('-accessible') ? 'Accessible Ride' : slug.endsWith('-standard') ? 'Independent Standard' : slug
 
 function hasManualPaymentFixture(row: Record<string, any> | undefined) {
   return row?.code === 'pp_manual' && row.isInstalled === 'yes'

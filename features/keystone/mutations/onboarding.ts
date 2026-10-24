@@ -73,17 +73,27 @@ export async function bootstrapRideshare(_root: unknown, args: { mode: string },
     const vehiclePolicy = await transactionSudo.query.Policy.createOne({ data: { fleet: { connect: { id: fleet.id } }, name: 'Demonstration vehicle evidence policy', version: '2026-demo-1', kind: 'vehicle_eligibility', status: 'active', requirements: { demonstrationOnly: true }, evidenceSources: [{ authoritative: false }], disclaimer: 'Demonstration metadata; no inspection, insurance or legal approval.' }, query: 'id' })
     const driver = await transactionSudo.query.DriverProfile.createOne({ data: { fleet: { connect: { id: fleet.id } }, user: { connect: { id: userId } }, publicName: 'Maya R.', publicBio: 'Independent local driver and cooperative member.', status: 'active', dispatchStatus: 'available', acceptsScheduled: true, languages: ['English', 'Spanish'] }, query: 'id' })
     const vehicle = await transactionSudo.query.Vehicle.createOne({ data: { fleet: { connect: { id: fleet.id } }, drivers: { connect: [{ id: driver.id }] }, label: 'Blue 2022 Hybrid', make: 'Example', model: 'Hybrid Sedan', year: 2022, color: 'Blue', plateMasked: '••• 482', capacity: 4, wheelchairAccessible: full, status: 'active' }, query: 'id' })
+    // Sample evidence for the demo driver and vehicle, so the starter fleet passes its own readiness check.
+    const documentExpiry = new Date(Date.now() + 365 * 24 * 60 * 60_000)
+    for (const document of [
+      { owner: { driver: { connect: { id: driver.id } } }, kind: 'driver_license', issuer: 'Sample licensing office' },
+      { owner: { driver: { connect: { id: driver.id } } }, kind: 'insurance', issuer: 'Sample insurer' },
+      { owner: { vehicle: { connect: { id: vehicle.id } } }, kind: 'vehicle_registration', issuer: 'Sample registry' },
+      { owner: { vehicle: { connect: { id: vehicle.id } } }, kind: 'inspection', issuer: 'Sample inspection station' },
+    ]) {
+      await transactionSudo.query.ComplianceDocument.createOne({ data: { ...document.owner, kind: document.kind, status: 'accepted_evidence', issuer: document.issuer, referenceMasked: 'SAMPLE', issuedAt: new Date(), expiresAt: documentExpiry, reviewedAt: new Date(), reviewer: { connect: { id: userId } }, reviewNotes: 'Sample document from starter setup.' } })
+    }
     const evalExpiry = new Date(Date.now() + 90 * 24 * 60 * 60_000)
     await transactionSudo.query.PolicyEvaluation.createOne({ data: { policy: { connect: { id: policy.id } }, driver: { connect: { id: driver.id } }, outcome: 'eligible', reasons: ['Demo operator review recorded; not a legal determination.'], evidenceSnapshot: { policyVersion: '2026-demo-1', authoritative: false, kind: 'demonstration' }, evaluatedAt: new Date(), expiresAt: evalExpiry, evaluator: { connect: { id: userId } } } })
     await transactionSudo.query.PolicyEvaluation.createOne({ data: { policy: { connect: { id: vehiclePolicy.id } }, vehicle: { connect: { id: vehicle.id } }, outcome: 'eligible', reasons: ['Demo vehicle evidence review recorded; not an inspection certification.'], evidenceSnapshot: { policyVersion: '2026-demo-1', authoritative: false, kind: 'demonstration' }, evaluatedAt: new Date(), expiresAt: evalExpiry, evaluator: { connect: { id: userId } } } })
 
-    for (const dayOfWeek of [1, 2, 3, 4, 5]) {
-      await transactionSudo.query.AvailabilityRule.createOne({ data: { driver: { connect: { id: driver.id } }, dayOfWeek, startTime: '07:00', endTime: '19:00', timezone: 'America/New_York', status: 'active' } })
+    for (const dayOfWeek of [0, 1, 2, 3, 4, 5, 6]) {
+      await transactionSudo.query.AvailabilityRule.createOne({ data: { driver: { connect: { id: driver.id } }, dayOfWeek, startTime: '00:00', endTime: '23:59', timezone: 'America/New_York', status: 'active' } })
     }
 
     await transactionContext.prisma.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${'provider:pp_manual'}, 0))::text IS NOT NULL`
     const manualProvider = await transactionSudo.query.PaymentProvider.findOne({ where: { code: 'pp_manual' }, query: 'id' })
-    if (!manualProvider) await transactionSudo.query.PaymentProvider.createOne({ data: { name: 'Manual development ledger', code: 'pp_manual', isInstalled: 'yes', createPaymentFunction: 'manual', capturePaymentFunction: 'manual', refundPaymentFunction: 'manual', getPaymentStatusFunction: 'manual', handleWebhookFunction: 'manual', metadata: { disclosure: 'Records payment evidence only; does not move money.' } } })
+    if (!manualProvider) await transactionSudo.query.PaymentProvider.createOne({ data: { name: 'Manual payments', code: 'pp_manual', isInstalled: 'yes', createPaymentFunction: 'manual', capturePaymentFunction: 'manual', refundPaymentFunction: 'manual', getPaymentStatusFunction: 'manual', handleWebhookFunction: 'manual', metadata: { disclosure: 'Records payment evidence only; does not move money.' } } })
     for (const [name, kind, adapter] of [['Manual route estimate', 'mapping', 'manual'], ['Console notifications', 'notification', 'console'], ['Unconfigured identity evidence', 'identity', 'manual'], ['Unconfigured background-check evidence', 'background_check', 'manual']] as const) {
       await transactionSudo.query.ProviderConnection.createOne({ data: { fleet: { connect: { id: fleet.id } }, name, kind, adapter, status: kind === 'mapping' || kind === 'notification' ? 'sandbox' : 'unconfigured', capabilities: [], evidencePolicyUrl: 'https://example.invalid/provider-policy' } })
     }

@@ -91,6 +91,8 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
   const [scheduleOpen, setScheduleOpen] = useState(false)
 
   const selectedService = useMemo(() => services.find(service => service.id === serviceId), [services, serviceId])
+  // A book-ahead service can't take a Now ride, so its pickup time opens straight away.
+  useEffect(() => { if (selectedService?.advanceBookingMinutes) setScheduleOpen(true) }, [selectedService?.id, selectedService?.advanceBookingMinutes])
   const currentQuoteInputs = (): QuoteInputSnapshot => ({ serviceId, pickupLabel, dropoffLabel, scheduledFor, passengerCount, wheelchairAccessible })
   const quoteInputs = currentQuoteInputs()
   const uncertainQuoteIsCurrent = Boolean(uncertainRequest
@@ -111,7 +113,9 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
         const found = data.marketplaceRideshareServices || []
         setServices(found)
         setNextServiceCursor(found.at(-1)?.nextCursor || null)
-        setServiceId(current => current || found[0]?.id || '')
+        // Default to an everyday ride: bookable now, not an accessible-only or book-ahead service.
+        const everyday = found.find(service => service.readiness?.bookingEnabled && !service.wheelchairAccessible && !service.advanceBookingMinutes) || found.find(service => service.readiness?.bookingEnabled) || found[0]
+        setServiceId(current => current || everyday?.id || '')
       })
       .catch(reason => { if (active) setError(reason instanceof Error ? reason.message : 'Rides are unavailable right now.') })
       .finally(() => { if (active) setServicesLoading(false) })

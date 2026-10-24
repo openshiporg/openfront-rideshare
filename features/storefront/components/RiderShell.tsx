@@ -1,3 +1,6 @@
+'use client'
+
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { CircleUserRound } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -5,6 +8,8 @@ import { FleetBrand, type PublicFleetBrand } from './FleetBrand'
 
 /** Storefront frame: brand, the two places a rider goes back to, and the staff entrance in the footer. */
 export function RiderShell({ fleet, children, className }: { fleet?: PublicFleetBrand | null; children: React.ReactNode; className?: string }) {
+  const storeFleet = useStoreFleet(!fleet)
+  fleet = fleet || storeFleet
   return <div className="rs dark flex min-h-dvh flex-col bg-asphalt font-sans text-foreground [&_p]:break-words">
     <header className="sticky top-0 z-40 border-b border-border/70 bg-asphalt/85 backdrop-blur-md">
       <nav aria-label="Rider" className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
@@ -23,4 +28,28 @@ export function RiderShell({ fleet, children, className }: { fleet?: PublicFleet
       </div>
     </footer>
   </div>
+}
+
+const brandCacheKey = 'openfront-rideshare-store-brand-v1'
+
+/** The store's own fleet brand, for pages that aren't about one service (account, ride history, trip status). */
+function useStoreFleet(enabled: boolean) {
+  const [brand, setBrand] = useState<PublicFleetBrand | null>(null)
+  useEffect(() => {
+    if (!enabled) return
+    let active = true
+    try { const cached = sessionStorage.getItem(brandCacheKey); if (cached) setBrand(JSON.parse(cached)) } catch { /* the request below still fills it */ }
+    fetch('/api/graphql', { method: 'POST', headers: { 'content-type': 'application/json' }, signal: AbortSignal.timeout(8000), body: JSON.stringify({ query: 'query StoreBrand { marketplaceRideshareServices(limit: 1) { fleet { name logoIcon logoColor } } }' }) })
+      .then(response => response.json())
+      .then(payload => {
+        const value = payload?.data?.marketplaceRideshareServices?.[0]?.fleet
+        if (!active || typeof value?.name !== 'string') return
+        const next = { name: value.name, logoIcon: typeof value.logoIcon === 'string' ? value.logoIcon : undefined, logoColor: typeof value.logoColor === 'string' ? value.logoColor : undefined }
+        setBrand(next)
+        try { sessionStorage.setItem(brandCacheKey, JSON.stringify(next)) } catch { /* optional */ }
+      })
+      .catch(() => { /* the default mark stays */ })
+    return () => { active = false }
+  }, [enabled])
+  return brand
 }
