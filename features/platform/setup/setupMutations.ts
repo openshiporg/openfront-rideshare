@@ -23,6 +23,21 @@ export const setup = {
   areaStatus: (id: string, status: string) => call(`mutation($id: ID!, $status: String!) { updateServiceArea(where: { id: $id }, data: { status: $status }) { id status } }`, { id, status }),
 }
 
+export const ops = {
+  addMember: (values: Record<string, unknown>) => call(`mutation($fleetId: ID!, $email: String!, $role: String!) { addFleetMember(fleetId: $fleetId, email: $email, role: $role) }`, values),
+  updateMember: (membershipId: string, patch: { role?: string; status?: string }) => call(`mutation($membershipId: ID!, $role: String, $status: String) { updateFleetMember(membershipId: $membershipId, role: $role, status: $status) }`, { membershipId, role: patch.role || null, status: patch.status || null }),
+  addTimeOff: (values: Record<string, unknown>) => call(`mutation($driverId: ID!, $startsAt: DateTime!, $endsAt: DateTime!, $reason: String) { addDriverTimeOff(driverId: $driverId, startsAt: $startsAt, endsAt: $endsAt, reason: $reason) }`, values),
+  removeTimeOff: (exceptionId: string) => call(`mutation($exceptionId: ID!) { removeDriverTimeOff(exceptionId: $exceptionId) }`, { exceptionId }),
+  incident: (incidentId: string, patch: { status?: string; assignToMe?: boolean }) => call(`mutation($incidentId: ID!, $status: String, $assignToMe: Boolean) { triageSafetyIncident(incidentId: $incidentId, status: $status, assignToMe: $assignToMe) }`, { incidentId, status: patch.status || null, assignToMe: patch.assignToMe || null }),
+  supportCase: (caseId: string, patch: { status?: string; assignToMe?: boolean }) => call(`mutation($caseId: ID!, $status: String, $assignToMe: Boolean) { triageSupportCase(caseId: $caseId, status: $status, assignToMe: $assignToMe) }`, { caseId, status: patch.status || null, assignToMe: patch.assignToMe || null }),
+  review: (reviewId: string, status: string) => call(`mutation($reviewId: ID!, $status: String!) { moderateReview(reviewId: $reviewId, status: $status) }`, { reviewId, status }),
+  recordPayment: (tripId: string) => call(`mutation($tripId: ID!, $key: String!) { initiateTripPayment(tripId: $tripId, providerCode: "pp_manual", idempotencyKey: $key) { id status } }`, { tripId, key: `payment:${tripId}:${crypto.randomUUID()}` }),
+  confirmPayment: (paymentId: string, method: string) => call(`mutation($paymentId: ID!, $method: String) { confirmManualPayment(paymentId: $paymentId, method: $method) }`, { paymentId, method }),
+  refund: (paymentId: string, amountMinor: number, reason: string) => call(`mutation($paymentId: ID!, $amountMinor: Int!, $reason: String, $key: String!) { requestTripRefund(paymentId: $paymentId, amountMinor: $amountMinor, reason: $reason, idempotencyKey: $key) { id status } }`, { paymentId, amountMinor, reason, key: `refund:${paymentId}:${crypto.randomUUID()}` }),
+  confirmRefund: (refundId: string) => call(`mutation($refundId: ID!) { confirmManualRefund(refundId: $refundId) }`, { refundId }),
+  message: (tripId: string, body: string) => call(`mutation($tripId: ID!, $body: String!, $key: String!) { sendTripMessage(tripId: $tripId, body: $body, idempotencyKey: $key) { id } }`, { tripId, body, key: `message:${tripId}:${crypto.randomUUID()}` }),
+}
+
 const dateValue = (value: unknown) => typeof value === 'string' && value ? new Date(`${value}T00:00:00`).toISOString() : null
 export const toDocumentInput = (values: Record<string, any>) => ({ ...values, issuedAt: dateValue(values.issuedAt), expiresAt: dateValue(values.expiresAt) })
 

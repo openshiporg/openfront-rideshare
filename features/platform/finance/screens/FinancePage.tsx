@@ -1,6 +1,7 @@
 import { parseQueueSearch, queueSearchHref } from '@/features/platform/components/queueSearch'
 import { keystoneClient } from '@/features/dashboard/lib/keystoneClient'
 import { OperationsBoard } from '@/features/platform/components/OperationsBoard'
+import Link from 'next/link'
 import { QueueIssues, QueuePagination } from '@/features/platform/components/QueuePagination'
 import { StatusTitle } from '@/features/platform/components/StatusTitle'
 import { statusLabel, statusTone, formatWhen } from '@/features/platform/lib/statusTone'
@@ -83,7 +84,7 @@ export async function FinancePage({ searchParams }: { searchParams?: Promise<Fin
     after={loaded && pageState ? <QueuePagination label="Finance pagination" noun="payments" page={selection.page} total={total} pageCount={pageState.pageCount} maxPage={FINANCE_MAX_PAGE} firstItem={pageState.firstItem} lastItem={pageState.lastItem} staleReason={pageState.staleReason} exceedsPageLimit={pageState.exceedsPageLimit} hrefFor={page => queueSearchHref(financePageHref(page, selection.status), query)} /> : null}
     render={item => <div className="flex items-start justify-between gap-4">
       <div className="min-w-0 space-y-1">
-        <StatusTitle tone={statusTone(item.status)} status={statusLabel(item.status)} className="font-mono text-sm font-semibold">{String(item.id).slice(-10)}</StatusTitle>
+        <StatusTitle tone={statusTone(item.status)} status={statusLabel(item.status)} className="font-mono text-sm font-semibold">{item.trip ? <Link href={`/dashboard/platform/trips/${item.trip.id}`} className="hover:underline">{item.trip.confirmationCode}</Link> : String(item.id).slice(-10)}</StatusTitle>
         <p className="text-xs text-muted-foreground">{formatWhen(item.createdAt)}{item.refundsCount ? ` · ${item.refundsCount} refund${item.refundsCount === 1 ? '' : 's'}` : ''}</p>
       </div>
       <p className="shrink-0 text-lg font-semibold tabular-nums">{formatPaymentAmount(item.amountMinor, item.currencyCode)}</p>

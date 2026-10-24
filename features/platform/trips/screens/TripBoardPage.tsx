@@ -1,5 +1,6 @@
 import { CommandRecovery } from '@/features/platform/components/CommandRecovery'
 import { parseQueueSearch, queueSearchHref } from '@/features/platform/components/queueSearch'
+import Link from 'next/link'
 import { CarFront, Clock, UserRound } from 'lucide-react'
 import { QueueIssues, QueuePagination } from '@/features/platform/components/QueuePagination'
 import { StatusTitle } from '@/features/platform/components/StatusTitle'
@@ -92,7 +93,7 @@ export async function TripBoardPage({ searchParams }: { searchParams?: Promise<T
     render={item => <div className="space-y-3">
       <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-start md:gap-6">
         <div className="min-w-0 space-y-2">
-          <StatusTitle tone={statusTone(item.status)} status={statusLabel(item.status)} pulse={['driver_en_route', 'in_progress'].includes(item.status)} className="font-mono text-sm font-semibold">{item.confirmationCode}</StatusTitle>
+          <StatusTitle tone={statusTone(item.status)} status={statusLabel(item.status)} pulse={['driver_en_route', 'in_progress'].includes(item.status)} className="font-mono text-sm font-semibold"><Link href={`/dashboard/platform/trips/${item.id}`} className="hover:underline">{item.confirmationCode}</Link></StatusTitle>
           <RouteLine pickup={item.pickupLabel} dropoff={item.dropoffLabel} />
           <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1"><UserRound className="size-3.5" aria-hidden="true" />{item.driver?.publicName || 'No driver'}</span>

@@ -1,6 +1,9 @@
 export type SupportCaseStatus = 'open' | 'waiting' | 'resolved' | 'closed'
 
 export type SupportCaseQueueItem = {
+  id: string
+  trip: { id: string; confirmationCode: string } | null
+  assignedToId: string | null
   caseNumber: string
   status: SupportCaseStatus
   category: 'trip' | 'unclassified'
@@ -20,7 +23,12 @@ export function projectSupportCaseRows(rows: unknown): SupportCaseQueueItem[] | 
     if (typeof row.caseNumber !== 'string' || !safeCaseNumber.test(row.caseNumber)) return null
     if (typeof row.status !== 'string' || !statuses.has(row.status as SupportCaseStatus)) return null
     if (row.createdAt !== null && typeof row.createdAt !== 'string') return null
+    if (typeof row.id !== 'string' || !row.id) return null
+    const trip = row.trip && typeof row.trip === 'object' && typeof (row.trip as any).id === 'string' && typeof (row.trip as any).confirmationCode === 'string' ? { id: (row.trip as any).id, confirmationCode: (row.trip as any).confirmationCode } : null
     projected.push({
+      id: row.id,
+      trip,
+      assignedToId: row.assignedTo && typeof (row.assignedTo as any).id === 'string' ? (row.assignedTo as any).id : null,
       caseNumber: row.caseNumber,
       status: row.status as SupportCaseStatus,
       category: row.category === 'trip' ? 'trip' : 'unclassified',

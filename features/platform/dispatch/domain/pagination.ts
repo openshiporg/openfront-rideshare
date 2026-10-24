@@ -1,7 +1,7 @@
 export const DISPATCH_PAGE_SIZE = 25
 export const DISPATCH_MAX_PAGE = 10_000
 
-export type DispatchStatusFilter = 'all' | 'requested' | 'matching'
+export type DispatchStatusFilter = 'all' | 'requested' | 'matching' | 'cancelled' | 'expired'
 type QueryValue = string | string[] | undefined
 
 function singleValue(value: QueryValue) {
@@ -12,7 +12,7 @@ export function parseDispatchBoardParams(params: { status?: QueryValue; page?: Q
   const issues: string[] = []
   const rawStatus = singleValue(params.status)
   let status: DispatchStatusFilter = 'all'
-  if (rawStatus && ['all', 'requested', 'matching'].includes(rawStatus)) {
+  if (rawStatus && ['all', 'requested', 'matching', 'cancelled', 'expired'].includes(rawStatus)) {
     status = rawStatus as DispatchStatusFilter
   } else if (params.status !== undefined) {
     issues.push('The status parameter is invalid; open the canonical dispatch URL before taking action.')

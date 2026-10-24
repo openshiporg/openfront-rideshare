@@ -3436,44 +3436,177 @@ async function dispatchCandidatePage(_root, args, context) {
   }, { isolationLevel: "RepeatableRead" });
 }
 
-// features/keystone/mutations/fleetSetup.ts
+// features/keystone/mutations/fleetOperations.ts
 var import_node_crypto9 = require("node:crypto");
 var import_graphql2 = require("graphql");
 var fail = (message) => {
-  throw new import_graphql2.GraphQLError(message, { extensions: { code: "RIDESHARE_SETUP_INVALID" } });
+  throw new import_graphql2.GraphQLError(message, { extensions: { code: "RIDESHARE_OPERATION_INVALID" } });
 };
-var text13 = (value, label, { required = false, max = 200 } = {}) => {
-  const clean = typeof value === "string" ? value.trim() : "";
-  if (required && !clean) fail(`${label} is required.`);
-  if (clean.length > max) fail(`${label} must be ${max} characters or fewer.`);
-  return clean;
-};
-var whole = (value, label, min, max, fallback) => {
-  if ((value === null || value === void 0 || value === "") && fallback !== void 0) return fallback;
-  const number = Number(value);
-  if (!Number.isSafeInteger(number) || number < min || number > max) fail(`${label} must be a whole number from ${min} to ${max}.`);
-  return number;
-};
-var oneOf = (value, options, label, fallback) => {
-  if ((value === null || value === void 0 || value === "") && fallback) return fallback;
+var oneOf = (value, options, label) => {
   if (!options.includes(value)) fail(`${label} must be one of: ${options.join(", ").replaceAll("_", " ")}.`);
   return value;
 };
-var dateOrNull = (value, label) => {
-  if (value === null || value === void 0 || value === "") return null;
-  const date = new Date(String(value));
-  if (!Number.isFinite(date.getTime())) fail(`${label} is not a valid date.`);
-  return date;
-};
-var slugify = (value) => value.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "item";
-var TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 async function requireActor(context) {
   const actor = await currentHumanActor(context.prisma, context.session);
   if (!actor) fail("Sign in to continue.");
   return actor;
 }
 async function requireFleet(context, fleetId, capability) {
-  if (typeof fleetId !== "string" || !fleetId || !await canAccessFleet(context, context.session, fleetId, capability)) fail("Fleet not found or outside your access.");
+  if (typeof fleetId !== "string" || !fleetId || !await canAccessFleet(context, context.session, fleetId, capability)) fail("Not found or outside your access.");
+  return fleetId;
+}
+var MEMBER_ROLES = ["owner", "dispatcher", "support", "finance", "viewer"];
+async function addFleetMember(_root, args, context) {
+  await requireActor(context);
+  const fleetId = await requireFleet(context, args.fleetId, "fleetAdmin");
+  const role = oneOf(args.role, MEMBER_ROLES, "Role");
+  const email = String(args.email || "").trim().toLowerCase();
+  if (!email || email.length > 200) fail("Email is required.");
+  const user = await context.prisma.user.findUnique({ where: { email }, select: { id: true } });
+  if (!user) fail("No account uses that email. They sign up or are added under People first.");
+  const existing = await context.prisma.fleetMembership.findFirst({ where: { fleetId, userId: user.id }, select: { id: true } });
+  if (existing) fail("That person is already on this fleet.");
+  return context.prisma.fleetMembership.create({ data: { fleetId, userId: user.id, role, status: "active", invitedAt: /* @__PURE__ */ new Date(), acceptedAt: /* @__PURE__ */ new Date() }, select: { id: true, role: true, status: true } });
+}
+async function updateFleetMember(_root, args, context) {
+  const actor = await requireActor(context);
+  const membership = await context.prisma.fleetMembership.findUnique({ where: { id: args.membershipId }, select: { id: true, fleetId: true, userId: true, role: true, status: true } });
+  const fleetId = await requireFleet(context, membership?.fleetId, "fleetAdmin");
+  const role = args.role ? oneOf(args.role, MEMBER_ROLES, "Role") : membership.role;
+  const status = args.status ? oneOf(args.status, ["active", "suspended"], "Status") : membership.status;
+  if (membership.userId === actor.id && (role !== "owner" || status !== "active")) fail("You can\u2019t remove your own owner access.");
+  if (membership.role === "owner" && (role !== "owner" || status !== "active")) {
+    const owners = await context.prisma.fleetMembership.count({ where: { fleetId, role: "owner", status: "active" } });
+    if (owners <= 1) fail("A fleet needs at least one active owner.");
+  }
+  return context.prisma.fleetMembership.update({ where: { id: membership.id }, data: { role, status }, select: { id: true, role: true, status: true } });
+}
+async function addDriverTimeOff(_root, args, context) {
+  await requireActor(context);
+  const driver = await context.prisma.driverProfile.findUnique({ where: { id: args.driverId }, select: { id: true, fleetId: true } });
+  await requireFleet(context, driver?.fleetId, "operations");
+  const startsAt = new Date(args.startsAt), endsAt = new Date(args.endsAt);
+  if (!Number.isFinite(startsAt.getTime()) || !Number.isFinite(endsAt.getTime()) || endsAt <= startsAt) fail("Choose an end after the start.");
+  if (endsAt.getTime() - startsAt.getTime() > 366 * 864e5) fail("Time off can be at most a year.");
+  const kind = args.kind ? oneOf(args.kind, ["blocked", "available"], "Type") : "blocked";
+  return context.prisma.availabilityException.create({ data: { driverId: driver.id, startsAt, endsAt, kind, reason: String(args.reason || "").trim().slice(0, 200) }, select: { id: true } });
+}
+async function removeDriverTimeOff(_root, args, context) {
+  await requireActor(context);
+  const exception = await context.prisma.availabilityException.findUnique({ where: { id: args.exceptionId }, select: { id: true, driver: { select: { fleetId: true } } } });
+  await requireFleet(context, exception?.driver?.fleetId, "operations");
+  await context.prisma.availabilityException.delete({ where: { id: exception.id } });
+  return { id: exception.id, removed: true };
+}
+var INCIDENT_FLOW = { open: ["triage", "investigating", "resolved"], triage: ["investigating", "resolved"], investigating: ["resolved"], resolved: ["closed", "investigating"], closed: [] };
+async function updateSafetyIncident(_root, args, context) {
+  const actor = await requireActor(context);
+  const incident = await context.prisma.safetyIncident.findUnique({ where: { id: args.incidentId }, select: { id: true, status: true, trip: { select: { fleetId: true } } } });
+  await requireFleet(context, incident?.trip?.fleetId, "safety");
+  const data = {};
+  if (args.status) {
+    if (!(INCIDENT_FLOW[incident.status || "open"] || []).includes(args.status)) fail(`A ${incident.status} incident can\u2019t move to ${args.status}.`);
+    data.status = args.status;
+    if (args.status === "resolved") data.resolvedAt = /* @__PURE__ */ new Date();
+  }
+  if (args.assignToMe) data.assignedToId = actor.id;
+  if (!Object.keys(data).length) fail("Nothing to change.");
+  return context.prisma.safetyIncident.update({ where: { id: incident.id }, data, select: { id: true, status: true } });
+}
+var CASE_FLOW = { open: ["waiting", "resolved"], waiting: ["open", "resolved"], resolved: ["closed", "open"], closed: [] };
+async function updateSupportCase(_root, args, context) {
+  const actor = await requireActor(context);
+  const supportCase = await context.prisma.supportCase.findUnique({ where: { id: args.caseId }, select: { id: true, status: true, trip: { select: { fleetId: true } } } });
+  await requireFleet(context, supportCase?.trip?.fleetId, "safety");
+  const data = {};
+  if (args.status) {
+    if (!(CASE_FLOW[supportCase.status || "open"] || []).includes(args.status)) fail(`A ${supportCase.status} case can\u2019t move to ${args.status}.`);
+    data.status = args.status;
+    if (args.status === "resolved") data.resolvedAt = /* @__PURE__ */ new Date();
+  }
+  if (args.assignToMe) data.assignedToId = actor.id;
+  if (!Object.keys(data).length) fail("Nothing to change.");
+  return context.prisma.supportCase.update({ where: { id: supportCase.id }, data, select: { id: true, status: true } });
+}
+async function moderateReview(_root, args, context) {
+  await requireActor(context);
+  const review = await context.prisma.review.findUnique({ where: { id: args.reviewId }, select: { id: true, trip: { select: { fleetId: true } } } });
+  await requireFleet(context, review?.trip?.fleetId, "safety");
+  const status = oneOf(args.status, ["published", "hidden", "removed"], "Status");
+  return context.prisma.review.update({ where: { id: review.id }, data: { status, moderatedAt: /* @__PURE__ */ new Date(), moderationReason: String(args.reason || "").trim().slice(0, 500) }, select: { id: true, status: true } });
+}
+async function confirmManualPayment(_root, args, context) {
+  const actor = await requireActor(context);
+  const payment = await context.prisma.payment.findUnique({ where: { id: args.paymentId }, select: { id: true, status: true, amountMinor: true, currencyCode: true, tripId: true, provider: { select: { code: true } }, trip: { select: { fleetId: true } } } });
+  await requireFleet(context, payment?.trip?.fleetId, "finance");
+  if (payment.provider?.code !== "pp_manual") fail("Only manual payments are confirmed here.");
+  if (payment.status !== "pending" && payment.status !== "authorized") fail(`This payment is already ${String(payment.status).replaceAll("_", " ")}.`);
+  const method = args.method ? oneOf(args.method, ["cash", "card_terminal", "bank_transfer", "other"], "Method") : "cash";
+  return context.prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`payment:${payment.id}`}, 0))::text IS NOT NULL`;
+    const updated = await tx.payment.updateMany({ where: { id: payment.id, status: { in: ["pending", "authorized"] } }, data: { status: "captured", capturedAt: /* @__PURE__ */ new Date() } });
+    if (updated.count !== 1) fail("This payment changed. Reload and try again.");
+    await tx.paymentObservation.create({ data: { paymentId: payment.id, observationKey: (0, import_node_crypto9.randomUUID)(), details: { phase: "captured", source: "operator_confirmation", method, actorId: actor.id, amountMinor: payment.amountMinor, currencyCode: payment.currencyCode, observedAt: (/* @__PURE__ */ new Date()).toISOString() } } });
+    await tx.ledgerEntry.create({ data: { tripId: payment.tripId, paymentId: payment.id, entryKey: `payment:${payment.id}:captured`, kind: "rider_charge", account: "rider_receivable", direction: "credit", amountMinor: payment.amountMinor, currencyCode: payment.currencyCode, memo: `Received by ${method.replaceAll("_", " ")}`, metadata: { actorId: actor.id } } });
+    return { id: payment.id, status: "captured" };
+  });
+}
+async function confirmManualRefund(_root, args, context) {
+  const actor = await requireActor(context);
+  const refund = await context.prisma.refund.findUnique({ where: { id: args.refundId }, select: { id: true, status: true, amountMinor: true, currencyCode: true, payment: { select: { id: true, tripId: true, amountMinor: true, provider: { select: { code: true } }, trip: { select: { fleetId: true } } } } } });
+  await requireFleet(context, refund?.payment?.trip?.fleetId, "finance");
+  if (refund.payment?.provider?.code !== "pp_manual") fail("Only manual refunds are confirmed here.");
+  if (!["requested", "processing"].includes(refund.status || "")) fail(`This refund is already ${String(refund.status).replaceAll("_", " ")}.`);
+  return context.prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`payment:${refund.payment.id}`}, 0))::text IS NOT NULL`;
+    const updated = await tx.refund.updateMany({ where: { id: refund.id, status: { in: ["requested", "processing"] } }, data: { status: "succeeded", processedAt: /* @__PURE__ */ new Date() } });
+    if (updated.count !== 1) fail("This refund changed. Reload and try again.");
+    const refunded = await tx.refund.aggregate({ where: { paymentId: refund.payment.id, status: "succeeded" }, _sum: { amountMinor: true } });
+    await tx.payment.update({ where: { id: refund.payment.id }, data: { status: (refunded._sum.amountMinor || 0) >= (refund.payment.amountMinor || 0) ? "refunded" : "partially_refunded" } });
+    await tx.paymentObservation.create({ data: { paymentId: refund.payment.id, refundId: refund.id, observationKey: (0, import_node_crypto9.randomUUID)(), details: { phase: "refunded", source: "operator_confirmation", actorId: actor.id, amountMinor: refund.amountMinor, observedAt: (/* @__PURE__ */ new Date()).toISOString() } } });
+    await tx.ledgerEntry.create({ data: { tripId: refund.payment.tripId, paymentId: refund.payment.id, entryKey: `refund:${refund.id}:succeeded`, kind: "refund", account: "rider_receivable", direction: "debit", amountMinor: refund.amountMinor, currencyCode: refund.currencyCode, memo: "Refund handed back", metadata: { actorId: actor.id } } });
+    return { id: refund.id, status: "succeeded" };
+  });
+}
+
+// features/keystone/mutations/fleetSetup.ts
+var import_node_crypto10 = require("node:crypto");
+var import_graphql3 = require("graphql");
+var fail2 = (message) => {
+  throw new import_graphql3.GraphQLError(message, { extensions: { code: "RIDESHARE_SETUP_INVALID" } });
+};
+var text13 = (value, label, { required = false, max = 200 } = {}) => {
+  const clean = typeof value === "string" ? value.trim() : "";
+  if (required && !clean) fail2(`${label} is required.`);
+  if (clean.length > max) fail2(`${label} must be ${max} characters or fewer.`);
+  return clean;
+};
+var whole = (value, label, min, max, fallback) => {
+  if ((value === null || value === void 0 || value === "") && fallback !== void 0) return fallback;
+  const number = Number(value);
+  if (!Number.isSafeInteger(number) || number < min || number > max) fail2(`${label} must be a whole number from ${min} to ${max}.`);
+  return number;
+};
+var oneOf2 = (value, options, label, fallback) => {
+  if ((value === null || value === void 0 || value === "") && fallback) return fallback;
+  if (!options.includes(value)) fail2(`${label} must be one of: ${options.join(", ").replaceAll("_", " ")}.`);
+  return value;
+};
+var dateOrNull = (value, label) => {
+  if (value === null || value === void 0 || value === "") return null;
+  const date = new Date(String(value));
+  if (!Number.isFinite(date.getTime())) fail2(`${label} is not a valid date.`);
+  return date;
+};
+var slugify = (value) => value.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "item";
+var TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
+async function requireActor2(context) {
+  const actor = await currentHumanActor(context.prisma, context.session);
+  if (!actor) fail2("Sign in to continue.");
+  return actor;
+}
+async function requireFleet2(context, fleetId, capability) {
+  if (typeof fleetId !== "string" || !fleetId || !await canAccessFleet(context, context.session, fleetId, capability)) fail2("Fleet not found or outside your access.");
   return fleetId;
 }
 var DRIVER_DOCUMENTS = ["driver_license", "insurance"];
@@ -3484,52 +3617,52 @@ function missingDocuments(documents, required, now = /* @__PURE__ */ new Date())
 }
 async function eligibilityPolicy(tx, fleetId, kind) {
   const policies = await tx.policy.findMany({ where: { fleetId, kind, status: "active" }, orderBy: { id: "asc" }, take: 2, select: { id: true, version: true } });
-  if (policies.length > 1) fail("This fleet has more than one active eligibility policy of this kind. Retire one before reviewing.");
+  if (policies.length > 1) fail2("This fleet has more than one active eligibility policy of this kind. Retire one before reviewing.");
   if (policies[0]) return policies[0];
   return tx.policy.create({ data: { fleetId, kind, status: "active", name: kind === "driver_eligibility" ? "Driver document review" : "Vehicle document review", version: "1", requirements: { documents: kind === "driver_eligibility" ? DRIVER_DOCUMENTS : VEHICLE_DOCUMENTS } }, select: { id: true, version: true } });
 }
 async function createFleet(_root, args, context) {
-  const actor = await requireActor(context);
-  if (!await permissions.canManageFleet({ context, session: context.session })) fail("Fleet management permission is required.");
+  const actor = await requireActor2(context);
+  if (!await permissions.canManageFleet({ context, session: context.session })) fail2("Fleet management permission is required.");
   const name = text13(args.name, "Fleet name", { required: true, max: 120 });
   const currencyCode = text13(args.currencyCode, "Currency", { max: 3 }).toUpperCase() || "USD";
-  if (!/^[A-Z]{3}$/.test(currencyCode)) fail("Currency must be a three-letter code such as USD.");
+  if (!/^[A-Z]{3}$/.test(currencyCode)) fail2("Currency must be a three-letter code such as USD.");
   const timezone = text13(args.timezone, "Time zone", { max: 64 }) || "UTC";
   try {
     new Intl.DateTimeFormat("en-US", { timeZone: timezone });
   } catch {
-    fail("Time zone is not recognised.");
+    fail2("Time zone is not recognised.");
   }
   return context.prisma.$transaction(async (tx) => {
-    const fleet = await tx.fleet.create({ data: { name, slug: `${slugify(name)}-${(0, import_node_crypto9.randomUUID)().slice(0, 6)}`, status: "setup", publicCity: text13(args.publicCity, "City", { max: 120 }), countryCode: text13(args.countryCode, "Country", { max: 2 }).toUpperCase() || "US", currencyCode, timezone }, select: { id: true, name: true, status: true } });
+    const fleet = await tx.fleet.create({ data: { name, slug: `${slugify(name)}-${(0, import_node_crypto10.randomUUID)().slice(0, 6)}`, status: "setup", publicCity: text13(args.publicCity, "City", { max: 120 }), countryCode: text13(args.countryCode, "Country", { max: 2 }).toUpperCase() || "US", currencyCode, timezone }, select: { id: true, name: true, status: true } });
     await tx.fleetMembership.create({ data: { fleetId: fleet.id, userId: actor.id, role: "owner", status: "active", acceptedAt: /* @__PURE__ */ new Date() } });
     return fleet;
   });
 }
 async function addFleetDriver(_root, args, context) {
-  await requireActor(context);
-  const fleetId = await requireFleet(context, args.fleetId, "drivers");
+  await requireActor2(context);
+  const fleetId = await requireFleet2(context, args.fleetId, "drivers");
   const publicName = text13(args.publicName, "Driver name", { required: true, max: 80 });
   const email = text13(args.email, "Email", { max: 200 }).toLowerCase();
   return context.prisma.$transaction(async (tx) => {
     let userId = null;
     if (email) {
       const user = await tx.user.findUnique({ where: { email }, select: { id: true, driverProfile: { select: { id: true } } } });
-      if (!user) fail("No account uses that email. The driver signs up first, or leave email empty.");
-      if (user.driverProfile) fail("That account already has a driver profile.");
+      if (!user) fail2("No account uses that email. The driver signs up first, or leave email empty.");
+      if (user.driverProfile) fail2("That account already has a driver profile.");
       userId = user.id;
     }
     return tx.driverProfile.create({ data: { fleetId, userId, publicName, publicBio: text13(args.publicBio, "Bio", { max: 500 }), acceptsScheduled: args.acceptsScheduled !== false, status: "pending_review", dispatchStatus: "offline" }, select: { id: true, publicName: true, status: true } });
   });
 }
 async function addFleetVehicle(_root, args, context) {
-  await requireActor(context);
-  const fleetId = await requireFleet(context, args.fleetId, "operations");
+  await requireActor2(context);
+  const fleetId = await requireFleet2(context, args.fleetId, "operations");
   const label = text13(args.label, "Vehicle name", { required: true, max: 80 });
   const year = args.year === null || args.year === void 0 ? null : whole(args.year, "Year", 1980, (/* @__PURE__ */ new Date()).getFullYear() + 1);
   const driverIds = [...new Set((args.driverIds || []).filter((id) => typeof id === "string"))].slice(0, 20);
   return context.prisma.$transaction(async (tx) => {
-    if (driverIds.length && await tx.driverProfile.count({ where: { id: { in: driverIds }, fleetId } }) !== driverIds.length) fail("Every assigned driver must belong to this fleet.");
+    if (driverIds.length && await tx.driverProfile.count({ where: { id: { in: driverIds }, fleetId } }) !== driverIds.length) fail2("Every assigned driver must belong to this fleet.");
     return tx.vehicle.create({ data: {
       fleetId,
       label,
@@ -3546,43 +3679,43 @@ async function addFleetVehicle(_root, args, context) {
   });
 }
 async function assignVehicleDrivers(_root, args, context) {
-  await requireActor(context);
+  await requireActor2(context);
   const vehicle = await context.prisma.vehicle.findUnique({ where: { id: args.vehicleId }, select: { id: true, fleetId: true } });
-  const fleetId = await requireFleet(context, vehicle?.fleetId, "operations");
+  const fleetId = await requireFleet2(context, vehicle?.fleetId, "operations");
   const driverIds = [...new Set((args.driverIds || []).filter((id) => typeof id === "string"))].slice(0, 20);
-  if (driverIds.length && await context.prisma.driverProfile.count({ where: { id: { in: driverIds }, fleetId } }) !== driverIds.length) fail("Every assigned driver must belong to this fleet.");
+  if (driverIds.length && await context.prisma.driverProfile.count({ where: { id: { in: driverIds }, fleetId } }) !== driverIds.length) fail2("Every assigned driver must belong to this fleet.");
   return context.prisma.vehicle.update({ where: { id: vehicle.id }, data: { drivers: { set: driverIds.map((id) => ({ id })) } }, select: { id: true, label: true } });
 }
 async function addComplianceDocument(_root, args, context) {
-  await requireActor(context);
-  if (Boolean(args.driverId) === Boolean(args.vehicleId)) fail("Attach the document to one driver or one vehicle.");
+  await requireActor2(context);
+  if (Boolean(args.driverId) === Boolean(args.vehicleId)) fail2("Attach the document to one driver or one vehicle.");
   const owner = args.driverId ? await context.prisma.driverProfile.findUnique({ where: { id: args.driverId }, select: { id: true, fleetId: true } }) : await context.prisma.vehicle.findUnique({ where: { id: args.vehicleId }, select: { id: true, fleetId: true } });
-  await requireFleet(context, owner?.fleetId, "drivers");
-  const kind = oneOf(args.kind, DOCUMENT_KINDS, "Document type");
+  await requireFleet2(context, owner?.fleetId, "drivers");
+  const kind = oneOf2(args.kind, DOCUMENT_KINDS, "Document type");
   const issuedAt = dateOrNull(args.issuedAt, "Issue date");
   const expiresAt = dateOrNull(args.expiresAt, "Expiry date");
-  if (issuedAt && expiresAt && expiresAt <= issuedAt) fail("Expiry date must be after the issue date.");
+  if (issuedAt && expiresAt && expiresAt <= issuedAt) fail2("Expiry date must be after the issue date.");
   return context.prisma.complianceDocument.create({ data: { ...args.driverId ? { driverId: owner.id } : { vehicleId: owner.id }, kind, status: "submitted", issuer: text13(args.issuer, "Issuer", { max: 120 }), referenceMasked: text13(args.referenceMasked, "Reference", { max: 40 }), issuedAt, expiresAt }, select: { id: true, kind: true, status: true } });
 }
 async function reviewComplianceDocument(_root, args, context) {
-  const actor = await requireActor(context);
+  const actor = await requireActor2(context);
   const document = await context.prisma.complianceDocument.findUnique({ where: { id: args.documentId }, select: { id: true, expiresAt: true, driver: { select: { fleetId: true } }, vehicle: { select: { fleetId: true } } } });
-  await requireFleet(context, document?.driver?.fleetId || document?.vehicle?.fleetId, "drivers");
-  const decision = oneOf(args.decision, ["accepted_evidence", "rejected_evidence", "revoked"], "Decision");
-  if (decision === "accepted_evidence" && document.expiresAt && new Date(document.expiresAt).getTime() <= Date.now()) fail("This document has expired and cannot be accepted.");
+  await requireFleet2(context, document?.driver?.fleetId || document?.vehicle?.fleetId, "drivers");
+  const decision = oneOf2(args.decision, ["accepted_evidence", "rejected_evidence", "revoked"], "Decision");
+  if (decision === "accepted_evidence" && document.expiresAt && new Date(document.expiresAt).getTime() <= Date.now()) fail2("This document has expired and cannot be accepted.");
   return context.prisma.complianceDocument.update({ where: { id: document.id }, data: { status: decision, reviewedAt: /* @__PURE__ */ new Date(), reviewerId: actor.id, reviewNotes: text13(args.notes, "Notes", { max: 1e3 }) }, select: { id: true, status: true } });
 }
 async function reviewDriver(_root, args, context) {
-  const actor = await requireActor(context);
+  const actor = await requireActor2(context);
   const driver = await context.prisma.driverProfile.findUnique({ where: { id: args.driverId }, select: { id: true, fleetId: true, status: true, dispatchStatus: true } });
-  const fleetId = await requireFleet(context, driver?.fleetId, "drivers");
-  const decision = oneOf(args.decision, ["active", "paused", "ineligible", "offboarded"], "Decision");
-  if (decision !== "active" && ["offered", "assigned", "on_trip"].includes(driver.dispatchStatus || "")) fail("This driver has a live offer or trip. Finish or reassign it first.");
+  const fleetId = await requireFleet2(context, driver?.fleetId, "drivers");
+  const decision = oneOf2(args.decision, ["active", "paused", "ineligible", "offboarded"], "Decision");
+  if (decision !== "active" && ["offered", "assigned", "on_trip"].includes(driver.dispatchStatus || "")) fail2("This driver has a live offer or trip. Finish or reassign it first.");
   const notes = text13(args.notes, "Notes", { max: 1e3 });
   return context.prisma.$transaction(async (tx) => {
     const documents = await tx.complianceDocument.findMany({ where: { driverId: driver.id }, select: { kind: true, status: true, expiresAt: true } });
     const missing = missingDocuments(documents, DRIVER_DOCUMENTS);
-    if (decision === "active" && missing.length) fail(`Accept the driver's ${missing.map((kind) => kind.replaceAll("_", " ")).join(" and ")} first.`);
+    if (decision === "active" && missing.length) fail2(`Accept the driver's ${missing.map((kind) => kind.replaceAll("_", " ")).join(" and ")} first.`);
     const policy = await eligibilityPolicy(tx, fleetId, "driver_eligibility");
     const expiries = documents.filter((document) => DRIVER_DOCUMENTS.includes(document.kind) && document.expiresAt).map((document) => new Date(document.expiresAt).getTime());
     await tx.policyEvaluation.create({ data: { policyId: policy.id, driverId: driver.id, outcome: decision === "active" ? "eligible" : "ineligible", reasons: [notes || `Driver ${decision === "active" ? "approved" : decision} by operator review.`], evidenceSnapshot: { policyVersion: policy.version, documents: documents.map((document) => ({ kind: document.kind, status: document.status })) }, evaluatedAt: /* @__PURE__ */ new Date(), expiresAt: expiries.length ? new Date(Math.min(...expiries)) : null, evaluatorId: actor.id } });
@@ -3590,15 +3723,15 @@ async function reviewDriver(_root, args, context) {
   });
 }
 async function reviewVehicle(_root, args, context) {
-  const actor = await requireActor(context);
+  const actor = await requireActor2(context);
   const vehicle = await context.prisma.vehicle.findUnique({ where: { id: args.vehicleId }, select: { id: true, fleetId: true } });
-  const fleetId = await requireFleet(context, vehicle?.fleetId, "drivers");
-  const decision = oneOf(args.decision, ["active", "maintenance", "suspended", "retired"], "Decision");
+  const fleetId = await requireFleet2(context, vehicle?.fleetId, "drivers");
+  const decision = oneOf2(args.decision, ["active", "maintenance", "suspended", "retired"], "Decision");
   const notes = text13(args.notes, "Notes", { max: 1e3 });
   return context.prisma.$transaction(async (tx) => {
     const documents = await tx.complianceDocument.findMany({ where: { vehicleId: vehicle.id }, select: { kind: true, status: true, expiresAt: true } });
     const missing = missingDocuments(documents, VEHICLE_DOCUMENTS);
-    if (decision === "active" && missing.length) fail(`Accept the vehicle's ${missing.map((kind) => kind.replaceAll("_", " ")).join(" and ")} first.`);
+    if (decision === "active" && missing.length) fail2(`Accept the vehicle's ${missing.map((kind) => kind.replaceAll("_", " ")).join(" and ")} first.`);
     const policy = await eligibilityPolicy(tx, fleetId, "vehicle_eligibility");
     const expiries = documents.filter((document) => VEHICLE_DOCUMENTS.includes(document.kind) && document.expiresAt).map((document) => new Date(document.expiresAt).getTime());
     await tx.policyEvaluation.create({ data: { policyId: policy.id, vehicleId: vehicle.id, outcome: decision === "active" ? "eligible" : "ineligible", reasons: [notes || `Vehicle ${decision === "active" ? "approved" : decision} by operator review.`], evidenceSnapshot: { policyVersion: policy.version, documents: documents.map((document) => ({ kind: document.kind, status: document.status })) }, evaluatedAt: /* @__PURE__ */ new Date(), expiresAt: expiries.length ? new Date(Math.min(...expiries)) : null, evaluatorId: actor.id } });
@@ -3606,19 +3739,19 @@ async function reviewVehicle(_root, args, context) {
   });
 }
 async function setDriverAvailability(_root, args, context) {
-  await requireActor(context);
+  await requireActor2(context);
   const driver = await context.prisma.driverProfile.findUnique({ where: { id: args.driverId }, select: { id: true, fleetId: true } });
-  await requireFleet(context, driver?.fleetId, "operations");
+  await requireFleet2(context, driver?.fleetId, "operations");
   const timezone = text13(args.timezone, "Time zone", { required: true, max: 64 });
   try {
     new Intl.DateTimeFormat("en-US", { timeZone: timezone });
   } catch {
-    fail("Time zone is not recognised.");
+    fail2("Time zone is not recognised.");
   }
-  if (!Array.isArray(args.rules) || args.rules.length > 21) fail("Up to 21 time windows can be saved.");
+  if (!Array.isArray(args.rules) || args.rules.length > 21) fail2("Up to 21 time windows can be saved.");
   const rules = args.rules.map((rule) => {
     const dayOfWeek = whole(rule.dayOfWeek, "Day", 0, 6);
-    if (!TIME.test(rule.startTime) || !TIME.test(rule.endTime) || rule.endTime <= rule.startTime) fail("Each window needs a start before its end, in HH:MM.");
+    if (!TIME.test(rule.startTime) || !TIME.test(rule.endTime) || rule.endTime <= rule.startTime) fail2("Each window needs a start before its end, in HH:MM.");
     return { dayOfWeek, startTime: rule.startTime, endTime: rule.endTime };
   });
   return context.prisma.$transaction(async (tx) => {
@@ -3628,38 +3761,38 @@ async function setDriverAvailability(_root, args, context) {
   });
 }
 async function createServiceArea(_root, args, context) {
-  await requireActor(context);
-  const fleetId = await requireFleet(context, args.fleetId, "fleetAdmin");
-  return context.prisma.serviceArea.create({ data: { fleetId, name: text13(args.name, "Area name", { required: true, max: 120 }), publicRegionLabel: text13(args.publicRegionLabel, "Public area label", { required: true, max: 160 }), countryCode: text13(args.countryCode, "Country", { max: 2 }).toUpperCase() || "US", status: oneOf(args.status, ["draft", "active", "paused"], "Status", "active") }, select: { id: true, name: true, status: true } });
+  await requireActor2(context);
+  const fleetId = await requireFleet2(context, args.fleetId, "fleetAdmin");
+  return context.prisma.serviceArea.create({ data: { fleetId, name: text13(args.name, "Area name", { required: true, max: 120 }), publicRegionLabel: text13(args.publicRegionLabel, "Public area label", { required: true, max: 160 }), countryCode: text13(args.countryCode, "Country", { max: 2 }).toUpperCase() || "US", status: oneOf2(args.status, ["draft", "active", "paused"], "Status", "active") }, select: { id: true, name: true, status: true } });
 }
 async function createRideService(_root, args, context) {
-  await requireActor(context);
-  const fleetId = await requireFleet(context, args.fleetId, "fleetAdmin");
+  await requireActor2(context);
+  const fleetId = await requireFleet2(context, args.fleetId, "fleetAdmin");
   const name = text13(args.name, "Service name", { required: true, max: 80 });
   const areaIds = [...new Set((args.serviceAreaIds || []).filter((id) => typeof id === "string"))].slice(0, 50);
-  if (!areaIds.length) fail("Choose at least one service area.");
+  if (!areaIds.length) fail2("Choose at least one service area.");
   return context.prisma.$transaction(async (tx) => {
-    if (await tx.serviceArea.count({ where: { id: { in: areaIds }, fleetId } }) !== areaIds.length) fail("Every service area must belong to this fleet.");
+    if (await tx.serviceArea.count({ where: { id: { in: areaIds }, fleetId } }) !== areaIds.length) fail2("Every service area must belong to this fleet.");
     return tx.rideService.create({ data: {
       fleetId,
       name,
-      slug: `${slugify(name)}-${(0, import_node_crypto9.randomUUID)().slice(0, 6)}`,
+      slug: `${slugify(name)}-${(0, import_node_crypto10.randomUUID)().slice(0, 6)}`,
       description: text13(args.description, "Description", { max: 500 }),
-      category: oneOf(args.category, ["standard", "comfort", "xl", "accessible", "pet_friendly", "scheduled"], "Category", "standard"),
+      category: oneOf2(args.category, ["standard", "comfort", "xl", "accessible", "pet_friendly", "scheduled"], "Category", "standard"),
       passengerCapacity: whole(args.passengerCapacity, "Seats", 1, 50, 4),
       wheelchairAccessible: args.wheelchairAccessible === true,
       advanceBookingMinutes: whole(args.advanceBookingMinutes, "Book-ahead minutes", 0, 43200, 0),
-      status: oneOf(args.status, ["draft", "active", "paused"], "Status", "draft"),
+      status: oneOf2(args.status, ["draft", "active", "paused"], "Status", "draft"),
       serviceAreas: { connect: areaIds.map((id) => ({ id })) }
     }, select: { id: true, name: true, status: true } });
   });
 }
 async function createFareRule(_root, args, context) {
-  await requireActor(context);
+  await requireActor2(context);
   const service = await context.prisma.rideService.findUnique({ where: { id: args.serviceId }, select: { id: true, fleetId: true, fleet: { select: { currencyCode: true } } } });
-  const fleetId = await requireFleet(context, service?.fleetId, "fleetAdmin");
+  const fleetId = await requireFleet2(context, service?.fleetId, "fleetAdmin");
   const area = await context.prisma.serviceArea.findFirst({ where: { id: args.serviceAreaId, fleetId, services: { some: { id: service.id } } }, select: { id: true } });
-  if (!area) fail("Choose a service area this service runs in.");
+  if (!area) fail2("Choose a service area this service runs in.");
   const minor = (value, label) => whole(value, label, 0, 1e7, 0);
   const data = {
     fleetId,
@@ -3667,7 +3800,7 @@ async function createFareRule(_root, args, context) {
     serviceAreaId: area.id,
     name: text13(args.name, "Fare name", { required: true, max: 120 }),
     currencyCode: (text13(args.currencyCode, "Currency", { max: 3 }) || service.fleet?.currencyCode || "USD").toUpperCase(),
-    distanceUnit: oneOf(args.distanceUnit, ["kilometer", "mile"], "Distance unit", "mile"),
+    distanceUnit: oneOf2(args.distanceUnit, ["kilometer", "mile"], "Distance unit", "mile"),
     baseFareMinor: minor(args.baseFareMinor, "Base fare"),
     perDistanceUnitMinor: minor(args.perDistanceUnitMinor, "Distance rate"),
     perMinuteMinor: minor(args.perMinuteMinor, "Time rate"),
@@ -3675,7 +3808,7 @@ async function createFareRule(_root, args, context) {
     minimumFareMinor: minor(args.minimumFareMinor, "Minimum fare"),
     cancellationFeeMinor: minor(args.cancellationFeeMinor, "Cancellation fee"),
     noShowFeeMinor: minor(args.noShowFeeMinor, "No-show fee"),
-    status: oneOf(args.status, ["draft", "active", "retired"], "Status", "active")
+    status: oneOf2(args.status, ["draft", "active", "retired"], "Status", "active")
   };
   return context.prisma.$transaction(async (tx) => {
     const latest = await tx.fareRule.findFirst({ where: { serviceId: service.id, serviceAreaId: area.id }, orderBy: { version: "desc" }, select: { version: true } });
@@ -3683,10 +3816,27 @@ async function createFareRule(_root, args, context) {
     try {
       validateFareRule({ ...data, version });
     } catch {
-      fail("Check the currency and amounts.");
+      fail2("Check the currency and amounts.");
     }
     if (data.status === "active") await tx.fareRule.updateMany({ where: { serviceId: service.id, serviceAreaId: area.id, status: "active" }, data: { status: "retired" } });
     return tx.fareRule.create({ data: { ...data, version }, select: { id: true, name: true, version: true, status: true } });
+  });
+}
+async function setDriverOnline(_root, args, context) {
+  const actor = await requireActor2(context);
+  const driver = args.driverId ? await context.prisma.driverProfile.findUnique({ where: { id: args.driverId }, select: { id: true, fleetId: true, status: true, dispatchStatus: true } }) : await context.prisma.driverProfile.findFirst({ where: { userId: actor.id }, select: { id: true, fleetId: true, status: true, dispatchStatus: true } });
+  if (!driver) fail2("No driver profile found.");
+  if (args.driverId) await requireFleet2(context, driver.fleetId, "operations");
+  if (driver.status !== "active") fail2("Only approved drivers can go online.");
+  return context.prisma.$transaction(async (tx) => {
+    if (args.online) {
+      await tx.driverProfile.updateMany({ where: { id: driver.id, status: "active", dispatchStatus: "offline" }, data: { dispatchStatus: "available" } });
+      await refreshDriverPresentDispatchStatus(tx, driver.id);
+    } else {
+      const result = await tx.driverProfile.updateMany({ where: { id: driver.id, dispatchStatus: { in: ["available", "offline"] } }, data: { dispatchStatus: "offline" } });
+      if (result.count !== 1) fail2("Finish or decline your current offer or trip before going offline.");
+    }
+    return tx.driverProfile.findUnique({ where: { id: driver.id }, select: { id: true, dispatchStatus: true } });
   });
 }
 
@@ -3771,6 +3921,16 @@ var typeDefs = graphql2`
       addFleetDriver(fleetId: ID!, publicName: String!, email: String, acceptsScheduled: Boolean, publicBio: String): JSON!
       addFleetVehicle(fleetId: ID!, label: String!, make: String, model: String, year: Int, color: String, plateMasked: String, capacity: Int, wheelchairAccessible: Boolean, driverIds: [ID!]): JSON!
       assignVehicleDrivers(vehicleId: ID!, driverIds: [ID!]!): JSON!
+      setDriverOnline(online: Boolean!, driverId: ID): JSON!
+      addFleetMember(fleetId: ID!, email: String!, role: String!): JSON!
+      updateFleetMember(membershipId: ID!, role: String, status: String): JSON!
+      addDriverTimeOff(driverId: ID!, startsAt: DateTime!, endsAt: DateTime!, kind: String, reason: String): JSON!
+      removeDriverTimeOff(exceptionId: ID!): JSON!
+      triageSafetyIncident(incidentId: ID!, status: String, assignToMe: Boolean): JSON!
+      triageSupportCase(caseId: ID!, status: String, assignToMe: Boolean): JSON!
+      moderateReview(reviewId: ID!, status: String!, reason: String): JSON!
+      confirmManualPayment(paymentId: ID!, method: String): JSON!
+      confirmManualRefund(refundId: ID!): JSON!
       addComplianceDocument(driverId: ID, vehicleId: ID, kind: String!, issuer: String, referenceMasked: String, issuedAt: DateTime, expiresAt: DateTime): JSON!
       reviewComplianceDocument(documentId: ID!, decision: String!, notes: String): JSON!
       reviewDriver(driverId: ID!, decision: String!, notes: String): JSON!
@@ -3807,7 +3967,7 @@ function extendGraphqlSchema(baseSchema) {
       dispatchQueueScope: (_root, _args, context) => hasAnyFleetScope(context, context.session, "operations"),
       riderAccountOptions: async (_root, _args, context) => ({ registrationEnabled: await riderSignupsOpen(context.prisma) })
     },
-    Mutation: { setupFleet: createFleet, addFleetDriver, addFleetVehicle, assignVehicleDrivers, addComplianceDocument, reviewComplianceDocument, reviewDriver, reviewVehicle, setDriverAvailability, setupServiceArea: createServiceArea, setupRideService: createRideService, setupFareRule: createFareRule, saveFleetBranding, marketplaceRideshareQuote, requestRide, resolveRideRequestIntent, offerRideToDriver, respondToRideOffer, transitionTrip, cancelRideRequest, cancelRide, recordTripLocation, submitTripReview, reportSafetyIncident, openSupportCase, sendTripMessage, initiateTripPayment, requestTripRefund, bootstrapRideshare, dismissRideshareOnboarding, expireRideOffers, expireRequestFleetOffers }
+    Mutation: { addFleetMember, updateFleetMember, addDriverTimeOff, removeDriverTimeOff, triageSafetyIncident: updateSafetyIncident, triageSupportCase: updateSupportCase, moderateReview, confirmManualPayment, confirmManualRefund, setupFleet: createFleet, addFleetDriver, addFleetVehicle, assignVehicleDrivers, addComplianceDocument, reviewComplianceDocument, reviewDriver, reviewVehicle, setDriverAvailability, setDriverOnline, setupServiceArea: createServiceArea, setupRideService: createRideService, setupFareRule: createFareRule, saveFleetBranding, marketplaceRideshareQuote, requestRide, resolveRideRequestIntent, offerRideToDriver, respondToRideOffer, transitionTrip, cancelRideRequest, cancelRide, recordTripLocation, submitTripReview, reportSafetyIncident, openSupportCase, sendTripMessage, initiateTripPayment, requestTripRefund, bootstrapRideshare, dismissRideshareOnboarding, expireRideOffers, expireRequestFleetOffers }
   } });
 }
 

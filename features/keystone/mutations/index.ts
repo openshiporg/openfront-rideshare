@@ -16,6 +16,7 @@ import { operatorTripHandoff } from './operatorHandoffs'
 import { expireRideOffers, expireRequestFleetOffers } from './offerMaintenance'
 import { riderTripHistory } from './riderTripHistory'
 import { dispatchCandidatePage } from './dispatchCandidates'
+import { addDriverTimeOff, addFleetMember, confirmManualPayment, confirmManualRefund, moderateReview, removeDriverTimeOff, updateFleetMember, updateSafetyIncident, updateSupportCase } from './fleetOperations'
 import { addComplianceDocument, addFleetDriver, addFleetVehicle, assignVehicleDrivers, createFareRule, createFleet, createRideService, createServiceArea, reviewComplianceDocument, reviewDriver, reviewVehicle, setDriverAvailability, setDriverOnline } from './fleetSetup'
 
 const graphql = String.raw
@@ -100,6 +101,15 @@ export const typeDefs = graphql`
       addFleetVehicle(fleetId: ID!, label: String!, make: String, model: String, year: Int, color: String, plateMasked: String, capacity: Int, wheelchairAccessible: Boolean, driverIds: [ID!]): JSON!
       assignVehicleDrivers(vehicleId: ID!, driverIds: [ID!]!): JSON!
       setDriverOnline(online: Boolean!, driverId: ID): JSON!
+      addFleetMember(fleetId: ID!, email: String!, role: String!): JSON!
+      updateFleetMember(membershipId: ID!, role: String, status: String): JSON!
+      addDriverTimeOff(driverId: ID!, startsAt: DateTime!, endsAt: DateTime!, kind: String, reason: String): JSON!
+      removeDriverTimeOff(exceptionId: ID!): JSON!
+      triageSafetyIncident(incidentId: ID!, status: String, assignToMe: Boolean): JSON!
+      triageSupportCase(caseId: ID!, status: String, assignToMe: Boolean): JSON!
+      moderateReview(reviewId: ID!, status: String!, reason: String): JSON!
+      confirmManualPayment(paymentId: ID!, method: String): JSON!
+      confirmManualRefund(refundId: ID!): JSON!
       addComplianceDocument(driverId: ID, vehicleId: ID, kind: String!, issuer: String, referenceMasked: String, issuedAt: DateTime, expiresAt: DateTime): JSON!
       reviewComplianceDocument(documentId: ID!, decision: String!, notes: String): JSON!
       reviewDriver(driverId: ID!, decision: String!, notes: String): JSON!
@@ -123,6 +133,6 @@ export function extendGraphqlSchema(baseSchema: GraphQLSchema) {
       dispatchQueueScope: (_root, _args, context) => hasAnyFleetScope(context, context.session, 'operations'),
       riderAccountOptions: async (_root, _args, context) => ({ registrationEnabled: await riderSignupsOpen(context.prisma) }),
     },
-    Mutation: { setupFleet: createFleet, addFleetDriver, addFleetVehicle, assignVehicleDrivers, addComplianceDocument, reviewComplianceDocument, reviewDriver, reviewVehicle, setDriverAvailability, setDriverOnline, setupServiceArea: createServiceArea, setupRideService: createRideService, setupFareRule: createFareRule, saveFleetBranding, marketplaceRideshareQuote, requestRide, resolveRideRequestIntent, offerRideToDriver, respondToRideOffer, transitionTrip, cancelRideRequest, cancelRide, recordTripLocation, submitTripReview, reportSafetyIncident, openSupportCase, sendTripMessage, initiateTripPayment, requestTripRefund, bootstrapRideshare, dismissRideshareOnboarding, expireRideOffers, expireRequestFleetOffers },
+    Mutation: { addFleetMember, updateFleetMember, addDriverTimeOff, removeDriverTimeOff, triageSafetyIncident: updateSafetyIncident, triageSupportCase: updateSupportCase, moderateReview, confirmManualPayment, confirmManualRefund, setupFleet: createFleet, addFleetDriver, addFleetVehicle, assignVehicleDrivers, addComplianceDocument, reviewComplianceDocument, reviewDriver, reviewVehicle, setDriverAvailability, setDriverOnline, setupServiceArea: createServiceArea, setupRideService: createRideService, setupFareRule: createFareRule, saveFleetBranding, marketplaceRideshareQuote, requestRide, resolveRideRequestIntent, offerRideToDriver, respondToRideOffer, transitionTrip, cancelRideRequest, cancelRide, recordTripLocation, submitTripReview, reportSafetyIncident, openSupportCase, sendTripMessage, initiateTripPayment, requestTripRefund, bootstrapRideshare, dismissRideshareOnboarding, expireRideOffers, expireRequestFleetOffers },
   } })
 }

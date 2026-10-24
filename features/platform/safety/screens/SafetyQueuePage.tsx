@@ -1,5 +1,7 @@
 import { parseQueueSearch, queueSearchHref } from '@/features/platform/components/queueSearch'
 import { keystoneClient } from '@/features/dashboard/lib/keystoneClient'
+import Link from 'next/link'
+import { IncidentActions } from '../components/CaseActions'
 import { QueueIssues, QueuePagination } from '@/features/platform/components/QueuePagination'
 import { StatusTitle } from '@/features/platform/components/StatusTitle'
 import { statusLabel, statusTone, formatWhen } from '@/features/platform/lib/statusTone'
@@ -114,6 +116,7 @@ export async function SafetyQueuePage({ searchParams }: { searchParams?: Promise
         error={supportCaseLoadError}
         safetyStatus={selection.status}
         safetyPage={selection.page}
+        actorId={data?.authenticatedItem?.id || ''}
       />
     </>}
     render={item => <div className="space-y-1.5">
@@ -122,7 +125,8 @@ export async function SafetyQueuePage({ searchParams }: { searchParams?: Promise
         <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${severityClass[item.severity] || severityClass.low}`}>{item.severity || 'Unrated'}</span>
       </div>
       {item.summary && <p className="text-sm">{item.summary}</p>}
-      <p className="text-xs text-muted-foreground"><span className="capitalize">{item.category || 'Uncategorised'}</span> · {formatWhen(item.reportedAt)}</p>
+      <p className="text-xs text-muted-foreground"><span className="capitalize">{item.category || 'Uncategorised'}</span> · {formatWhen(item.reportedAt)}{item.trip && <> · <Link href={`/dashboard/platform/trips/${item.trip.id}`} className="font-mono hover:underline">{item.trip.confirmationCode}</Link></>}</p>
+      <IncidentActions incidentId={item.id} status={item.status} assigned={Boolean(item.assignedTo?.id && item.assignedTo.id === data?.authenticatedItem?.id)} />
     </div>}
   />
 }

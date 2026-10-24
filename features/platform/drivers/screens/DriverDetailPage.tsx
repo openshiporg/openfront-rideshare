@@ -5,9 +5,9 @@ import { PageBreadcrumbs } from '@/features/dashboard/components/PageBreadcrumbs
 import { PlatformEmpty, PlatformHeader, PlatformSection } from '@/features/platform/components/PlatformPage'
 import { StatusDot, StatusTitle } from '@/features/platform/components/StatusTitle'
 import { statusLabel, statusTone, formatWhen } from '@/features/platform/lib/statusTone'
-import { AddDocumentSheet, AddVehicleSheet, AvailabilityEditor, DocumentReviewTrack, DriverReviewTrack, OnlineTrack, VehicleReviewTrack } from '../components/DriverSetupActions'
+import { AddDocumentSheet, AddVehicleSheet, AvailabilityEditor, DocumentReviewTrack, DriverReviewTrack, OnlineTrack, RemoveTimeOffTrack, AddTimeOffSheet, VehicleReviewTrack } from '../components/DriverSetupActions'
 
-const DRIVER_QUERY = `query DriverDetail($id: ID!) {
+const DRIVER_QUERY = `query DriverDetail($id: ID!, $now: DateTime!) {
   driverProfile(where: { id: $id }) {
     id publicName publicBio status dispatchStatus acceptsScheduled
     user { id email }
@@ -15,6 +15,7 @@ const DRIVER_QUERY = `query DriverDetail($id: ID!) {
     documents(orderBy: [{ createdAt: desc }], take: 25) { id kind status issuer referenceMasked expiresAt }
     vehicles(take: 20) { id label make model year color plateMasked capacity wheelchairAccessible status documents(orderBy: [{ createdAt: desc }], take: 25) { id kind status issuer referenceMasked expiresAt } }
     availabilityRules(where: { status: { equals: "active" } }, orderBy: [{ dayOfWeek: asc }], take: 21) { dayOfWeek startTime endTime timezone }
+    availabilityExceptions(where: { endsAt: { gt: $now } }, orderBy: [{ startsAt: asc }], take: 20) { id startsAt endsAt kind reason }
     policyEvaluations(orderBy: [{ evaluatedAt: desc }], take: 5) { id outcome evaluatedAt expiresAt policy { kind } }
     trips(orderBy: [{ createdAt: desc }], take: 10) { id confirmationCode status createdAt }
   }
@@ -44,7 +45,7 @@ function DocumentList({ documents, required }: { documents: Document[]; required
 
 export async function DriverDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const response = await keystoneClient(DRIVER_QUERY, { id })
+  const response = await keystoneClient(DRIVER_QUERY, { id, now: new Date().toISOString() })
   const driver = response.success ? response.data?.driverProfile : null
   const fleetDocuments: Document[] = driver?.documents || []
   const driverGaps = driver ? missing(fleetDocuments, DRIVER_DOCUMENTS) : []
@@ -80,6 +81,10 @@ export async function DriverDetailPage({ params }: { params: Promise<{ id: strin
 
         <PlatformSection id="hours" title="Hours">
           <AvailabilityEditor driverId={driver.id} timezone={driver.availabilityRules[0]?.timezone || driver.fleet?.timezone || 'UTC'} rules={driver.availabilityRules} />
+        </PlatformSection>
+
+        <PlatformSection id="time-off" title="Time off" meta={driver.availabilityExceptions.length || undefined} actions={<AddTimeOffSheet driverId={driver.id} />}>
+          {driver.availabilityExceptions.length ? <ul className="divide-y overflow-hidden rounded-xl border bg-card">{driver.availabilityExceptions.map((exception: any) => <li key={exception.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm"><StatusTitle as="span" tone={exception.kind === 'available' ? 'green' : 'orange'} status={exception.kind === 'available' ? 'Extra hours' : 'Off'}>{formatWhen(exception.startsAt)} – {formatWhen(exception.endsAt)}</StatusTitle><span className="flex items-center gap-2 text-xs text-muted-foreground">{exception.reason}<RemoveTimeOffTrack exceptionId={exception.id} /></span></li>)}</ul> : <PlatformEmpty className="py-5">No upcoming time off</PlatformEmpty>}
         </PlatformSection>
 
         <div className="grid gap-8 lg:grid-cols-2">

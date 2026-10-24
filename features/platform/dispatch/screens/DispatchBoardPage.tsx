@@ -64,13 +64,13 @@ export async function DispatchBoardPage({ searchParams }: { searchParams?: Promi
   const actorId = data?.authenticatedItem?.id || ''
   return <OperationsBoard
     title="Dispatch"
-    meta={loaded ? <span className="tabular-nums">{total} waiting</span> : null}
+    meta={loaded ? <span className="tabular-nums">{total} {['cancelled', 'expired'].includes(selection.status) ? selection.status : 'waiting'}</span> : null}
     searchLabel="Request number"
     items={items}
     selectedStatus={selection.status}
     queryParams={{ q: query, page: String(selection.page) }}
     error={boardError}
-    columns={[{ key: 'all', label: 'Open' }, { key: 'requested', label: 'Requested' }, { key: 'matching', label: 'Matching' }]}
+    columns={[{ key: 'all', label: 'Open' }, { key: 'requested', label: 'Requested' }, { key: 'matching', label: 'Matching' }, { key: 'cancelled', label: 'Cancelled' }, { key: 'expired', label: 'Expired' }]}
     empty="No rides waiting for a driver"
     before={<>
       <QueueIssues issues={selection.issues} href={queueSearchHref(dispatchPageHref(selection.page, selection.status), query)} />

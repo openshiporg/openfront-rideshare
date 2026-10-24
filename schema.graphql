@@ -4692,6 +4692,16 @@ type Mutation {
   addFleetDriver(fleetId: ID!, publicName: String!, email: String, acceptsScheduled: Boolean, publicBio: String): JSON!
   addFleetVehicle(fleetId: ID!, label: String!, make: String, model: String, year: Int, color: String, plateMasked: String, capacity: Int, wheelchairAccessible: Boolean, driverIds: [ID!]): JSON!
   assignVehicleDrivers(vehicleId: ID!, driverIds: [ID!]!): JSON!
+  setDriverOnline(online: Boolean!, driverId: ID): JSON!
+  addFleetMember(fleetId: ID!, email: String!, role: String!): JSON!
+  updateFleetMember(membershipId: ID!, role: String, status: String): JSON!
+  addDriverTimeOff(driverId: ID!, startsAt: DateTime!, endsAt: DateTime!, kind: String, reason: String): JSON!
+  removeDriverTimeOff(exceptionId: ID!): JSON!
+  triageSafetyIncident(incidentId: ID!, status: String, assignToMe: Boolean): JSON!
+  triageSupportCase(caseId: ID!, status: String, assignToMe: Boolean): JSON!
+  moderateReview(reviewId: ID!, status: String!, reason: String): JSON!
+  confirmManualPayment(paymentId: ID!, method: String): JSON!
+  confirmManualRefund(refundId: ID!): JSON!
   addComplianceDocument(driverId: ID, vehicleId: ID, kind: String!, issuer: String, referenceMasked: String, issuedAt: DateTime, expiresAt: DateTime): JSON!
   reviewComplianceDocument(documentId: ID!, decision: String!, notes: String): JSON!
   reviewDriver(driverId: ID!, decision: String!, notes: String): JSON!

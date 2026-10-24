@@ -1,3 +1,5 @@
+import Link from 'next/link'
+import { SupportCaseActions } from './CaseActions'
 import { PillLink, PillTrack } from '@/features/platform/components/PillTabs'
 import { PlatformEmpty, PlatformSection } from '@/features/platform/components/PlatformPage'
 import { QueuePagination } from '@/features/platform/components/QueuePagination'
@@ -32,6 +34,7 @@ export function SupportCaseStatusBoard({
   error,
   safetyStatus,
   safetyPage,
+  actorId = '',
 }: {
   items: SupportCaseQueueItem[]
   status: SupportCaseStatusFilter
@@ -45,6 +48,7 @@ export function SupportCaseStatusBoard({
   error?: string
   safetyStatus: SafetyStatusFilter
   safetyPage: number
+  actorId?: string
 }) {
   return <PlatformSection id="support-cases" title="Support cases" meta={error ? undefined : total} className="border-t pt-6">
     <PillTrack label="Support case status">
@@ -54,7 +58,8 @@ export function SupportCaseStatusBoard({
       : items.length && !staleReason ? <ul className="divide-y overflow-hidden rounded-xl border bg-card">
         {items.map(item => <li key={item.caseNumber} className="flex flex-wrap items-center justify-between gap-2 p-4">
           <StatusTitle tone={statusTone(item.status)} status={statusLabel(item.status)} className="font-mono text-sm font-semibold">{item.caseNumber}</StatusTitle>
-          <span className="text-xs text-muted-foreground">{item.category === 'trip' ? 'Trip' : 'General'} · {formatWhen(item.createdAt)}</span>
+          <span className="text-xs text-muted-foreground">{item.category === 'trip' ? 'Trip' : 'General'} · {formatWhen(item.createdAt)}{item.trip && <> · <Link href={`/dashboard/platform/trips/${item.trip.id}`} className="font-mono hover:underline">{item.trip.confirmationCode}</Link></>}</span>
+          <div className="w-full"><SupportCaseActions caseId={item.id} status={item.status} assigned={Boolean(actorId && item.assignedToId === actorId)} /></div>
         </li>)}
       </ul>
       : !staleReason && <PlatformEmpty>No support cases</PlatformEmpty>}

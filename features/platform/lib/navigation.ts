@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
-import { CarFront, CircleDollarSign, MapPinned, Package, RadioTower, Settings, ShieldAlert, Users } from 'lucide-react'
+import { Car, CarFront, CircleDollarSign, MapPinned, Package, RadioTower, Settings, ShieldAlert, Star, UserCog, Users } from 'lucide-react'
 
 export interface PlatformNavItem {
   title: string
@@ -29,10 +29,14 @@ export const platformNavItems: PlatformNavItem[] = [
 
   // People & safety
   { title: 'Drivers', href: '/platform/drivers', color: 'purple', description: 'Review fleet-scoped driver readiness records.', icon: Users, group: 'people' },
+  { title: 'Vehicles', href: '/platform/vehicles', color: 'indigo', description: 'Fleet vehicles, documents and approval.', icon: Car, group: 'people' },
   { title: 'Safety & support', href: '/platform/safety', color: 'red', description: 'Restricted incident and support case queue.', icon: ShieldAlert, group: 'people' },
+
+  { title: 'Reviews', href: '/platform/reviews', color: 'amber', description: 'Rider and driver ratings and moderation.', icon: Star, group: 'people' },
 
   // Business
   { title: 'Finance', href: '/platform/finance', color: 'emerald', description: 'Restricted finance evidence and payment status review.', icon: CircleDollarSign, group: 'business' },
+  { title: 'Team', href: '/platform/team', color: 'teal', description: 'Fleet staff and their roles.', icon: UserCog, group: 'business' },
   { title: 'Settings', href: '/platform/settings', color: 'slate', description: 'Configure operations and external dependency boundaries.', icon: Settings, group: 'business' },
 ]
 

@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ActionTrack, TrackButton } from '@/features/platform/components/PillTabs'
 import { SetupSheet, TransitionTrack, type SetupField } from '@/features/platform/components/SetupSheet'
-import { DOCUMENT_KIND_OPTIONS, setup, toDocumentInput } from '@/features/platform/setup/setupMutations'
+import { DOCUMENT_KIND_OPTIONS, ops, setup, toDocumentInput } from '@/features/platform/setup/setupMutations'
 
 export function AddDriverSheet({ fleets }: { fleets: Array<{ id: string; name: string }> }) {
   if (!fleets.length) return null
@@ -105,4 +105,22 @@ export function OnlineTrack({ dispatchStatus, driverId }: { dispatchStatus: stri
   return <TransitionTrack label="Presence" actions={online
     ? [{ label: 'Go offline', run: () => setup.online(false, driverId) }]
     : [{ label: 'Go online', tone: 'primary', run: () => setup.online(true, driverId) }]} />
+}
+
+export function AddTimeOffSheet({ driverId }: { driverId: string }) {
+  return <SetupSheet trigger="Add time off" tone="default" title="Time off" submitLabel="Save time off" onSubmit={values => {
+    const startsAt = new Date(`${values.startDate}T${values.startTime || '00:00'}`)
+    const endsAt = new Date(`${values.endDate || values.startDate}T${values.endTime || '23:59'}`)
+    return ops.addTimeOff({ driverId, startsAt: startsAt.toISOString(), endsAt: endsAt.toISOString(), reason: values.reason || null })
+  }} fields={[
+    { name: 'startDate', label: 'From', type: 'date', required: true },
+    { name: 'startTime', label: 'From time', type: 'time', defaultValue: '00:00' },
+    { name: 'endDate', label: 'Until', type: 'date', required: true },
+    { name: 'endTime', label: 'Until time', type: 'time', defaultValue: '23:59' },
+    { name: 'reason', label: 'Reason', type: 'text', maxLength: 200 },
+  ]} />
+}
+
+export function RemoveTimeOffTrack({ exceptionId }: { exceptionId: string }) {
+  return <TransitionTrack label="Time off" actions={[{ label: 'Remove', tone: 'quiet', run: () => ops.removeTimeOff(exceptionId) }]} />
 }
