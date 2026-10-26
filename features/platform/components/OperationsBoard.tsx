@@ -49,7 +49,7 @@ export function OperationsBoard({ title, meta, actions, items, columns, empty, r
             <input name="q" maxLength={100} defaultValue={queryParams?.q || ''} placeholder={searchLabel} className="h-10 w-full rounded-[4px] border bg-background pl-9 pr-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" />
           </label>
           {Object.entries({ ...queryParams, status: activeStatus, page: '1' }).filter(([key]) => key !== 'q').map(([key, value]) => <input key={key} type="hidden" name={key} value={value} />)}
-          <button className="h-10 shrink-0 rounded-[4px] bg-foreground px-4 text-sm font-medium text-background transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" type="submit">Search</button>
+          <button className="h-10 shrink-0 rounded-[4px] border border-input bg-background px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" type="submit">Search</button>
         </form>
       </div>
       {error

@@ -63,7 +63,7 @@ export async function FinancePage({ searchParams }: { searchParams?: Promise<Fin
 
   return <OperationsBoard
     title="Finance"
-    meta={loaded ? <span className="tabular-nums">{total} payments</span> : null}
+    meta={loaded ? <span className="tabular-nums">{total} {total === 1 ? 'payment' : 'payments'}</span> : null}
     searchLabel="Payment ID"
     items={items}
     selectedStatus={selection.status}

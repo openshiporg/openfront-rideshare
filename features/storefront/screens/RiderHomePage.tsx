@@ -371,7 +371,7 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
         {selectedService && <p className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground"><span className="font-medium text-foreground">{selectedService.fleet.name}</span>{selectedService.fleet.publicCity && <span>{selectedService.fleet.publicCity}</span>}</p>}
 
         <section aria-labelledby="services-title" className="mt-8 hidden lg:block">
-          <h2 id="services-title" className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Rides</h2>
+          <h2 id="services-title" className="text-sm font-semibold text-muted-foreground">Rides</h2>
           <ServiceList services={services} serviceId={serviceId} disabled={formLocked} onChange={change(setServiceId)} loading={servicesLoading} more={nextServiceCursor ? () => void moreServices() : undefined} name="service-wide" />
           {selectedService && <ServiceDetail service={selectedService} />}
         </section>
@@ -405,7 +405,7 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
             </div>
 
             <div className="lg:hidden">
-              <p id="service-label" className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Ride</p>
+              <p id="service-label" className="mb-2 text-sm font-semibold text-muted-foreground">Ride</p>
               <ServiceList services={services} serviceId={serviceId} disabled={formLocked} onChange={change(setServiceId)} loading={servicesLoading} more={nextServiceCursor ? () => void moreServices() : undefined} name="service" />
               {selectedService && <ServiceDetail service={selectedService} />}
             </div>
@@ -430,7 +430,7 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
               <label className="flex min-h-11 cursor-pointer items-center justify-between gap-3 text-sm font-medium">
                 <span className="inline-flex items-center gap-2"><Accessibility className="size-4 text-muted-foreground" aria-hidden="true" />Wheelchair accessible</span>
                 <input type="checkbox" role="switch" checked={wheelchairAccessible} onChange={event => { if (locked()) return; invalidateQuote(); setWheelchairAccessible(event.target.checked) }} className="peer sr-only" />
-                <span aria-hidden="true" className="relative h-7 w-12 shrink-0 rounded-full bg-asphalt ring-1 ring-inset ring-white/15 transition-colors after:absolute after:left-1 after:top-1 after:size-5 after:rounded-full after:bg-muted-foreground after:transition-transform peer-checked:bg-signal peer-checked:after:translate-x-5 peer-checked:after:bg-zinc-950 peer-focus-visible:ring-2 peer-focus-visible:ring-signal" />
+                <span aria-hidden="true" className="relative h-7 w-12 shrink-0 rounded-[3px] bg-asphalt ring-1 ring-inset ring-white/15 transition-colors after:absolute after:left-1 after:top-1 after:size-5 after:rounded-[2px] after:bg-muted-foreground after:transition-transform peer-checked:bg-signal peer-checked:after:translate-x-5 peer-checked:after:bg-zinc-950 peer-focus-visible:ring-2 peer-focus-visible:ring-signal" />
               </label>
             </div>
           </fieldset>
@@ -438,7 +438,7 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
           {quote && visibleQuoteBinding && <section aria-live="polite" aria-label="Price" className="relative mt-5 overflow-hidden rounded-[6px] bg-signal p-4 text-zinc-950">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-800">{selectedService?.title || 'Ride'}</p>
+                <p className="text-sm font-semibold text-zinc-800">{selectedService?.title || 'Ride'}</p>
                 <p className="mt-1 font-display text-4xl font-extrabold tracking-tight tabular-nums [font-stretch:115%]">{formatMoney(quote.fare.totalMinor, quote.fare.currencyCode)}</p>
               </div>
               <p className="shrink-0 rounded-[4px] bg-zinc-950/10 px-2.5 py-1 text-xs font-semibold tabular-nums"><QuoteCountdown expiresAt={quote.expiresAt} /></p>

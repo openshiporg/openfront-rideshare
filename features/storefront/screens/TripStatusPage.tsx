@@ -82,7 +82,7 @@ export default function TripStatusPage({ confirmationCode, requestId }: { confir
         : unavailable || !trip ? <div role="status" className="space-y-4 rounded-[6px] border border-border bg-kerb p-5"><h1 className="font-display text-2xl font-extrabold [font-stretch:120%]">Trip not available</h1><p className="text-sm text-muted-foreground">Sign in, or open this trip from the browser you booked it in.</p><RiderTrack><RiderButtonLink href="/account/signin" tone="signal">Sign in</RiderButtonLink><RiderButtonLink href="/book" tone="quiet">Book a ride</RiderButtonLink></RiderTrack></div>
         : <>
           <div className="space-y-2">
-            <StatusTitle as="p" tone={statusTone(trip.status)} pulse={stage >= 0 && stage < 4} className="text-sm font-semibold uppercase tracking-[0.14em] text-muted-foreground">{statusLabel(trip.status)}</StatusTitle>
+            <StatusTitle as="p" tone={statusTone(trip.status)} pulse={stage >= 0 && stage < 4} className="text-sm font-semibold text-muted-foreground">{statusLabel(trip.status)}</StatusTitle>
             <h1 className="font-mono text-4xl font-semibold tracking-tight sm:text-5xl">{trip.confirmationCode}</h1>
             {trip.scheduledFor && <p className="inline-flex items-center gap-1.5 text-sm text-muted-foreground"><CalendarClock className="size-4" aria-hidden="true" />Pickup {new Date(trip.scheduledFor).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</p>}
           </div>

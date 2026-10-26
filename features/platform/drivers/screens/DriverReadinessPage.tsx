@@ -98,7 +98,7 @@ export async function DriverReadinessPage({ searchParams }: { searchParams?: Pro
         </div>
       </div>
       {missing.length ? <p className="justify-self-start rounded-[4px] bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-500/30 dark:text-amber-200 sm:justify-self-end">Missing {missing.map(kind => kind.replaceAll('_', ' ')).join(', ')}</p>
-        : <p className="justify-self-start rounded-[4px] bg-muted px-3 py-1 text-xs font-medium sm:justify-self-end">{evaluation?.outcome ? `Check: ${statusLabel(evaluation.outcome)}` : 'Not checked'}</p>}
+        : <p className="justify-self-start rounded-[4px] bg-muted px-3 py-1 text-xs font-medium sm:justify-self-end">{evaluation?.outcome ? statusLabel(evaluation.outcome) : 'Not checked'}</p>}
     </div> }}
   />
 }

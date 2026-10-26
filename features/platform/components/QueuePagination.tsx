@@ -19,6 +19,8 @@ export function QueuePagination({ label, noun, page, total, pageCount, maxPage, 
 }) {
   const reachablePageCount = Math.min(pageCount, maxPage)
   const recoveryPage = staleReason === 'page_out_of_range' ? Math.max(1, reachablePageCount) : page
+  // An empty queue already says so; no "0 requests" footer under it.
+  if (!total && !staleReason) return null
   const link = 'inline-flex h-9 items-center gap-1 rounded-[4px] border bg-background px-3 text-sm font-medium transition-colors hover:bg-muted'
   return <section aria-label={label} className="flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
     {staleReason

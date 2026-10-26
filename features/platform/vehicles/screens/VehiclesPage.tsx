@@ -1,3 +1,4 @@
+import { Plate } from '@/features/platform/components/Plate'
 import Link from 'next/link'
 import { CarFront, Users } from 'lucide-react'
 import { keystoneClient } from '@/features/dashboard/lib/keystoneClient'
@@ -42,7 +43,7 @@ export async function VehiclesPage({ searchParams }: { searchParams?: Promise<{ 
               <StatusTitle tone={TONE[vehicle.status] || 'zinc'} status={STATUSES.find(item => item.key === vehicle.status)?.label || vehicle.status} className="font-semibold">{vehicle.label}</StatusTitle>
               <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-1"><CarFront className="size-3.5" aria-hidden="true" />{[vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ') || 'No make or model'}</span>
-                {vehicle.plateMasked && <span className="font-mono">{vehicle.plateMasked}</span>}
+                {vehicle.plateMasked && <Plate>{vehicle.plateMasked}</Plate>}
                 <span>{vehicle.capacity} seats</span>
                 {vehicle.wheelchairAccessible && <span>Wheelchair accessible</span>}
                 {fleets.length > 1 && <span>{vehicle.fleet?.name}</span>}
