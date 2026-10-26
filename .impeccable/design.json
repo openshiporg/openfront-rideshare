@@ -1,0 +1,550 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-26T00:00:00Z",
+  "title": "Design System: Openfront Rideshare",
+  "extensions": {
+    "colorMeta": {
+      "cab-yellow": {
+        "role": "primary",
+        "displayName": "Cab Yellow",
+        "canonical": "oklch(0.86 0.165 92)",
+        "tonalRamp": [
+          "oklch(0.15 0.165 92)",
+          "oklch(0.27 0.165 92)",
+          "oklch(0.39 0.165 92)",
+          "oklch(0.51 0.165 92)",
+          "oklch(0.63 0.165 92)",
+          "oklch(0.75 0.165 92)",
+          "oklch(0.86 0.165 92)",
+          "oklch(0.95 0.165 92)"
+        ]
+      },
+      "cab-yellow-hover": {
+        "role": "primary",
+        "displayName": "Cab Yellow Hover",
+        "canonical": "oklch(0.81 0.165 88)",
+        "tonalRamp": [
+          "oklch(0.15 0.165 88)",
+          "oklch(0.27 0.165 88)",
+          "oklch(0.39 0.165 88)",
+          "oklch(0.51 0.165 88)",
+          "oklch(0.63 0.165 88)",
+          "oklch(0.75 0.165 88)",
+          "oklch(0.86 0.165 88)",
+          "oklch(0.95 0.165 88)"
+        ]
+      },
+      "cab-yellow-dark": {
+        "role": "primary",
+        "displayName": "Cab Yellow (dark mode)",
+        "canonical": "oklch(0.84 0.16 92)",
+        "tonalRamp": [
+          "oklch(0.15 0.16 92)",
+          "oklch(0.27 0.16 92)",
+          "oklch(0.39 0.16 92)",
+          "oklch(0.51 0.16 92)",
+          "oklch(0.63 0.16 92)",
+          "oklch(0.75 0.16 92)",
+          "oklch(0.86 0.16 92)",
+          "oklch(0.95 0.16 92)"
+        ]
+      },
+      "plate-black": {
+        "role": "neutral",
+        "displayName": "Plate Black",
+        "canonical": "oklch(0.18 0.01 90)",
+        "tonalRamp": [
+          "oklch(0.15 0.01 90)",
+          "oklch(0.27 0.01 90)",
+          "oklch(0.39 0.01 90)",
+          "oklch(0.51 0.01 90)",
+          "oklch(0.63 0.01 90)",
+          "oklch(0.75 0.01 90)",
+          "oklch(0.86 0.01 90)",
+          "oklch(0.95 0.01 90)"
+        ]
+      },
+      "tab-rule": {
+        "role": "primary",
+        "displayName": "Tab Rule",
+        "canonical": "oklch(0.7 0.15 88)",
+        "tonalRamp": [
+          "oklch(0.15 0.15 88)",
+          "oklch(0.27 0.15 88)",
+          "oklch(0.39 0.15 88)",
+          "oklch(0.51 0.15 88)",
+          "oklch(0.63 0.15 88)",
+          "oklch(0.75 0.15 88)",
+          "oklch(0.86 0.15 88)",
+          "oklch(0.95 0.15 88)"
+        ]
+      },
+      "plate-white": {
+        "role": "neutral",
+        "displayName": "Plate White",
+        "canonical": "oklch(0.975 0.01 95)",
+        "tonalRamp": [
+          "oklch(0.15 0.01 95)",
+          "oklch(0.27 0.01 95)",
+          "oklch(0.39 0.01 95)",
+          "oklch(0.51 0.01 95)",
+          "oklch(0.63 0.01 95)",
+          "oklch(0.75 0.01 95)",
+          "oklch(0.86 0.01 95)",
+          "oklch(0.95 0.01 95)"
+        ]
+      },
+      "plate-line": {
+        "role": "neutral",
+        "displayName": "Plate Line",
+        "canonical": "oklch(0.86 0.03 95)",
+        "tonalRamp": [
+          "oklch(0.15 0.03 95)",
+          "oklch(0.27 0.03 95)",
+          "oklch(0.39 0.03 95)",
+          "oklch(0.51 0.03 95)",
+          "oklch(0.63 0.03 95)",
+          "oklch(0.75 0.03 95)",
+          "oklch(0.86 0.03 95)",
+          "oklch(0.95 0.03 95)"
+        ]
+      },
+      "plate-white-dark": {
+        "role": "neutral",
+        "displayName": "Plate White (dark mode)",
+        "canonical": "oklch(0.24 0.01 95)",
+        "tonalRamp": [
+          "oklch(0.15 0.01 95)",
+          "oklch(0.27 0.01 95)",
+          "oklch(0.39 0.01 95)",
+          "oklch(0.51 0.01 95)",
+          "oklch(0.63 0.01 95)",
+          "oklch(0.75 0.01 95)",
+          "oklch(0.86 0.01 95)",
+          "oklch(0.95 0.01 95)"
+        ]
+      },
+      "plate-line-dark": {
+        "role": "neutral",
+        "displayName": "Plate Line (dark mode)",
+        "canonical": "oklch(0.36 0.02 95)",
+        "tonalRamp": [
+          "oklch(0.15 0.02 95)",
+          "oklch(0.27 0.02 95)",
+          "oklch(0.39 0.02 95)",
+          "oklch(0.51 0.02 95)",
+          "oklch(0.63 0.02 95)",
+          "oklch(0.75 0.02 95)",
+          "oklch(0.86 0.02 95)",
+          "oklch(0.95 0.02 95)"
+        ]
+      },
+      "signal": {
+        "role": "primary",
+        "displayName": "Signal Yellow",
+        "canonical": "#ffd23f",
+        "tonalRamp": [
+          "oklch(0.15 0.17 92)",
+          "oklch(0.27 0.17 92)",
+          "oklch(0.39 0.17 92)",
+          "oklch(0.51 0.17 92)",
+          "oklch(0.63 0.17 92)",
+          "oklch(0.75 0.17 92)",
+          "oklch(0.86 0.17 92)",
+          "oklch(0.95 0.17 92)"
+        ]
+      },
+      "signal-hover": {
+        "role": "primary",
+        "displayName": "Signal Yellow Hover",
+        "canonical": "#ffdb63",
+        "tonalRamp": [
+          "oklch(0.15 0.15 94)",
+          "oklch(0.27 0.15 94)",
+          "oklch(0.39 0.15 94)",
+          "oklch(0.51 0.15 94)",
+          "oklch(0.63 0.15 94)",
+          "oklch(0.75 0.15 94)",
+          "oklch(0.86 0.15 94)",
+          "oklch(0.95 0.15 94)"
+        ]
+      },
+      "asphalt": {
+        "role": "neutral",
+        "displayName": "Asphalt",
+        "canonical": "#0b0d10",
+        "tonalRamp": [
+          "oklch(0.15 0.008 260)",
+          "oklch(0.27 0.008 260)",
+          "oklch(0.39 0.008 260)",
+          "oklch(0.51 0.008 260)",
+          "oklch(0.63 0.008 260)",
+          "oklch(0.75 0.008 260)",
+          "oklch(0.86 0.008 260)",
+          "oklch(0.95 0.008 260)"
+        ]
+      },
+      "kerb": {
+        "role": "neutral",
+        "displayName": "Kerb",
+        "canonical": "#14171c",
+        "tonalRamp": [
+          "oklch(0.15 0.01 260)",
+          "oklch(0.27 0.01 260)",
+          "oklch(0.39 0.01 260)",
+          "oklch(0.51 0.01 260)",
+          "oklch(0.63 0.01 260)",
+          "oklch(0.75 0.01 260)",
+          "oklch(0.86 0.01 260)",
+          "oklch(0.95 0.01 260)"
+        ]
+      },
+      "lane": {
+        "role": "neutral",
+        "displayName": "Lane",
+        "canonical": "#1c2027",
+        "tonalRamp": [
+          "oklch(0.15 0.012 260)",
+          "oklch(0.27 0.012 260)",
+          "oklch(0.39 0.012 260)",
+          "oklch(0.51 0.012 260)",
+          "oklch(0.63 0.012 260)",
+          "oklch(0.75 0.012 260)",
+          "oklch(0.86 0.012 260)",
+          "oklch(0.95 0.012 260)"
+        ]
+      },
+      "lane-hover": {
+        "role": "neutral",
+        "displayName": "Lane Hover",
+        "canonical": "#232831",
+        "tonalRamp": [
+          "oklch(0.15 0.014 260)",
+          "oklch(0.27 0.014 260)",
+          "oklch(0.39 0.014 260)",
+          "oklch(0.51 0.014 260)",
+          "oklch(0.63 0.014 260)",
+          "oklch(0.75 0.014 260)",
+          "oklch(0.86 0.014 260)",
+          "oklch(0.95 0.014 260)"
+        ]
+      },
+      "kerb-edge": {
+        "role": "neutral",
+        "displayName": "Kerb Edge",
+        "canonical": "#272c34",
+        "tonalRamp": [
+          "oklch(0.15 0.015 260)",
+          "oklch(0.27 0.015 260)",
+          "oklch(0.39 0.015 260)",
+          "oklch(0.51 0.015 260)",
+          "oklch(0.63 0.015 260)",
+          "oklch(0.75 0.015 260)",
+          "oklch(0.86 0.015 260)",
+          "oklch(0.95 0.015 260)"
+        ]
+      },
+      "field-edge": {
+        "role": "neutral",
+        "displayName": "Field Edge",
+        "canonical": "#2d333c",
+        "tonalRamp": [
+          "oklch(0.15 0.016 260)",
+          "oklch(0.27 0.016 260)",
+          "oklch(0.39 0.016 260)",
+          "oklch(0.51 0.016 260)",
+          "oklch(0.63 0.016 260)",
+          "oklch(0.75 0.016 260)",
+          "oklch(0.86 0.016 260)",
+          "oklch(0.95 0.016 260)"
+        ]
+      },
+      "slip-ink": {
+        "role": "neutral",
+        "displayName": "Slip Ink",
+        "canonical": "#121212",
+        "tonalRamp": [
+          "oklch(0.15 0 0)",
+          "oklch(0.27 0 0)",
+          "oklch(0.39 0 0)",
+          "oklch(0.51 0 0)",
+          "oklch(0.63 0 0)",
+          "oklch(0.75 0 0)",
+          "oklch(0.86 0 0)",
+          "oklch(0.95 0 0)"
+        ]
+      },
+      "chalk": {
+        "role": "neutral",
+        "displayName": "Chalk",
+        "canonical": "#f3f2ee",
+        "tonalRamp": [
+          "oklch(0.15 0.005 95)",
+          "oklch(0.27 0.005 95)",
+          "oklch(0.39 0.005 95)",
+          "oklch(0.51 0.005 95)",
+          "oklch(0.63 0.005 95)",
+          "oklch(0.75 0.005 95)",
+          "oklch(0.86 0.005 95)",
+          "oklch(0.95 0.005 95)"
+        ]
+      },
+      "kerb-grey": {
+        "role": "neutral",
+        "displayName": "Kerb Grey",
+        "canonical": "#9aa0aa",
+        "tonalRamp": [
+          "oklch(0.15 0.015 260)",
+          "oklch(0.27 0.015 260)",
+          "oklch(0.39 0.015 260)",
+          "oklch(0.51 0.015 260)",
+          "oklch(0.63 0.015 260)",
+          "oklch(0.75 0.015 260)",
+          "oklch(0.86 0.015 260)",
+          "oklch(0.95 0.015 260)"
+        ]
+      },
+      "brake-red": {
+        "role": "error",
+        "displayName": "Brake Red",
+        "canonical": "#ff6b5e",
+        "tonalRamp": [
+          "oklch(0.15 0.18 28)",
+          "oklch(0.27 0.18 28)",
+          "oklch(0.39 0.18 28)",
+          "oklch(0.51 0.18 28)",
+          "oklch(0.63 0.18 28)",
+          "oklch(0.75 0.18 28)",
+          "oklch(0.86 0.18 28)",
+          "oklch(0.95 0.18 28)"
+        ]
+      },
+      "brake-red-text": {
+        "role": "error",
+        "displayName": "Brake Red Text",
+        "canonical": "#ff8a7f",
+        "tonalRamp": [
+          "oklch(0.15 0.15 28)",
+          "oklch(0.27 0.15 28)",
+          "oklch(0.39 0.15 28)",
+          "oklch(0.51 0.15 28)",
+          "oklch(0.63 0.15 28)",
+          "oklch(0.75 0.15 28)",
+          "oklch(0.86 0.15 28)",
+          "oklch(0.95 0.15 28)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "rider-display": {
+        "displayName": "Rider Display",
+        "purpose": "Rider page headline, one per page; wide extra-bold Archivo."
+      },
+      "rider-fare": {
+        "displayName": "Rider Fare",
+        "purpose": "Bound price on the quote slip."
+      },
+      "operator-headline": {
+        "displayName": "Operator Headline",
+        "purpose": "Platform page title (1.5rem, 1.875rem from md)."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Platform section titles."
+      },
+      "figure": {
+        "displayName": "Figure",
+        "purpose": "Dispatch supply strip readings; tabular slashed-zero."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Rows, meta, form text."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Supply-strip terms, status labels, meta."
+      },
+      "identifier": {
+        "displayName": "Identifier",
+        "purpose": "Request numbers and confirmation codes in Geist Mono."
+      },
+      "plate": {
+        "displayName": "Plate",
+        "purpose": "Vehicle registrations set as plates."
+      }
+    },
+    "shadows": [
+      {
+        "name": "kerb-lift",
+        "value": "0 30px 80px -40px rgba(0,0,0,0.9)",
+        "purpose": "Rider booking and confirmation panels only."
+      }
+    ],
+    "motion": [
+      {
+        "name": "state-color",
+        "value": "transition-colors 150ms (Tailwind default ease)",
+        "purpose": "Hover and selection colour changes on tabs, buttons, choices."
+      },
+      {
+        "name": "live-pulse",
+        "value": "animate-ping on status mark / searching tile; none under prefers-reduced-motion",
+        "purpose": "Live states only: matching requests, searching for a driver."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      }
+    ],
+    "scopes": {
+      "operator": "features/platform/** via features/platform/components/fleet.css (--rf-*), light and dark",
+      "rider": "features/storefront/** under .rs.dark in app/globals.css",
+      "excluded": "features/dashboard/** shared shell"
+    }
+  },
+  "components": [
+    {
+      "name": "Operator Primary Track Button",
+      "kind": "button",
+      "refersTo": "track-button-primary",
+      "description": "The one forward action on an operator screen (offer, assign, save).",
+      "html": "<button class=\"ds-track-primary\">Offer ride</button>",
+      "css": ".ds-track-primary{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 12px;border:1px solid oklch(0.7 0.15 88);border-radius:4px;background:oklch(0.86 0.165 92);color:oklch(0.18 0.01 90);font:600 14px/1 Geist,system-ui,sans-serif;cursor:pointer;transition:background-color .15s}.ds-track-primary:hover{background:oklch(0.81 0.165 88)}.ds-track-primary:focus-visible{outline:none;box-shadow:0 0 0 2px oklch(0.705 0.015 286)}"
+    },
+    {
+      "name": "Operator Default Track Button",
+      "kind": "button",
+      "refersTo": "track-button-default",
+      "description": "Secondary operator command inside an ActionTrack.",
+      "html": "<button class=\"ds-track\">Decline</button>",
+      "css": ".ds-track{display:inline-flex;align-items:center;min-height:32px;padding:0 12px;border:1px solid oklch(0.92 0.004 286);border-radius:4px;background:#fff;color:oklch(0.141 0.005 286);font:500 14px/1 Geist,system-ui,sans-serif;cursor:pointer;transition:background-color .15s}.ds-track:hover{background:oklch(0.967 0.001 286)}.ds-track:focus-visible{outline:none;box-shadow:0 0 0 2px oklch(0.705 0.015 286)}"
+    },
+    {
+      "name": "Operator Underline Tabs",
+      "kind": "nav",
+      "refersTo": "pill-track",
+      "description": "Status views on every operations board; current tab carries the yellow rule.",
+      "html": "<div class=\"ds-tabs\"><a class=\"ds-tab ds-tab-on\" href=\"#\">Waiting <span>3</span></a><a class=\"ds-tab\" href=\"#\">Offered <span>1</span></a><a class=\"ds-tab\" href=\"#\">Cancelled <span>0</span></a></div>",
+      "css": ".ds-tabs{display:flex;gap:20px;align-items:flex-end;border-bottom:1px solid oklch(0.92 0.004 286);font:400 14px/1 Geist,system-ui,sans-serif}.ds-tab{display:inline-flex;gap:6px;align-items:center;min-height:40px;margin-bottom:-1px;border-bottom:2px solid transparent;color:oklch(0.552 0.016 286);text-decoration:none;transition:color .15s,border-color .15s}.ds-tab span{font-size:12px;font-variant-numeric:tabular-nums slashed-zero;opacity:.7}.ds-tab:hover{color:oklch(0.141 0.005 286);border-color:oklch(0.92 0.004 286)}.ds-tab:focus-visible{outline:none;text-decoration:underline;color:oklch(0.141 0.005 286)}.ds-tab-on,.ds-tab-on:hover{border-color:oklch(0.7 0.15 88);color:oklch(0.141 0.005 286);font-weight:500}"
+    },
+    {
+      "name": "Plate",
+      "kind": "chip",
+      "refersTo": "plate",
+      "description": "A vehicle registration set like a licence plate.",
+      "html": "<span class=\"ds-plate\">HIM 0042</span>",
+      "css": ".ds-plate{display:inline-flex;align-items:center;height:20px;padding:0 6px;border:1px solid oklch(0.86 0.03 95);border-radius:3px;background:oklch(0.975 0.01 95);color:oklch(0.141 0.005 286);font:600 11px/1 'Geist Mono',ui-monospace,monospace;letter-spacing:.025em;text-transform:uppercase;font-variant-numeric:tabular-nums slashed-zero}"
+    },
+    {
+      "name": "Status Title",
+      "kind": "custom",
+      "refersTo": "status-title",
+      "description": "Request or trip heading with a square status mark and status label.",
+      "html": "<h3 class=\"ds-status\"><span class=\"ds-mark\"></span><span class=\"ds-id\">RQ-1042</span><span class=\"ds-label\">Matching</span></h3>",
+      "css": ".ds-status{display:flex;align-items:baseline;gap:8px;margin:0;font:600 14px/1.4 'Geist Mono',ui-monospace,monospace}.ds-mark{width:8px;height:8px;border-radius:1px;background:#f59e0b;align-self:center}.ds-label{font:500 12px/1 Geist,system-ui,sans-serif;color:oklch(0.552 0.016 286)}"
+    },
+    {
+      "name": "Rider Signal Button",
+      "kind": "button",
+      "refersTo": "rider-button-signal",
+      "description": "The single forward action on a rider page: See price, Request ride, Track ride.",
+      "html": "<button class=\"ds-signal\">See price <svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M5 12h14\"/><path d=\"m12 5 7 7-7 7\"/></svg></button>",
+      "css": ".ds-signal{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:52px;padding:0 24px;border:0;border-radius:3px;background:#ffd23f;color:#09090b;font:600 16px/1 Geist,system-ui,sans-serif;cursor:pointer;transition:background-color .15s}.ds-signal:hover{background:#ffdb63}.ds-signal:focus-visible{outline:none;box-shadow:0 0 0 2px #0b0d10,0 0 0 4px #ffd23f}"
+    },
+    {
+      "name": "Rider Raised Button",
+      "kind": "button",
+      "refersTo": "rider-button-raised",
+      "description": "Secondary rider command on lane with a faint ring.",
+      "html": "<button class=\"ds-raised\">My rides</button>",
+      "css": ".ds-raised{display:inline-flex;align-items:center;min-height:40px;padding:0 16px;border:0;border-radius:3px;background:#1c2027;color:#f3f2ee;box-shadow:inset 0 0 0 1px rgba(255,255,255,.2);font:600 14px/1 Geist,system-ui,sans-serif;cursor:pointer;transition:background-color .15s,box-shadow .15s}.ds-raised:hover{background:#232831;box-shadow:inset 0 0 0 1px rgba(255,255,255,.35)}.ds-raised:focus-visible{outline:none;box-shadow:0 0 0 2px #ffd23f}"
+    },
+    {
+      "name": "Rider Choice",
+      "kind": "chip",
+      "refersTo": "rider-pill",
+      "description": "Square kerb choice (Now / Schedule, Sign in / Create account); chosen carries the signal edge.",
+      "html": "<div class=\"ds-rtrack\"><button class=\"ds-rpill ds-rpill-on\">Now</button><button class=\"ds-rpill\">Schedule</button></div>",
+      "css": ".ds-rtrack{display:inline-flex;gap:8px;padding:12px;background:#14171c}.ds-rpill{min-height:40px;padding:0 16px;border:1px solid rgba(255,255,255,.15);border-radius:3px;background:transparent;color:#9aa0aa;font:400 14px/1 Geist,system-ui,sans-serif;cursor:pointer;transition:border-color .15s,color .15s}.ds-rpill:hover{border-color:rgba(255,255,255,.35);color:#f3f2ee}.ds-rpill:focus-visible{outline:none;box-shadow:0 0 0 2px #ffd23f}.ds-rpill-on,.ds-rpill-on:hover{border-color:#ffd23f;background:#1c2027;color:#f3f2ee;font-weight:600}"
+    },
+    {
+      "name": "Rider Route Field",
+      "kind": "input",
+      "refersTo": "rider-field",
+      "description": "Pickup and destination in one asphalt well joined by the dashed route line.",
+      "html": "<div class=\"ds-route\"><span class=\"ds-line\"></span><label class=\"ds-stop\"><span class=\"ds-from\"></span><input placeholder=\"Pickup\"></label><hr><label class=\"ds-stop\"><span class=\"ds-to\"></span><input placeholder=\"Where to?\"></label></div>",
+      "css": ".ds-route{position:relative;width:340px;border-radius:6px;background:#0b0d10;box-shadow:inset 0 0 0 1px rgba(255,255,255,.1)}.ds-line{position:absolute;left:21px;top:26px;bottom:26px;width:1px;background:linear-gradient(to bottom,#9aa0aa 50%,transparent 0);background-size:1px 6px}.ds-stop{display:flex;align-items:center;gap:12px;padding:4px 16px}.ds-from{position:relative;width:12px;height:12px;box-sizing:border-box;border:3px solid #f3f2ee;border-radius:4px;background:#0b0d10}.ds-to{position:relative;width:12px;height:12px;border-radius:3px;background:#ffd23f}.ds-route input{height:48px;flex:1;border:0;background:transparent;color:#f3f2ee;font:500 16px Geist,system-ui,sans-serif;outline:none}.ds-route input::placeholder{color:rgba(154,160,170,.8)}.ds-route hr{margin:0 0 0 44px;border:0;border-top:1px solid rgba(255,255,255,.1)}.ds-route:focus-within{box-shadow:inset 0 0 0 2px #ffd23f}"
+    },
+    {
+      "name": "Quote Slip",
+      "kind": "card",
+      "refersTo": "rider-quote-slip",
+      "description": "The bound price as a signal-yellow meter slip: fare, expiry, fees in one reading.",
+      "html": "<div class=\"ds-slip\"><div class=\"ds-slip-top\"><div><p class=\"ds-slip-k\">Standard</p><p class=\"ds-fare\">$18.40</p></div><span class=\"ds-exp\">4:59</span></div><dl class=\"ds-fees\"><div><dt>Base</dt><dd>$4.00</dd></div><div><dt>Distance</dt><dd>$12.10</dd></div><div><dt>Fees</dt><dd>$2.30</dd></div></dl></div>",
+      "css": ".ds-slip{width:320px;padding:16px;border-radius:6px;background:#ffd23f;color:#09090b;font-family:Geist,system-ui,sans-serif}.ds-slip-top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}.ds-slip-k{margin:0;font-size:14px;font-weight:600;color:#27272a}.ds-fare{margin:4px 0 0;font:800 36px/1 Archivo,Geist,sans-serif;font-stretch:115%;letter-spacing:-.025em;font-variant-numeric:tabular-nums}.ds-exp{padding:4px 10px;border-radius:4px;background:rgba(9,9,11,.1);font-size:12px;font-weight:600;font-variant-numeric:tabular-nums}.ds-fees{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0 0;padding-top:12px;border-top:1px solid rgba(9,9,11,.15);font-size:12px}.ds-fees dt{color:#27272a}.ds-fees dd{margin:0;font-weight:600;font-variant-numeric:tabular-nums}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Cab's Papers and the Meter Slip",
+    "overview": "Two surfaces share one yellow and nothing else ornamental. The operator pages (`features/platform/**`) read like a licensed cab's papers: identifiers set like plates, counts in tabular slashed-zero figures, every trip's stage on a five-segment rail, flat underline tabs whose current tab burns with a deeper yellow rule. The rider pages (`features/storefront/**`) read like getting a meter slip on the kerb at night: asphalt ground, kerb-stone panels, the fare in big wide figures on a signal-yellow slip, and one signal-yellow action.\n\nBoth worlds are square and dense. Corners stay between 1px and 6px; the yellow is a spot colour reserved for the one action that moves work forward, the current tab or chosen option, and (rider side) the quote slip. Operator pages follow the shared dashboard shell's light and dark neutrals and add their own plate tokens; rider pages are always dark (`.rs.dark` scope). The shared dashboard shell (`features/dashboard/**`) is not part of this system and keeps its own tokens.",
+    "keyCharacteristics": [
+      "Spot yellow only: cab yellow on operator pages, signal yellow on rider pages, never as decoration.",
+      "Square geometry: 1px status marks, 3px plates and rider controls, 4px operator controls, 6px panels and rows.",
+      "Figures are instruments: tabular, slashed-zero counts and times; wide Archivo for rider fares and headings.",
+      "Routes drawn as two stops on a rail: ring for pickup, solid square for drop-off.",
+      "Flat operator surfaces; the rider booking panel alone lifts off the asphalt."
+    ],
+    "rules": [
+      {
+        "name": "The One Yellow Rule",
+        "body": "On any screen, yellow marks only the forward action, the current tab or chosen option, and (rider) the quote slip. A second yellow button on the same screen is wrong; use `default`/`raised`.",
+        "section": "colors"
+      },
+      {
+        "name": "The Plate Rule",
+        "body": "Plate white exists only to set a vehicle registration as a plate. It does not become a card, header or table ground.",
+        "section": "colors"
+      },
+      {
+        "name": "The Counted Figure Rule",
+        "body": "Every count, time, wait and fare sets tabular figures; operator figures also slash the zero (`.rf-figures`).",
+        "section": "typography"
+      },
+      {
+        "name": "The Wide Voice Rule",
+        "body": "Archivo appears only on rider pages, and only for the page headline, the fare, the fleet name and the account monogram. Operator pages never use it.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat Papers Rule",
+        "body": "Operator surfaces carry no shadows; separate with rules and borders.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** keep yellow to the one forward action, the current tab or chosen option, and the rider quote slip.",
+      "**Do** set every count, time and fare in tabular figures; on operator pages use `.rf-figures` for slashed zeros.",
+      "**Do** keep corners at 1-6px: 3px plates and rider controls, 4px operator controls, 6px panels.",
+      "**Do** draw routes as pickup ring and drop-off square on a rail (`RouteLine` on operator pages).",
+      "**Do** show status as a square mark beside the heading, and trip progress on the five-segment rail.",
+      "**Do** use underline tabs (PillTrack) for operator status views and wrap commands in ActionTrack/RiderTrack."
+    ],
+    "donts": [
+      "**Don't** use rounded-full pills, round status dots, or radii above 6px on either surface.",
+      "**Don't** put a second yellow button beside a primary one.",
+      "**Don't** add shadows to operator surfaces; the rider kerb lift belongs only to the booking and confirmation panels.",
+      "**Don't** use Archivo on operator pages or plate white outside the Plate.",
+      "**Don't** borrow or restyle the shared dashboard shell's tokens; platform tokens live in `fleet.css`, rider tokens under `.rs`."
+    ]
+  }
+}
