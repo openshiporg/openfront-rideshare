@@ -86,7 +86,7 @@ export async function DriverReadinessPage({ searchParams }: { searchParams?: Pro
     after={loaded && pageState ? <QueuePagination label="Driver pagination" noun="drivers" page={selection.page} total={total} pageCount={pageState.pageCount} maxPage={DRIVER_MAX_PAGE} firstItem={pageState.firstItem} lastItem={pageState.lastItem} staleReason={pageState.staleReason} exceedsPageLimit={pageState.exceedsPageLimit} hrefFor={page => queueSearchHref(driverPageHref(page, selection.status), query)} /> : null}
     render={item => { const evaluation = item.policyEvaluations[0]; const expiring = item.documents.filter((document: any) => document.expiresAt && Date.parse(document.expiresAt) < Date.now() + 30 * 864e5).length; const missing = REQUIRED_DRIVER_DOCUMENTS.filter(kind => !item.documents.some((document: any) => document.kind === kind && document.status === 'accepted_evidence' && (!document.expiresAt || Date.parse(document.expiresAt) > Date.now()))); return <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-6">
       <div className="flex min-w-0 items-start gap-3">
-        <span className="grid size-10 shrink-0 place-items-center rounded-full bg-muted text-sm font-semibold uppercase" aria-hidden="true">{initials(item.publicName)}</span>
+        <span className="grid size-10 shrink-0 place-items-center rounded-[4px] bg-muted text-sm font-semibold uppercase" aria-hidden="true">{initials(item.publicName)}</span>
         <div className="min-w-0 space-y-1">
           <StatusTitle tone={statusTone(item.status)} status={statusLabel(item.status)} className="font-semibold"><Link href={`/dashboard/platform/drivers/${item.id}`} className="hover:underline">{item.publicName}</Link></StatusTitle>
           <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
@@ -97,8 +97,8 @@ export async function DriverReadinessPage({ searchParams }: { searchParams?: Pro
           </p>
         </div>
       </div>
-      {missing.length ? <p className="justify-self-start rounded-full bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-500/30 dark:text-amber-200 sm:justify-self-end">Missing {missing.map(kind => kind.replaceAll('_', ' ')).join(', ')}</p>
-        : <p className="justify-self-start rounded-full bg-muted px-3 py-1 text-xs font-medium sm:justify-self-end">{evaluation?.outcome ? `Check: ${statusLabel(evaluation.outcome)}` : 'Not checked'}</p>}
+      {missing.length ? <p className="justify-self-start rounded-[4px] bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-500/30 dark:text-amber-200 sm:justify-self-end">Missing {missing.map(kind => kind.replaceAll('_', ' ')).join(', ')}</p>
+        : <p className="justify-self-start rounded-[4px] bg-muted px-3 py-1 text-xs font-medium sm:justify-self-end">{evaluation?.outcome ? `Check: ${statusLabel(evaluation.outcome)}` : 'Not checked'}</p>}
     </div> }}
   />
 }

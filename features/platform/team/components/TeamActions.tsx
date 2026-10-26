@@ -19,7 +19,7 @@ export function MemberActions({ membershipId, role, status }: { membershipId: st
   const router = useRouter()
   return <div className="flex flex-wrap items-center gap-2">
     <label className="sr-only" htmlFor={`role-${membershipId}`}>Role</label>
-    <select id={`role-${membershipId}`} defaultValue={role} onChange={async event => { try { await ops.updateMember(membershipId, { role: event.target.value }); router.refresh() } catch (reason) { window.alert(reason instanceof Error ? reason.message : 'Role did not save.'); event.target.value = role } }} className="h-8 rounded-full border bg-background px-3 text-sm">
+    <select id={`role-${membershipId}`} defaultValue={role} onChange={async event => { try { await ops.updateMember(membershipId, { role: event.target.value }); router.refresh() } catch (reason) { window.alert(reason instanceof Error ? reason.message : 'Role did not save.'); event.target.value = role } }} className="h-8 rounded-[4px] border bg-background px-3 text-sm">
       {ROLE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
     </select>
     <TransitionTrack label="Member status" actions={status === 'active'

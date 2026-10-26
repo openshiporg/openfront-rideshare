@@ -46,16 +46,16 @@ export function OperationsBoard({ title, meta, actions, items, columns, empty, r
           <label className="relative min-w-0 flex-1">
             <span className="sr-only">{searchLabel}</span>
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-            <input name="q" maxLength={100} defaultValue={queryParams?.q || ''} placeholder={searchLabel} className="h-10 w-full rounded-full border bg-background pl-9 pr-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+            <input name="q" maxLength={100} defaultValue={queryParams?.q || ''} placeholder={searchLabel} className="h-10 w-full rounded-[4px] border bg-background pl-9 pr-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" />
           </label>
           {Object.entries({ ...queryParams, status: activeStatus, page: '1' }).filter(([key]) => key !== 'q').map(([key, value]) => <input key={key} type="hidden" name={key} value={value} />)}
-          <button className="h-10 shrink-0 rounded-full bg-foreground px-4 text-sm font-medium text-background transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" type="submit">Search</button>
+          <button className="h-10 shrink-0 rounded-[4px] bg-foreground px-4 text-sm font-medium text-background transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" type="submit">Search</button>
         </form>
       </div>
       {error
-        ? <p role="alert" className="rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">{error}</p>
+        ? <p role="alert" className="rounded-[6px] border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">{error}</p>
         : visibleItems.length
-          ? <ul className="divide-y overflow-hidden rounded-xl border bg-card">{visibleItems.map(item => <li key={rowKey(item)} className="min-w-0 break-words p-4 md:px-5">{render(item)}</li>)}</ul>
+          ? <ul className="divide-y overflow-hidden rounded-[6px] border bg-card">{visibleItems.map(item => <li key={rowKey(item)} className="min-w-0 break-words p-4 md:px-5">{render(item)}</li>)}</ul>
           : <div className="space-y-3"><PlatformEmpty>{filtered ? 'No matching records' : empty}</PlatformEmpty>{filtered && <Link className="block text-center text-sm font-medium underline underline-offset-4" href="?status=all&page=1">Reset filters</Link>}</div>}
       {after}
     </div>

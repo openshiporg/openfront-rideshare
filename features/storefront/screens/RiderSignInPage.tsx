@@ -53,14 +53,14 @@ export default function RiderSignInPage({ register = false }: { register?: boole
     catch { setError('Sign-out unconfirmed. Try again.') }
     finally { inFlight.current = false; setBusy(false) }
   }
-  const field = 'h-12 w-full rounded-2xl bg-asphalt px-4 text-base outline-none ring-1 ring-inset ring-white/10 placeholder:text-muted-foreground/70 focus-visible:ring-2 focus-visible:ring-signal'
+  const field = 'h-12 w-full rounded-[6px] bg-asphalt px-4 text-base outline-none ring-1 ring-inset ring-white/10 placeholder:text-muted-foreground/70 focus-visible:ring-2 focus-visible:ring-signal'
   return <RiderShell className="flex justify-center">
     <div className="w-full max-w-md space-y-6 sm:pt-6">
       <h1 className="font-display text-4xl font-extrabold tracking-[-0.03em] [font-stretch:125%] sm:text-5xl">{identity ? 'Account' : register ? 'Create account' : 'Sign in'}</h1>
-      {identity ? <section className="space-y-5 rounded-[1.75rem] border border-border bg-kerb p-5">
-        <div className="flex items-center gap-3"><span className="grid size-12 shrink-0 place-items-center rounded-full bg-signal font-display text-lg font-extrabold uppercase text-zinc-950" aria-hidden="true">{identity.name.trim().slice(0, 1) || '?'}</span><div className="min-w-0"><p className="truncate font-semibold">{identity.name}</p><p className="truncate text-sm text-muted-foreground">{identity.email}</p></div></div>
+      {identity ? <section className="space-y-5 rounded-[6px] border border-border bg-kerb p-5">
+        <div className="flex items-center gap-3"><span className="grid size-12 shrink-0 place-items-center rounded-[4px] bg-signal font-display text-lg font-extrabold uppercase text-zinc-950" aria-hidden="true">{identity.name.trim().slice(0, 1) || '?'}</span><div className="min-w-0"><p className="truncate font-semibold">{identity.name}</p><p className="truncate text-sm text-muted-foreground">{identity.email}</p></div></div>
         <RiderTrack className="w-full"><RiderButtonLink href="/account/rides" tone="signal" className="flex-1">My rides<ArrowRight className="size-4" aria-hidden="true" /></RiderButtonLink><RiderButton tone="quiet" disabled={busy} onClick={() => void signOut()}><LogOut className="size-4" aria-hidden="true" />Sign out</RiderButton></RiderTrack>
-      </section> : <section className="space-y-5 rounded-[1.75rem] border border-border bg-kerb p-5">
+      </section> : <section className="space-y-5 rounded-[6px] border border-border bg-kerb p-5">
         {signupAllowed && <RiderTrack label="Account" className="w-full [&>a]:flex-1"><RiderPillLink href="/account/signin" active={!register}>Sign in</RiderPillLink><RiderPillLink href="/account/signup" active={register}>Create account</RiderPillLink></RiderTrack>}
         {register && !signupAllowed ? <p role="status" className="text-sm text-muted-foreground">Registration is closed. <Link className="font-semibold text-foreground underline underline-offset-4" href="/account/signin">Sign in</Link></p> : <form onSubmit={submit} className="space-y-4">
           <fieldset disabled={busy} className="space-y-3">

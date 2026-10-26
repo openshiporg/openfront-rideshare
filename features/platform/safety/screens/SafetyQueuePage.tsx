@@ -122,7 +122,7 @@ export async function SafetyQueuePage({ searchParams }: { searchParams?: Promise
     render={item => <div className="space-y-1.5">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <StatusTitle tone={statusTone(item.status)} status={statusLabel(item.status)} pulse={item.status === 'open' && item.severity === 'critical'} className="font-mono text-sm font-semibold">{item.caseNumber}</StatusTitle>
-        <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${severityClass[item.severity] || severityClass.low}`}>{item.severity || 'Unrated'}</span>
+        <span className={`rounded-[4px] px-2.5 py-0.5 text-xs font-medium capitalize ${severityClass[item.severity] || severityClass.low}`}>{item.severity || 'Unrated'}</span>
       </div>
       {item.summary && <p className="text-sm">{item.summary}</p>}
       <p className="text-xs text-muted-foreground"><span className="capitalize">{item.category || 'Uncategorised'}</span> · {formatWhen(item.reportedAt)}{item.trip && <> · <Link href={`/dashboard/platform/trips/${item.trip.id}`} className="font-mono hover:underline">{item.trip.confirmationCode}</Link></>}</p>

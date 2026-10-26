@@ -62,6 +62,13 @@ export async function DispatchBoardPage({ searchParams }: { searchParams?: Promi
   const actionsEnabled = loaded && !pageState?.staleReason && selection.issues.length === 0
 
   const actorId = data?.authenticatedItem?.id || ''
+  // Driver supply beside the demand queue. A role without driver access simply sees no rail.
+  const supplyResponse = await keystoneClient(`query DispatchSupply { driverProfiles(orderBy: { publicName: asc }, take: 100) { id publicName dispatchStatus } }`)
+  const drivers: Array<{ id: string; publicName: string; dispatchStatus: string }> = supplyResponse.success && Array.isArray(supplyResponse.data?.driverProfiles) ? supplyResponse.data.driverProfiles : []
+  const supply = (['available', 'offered', 'assigned', 'on_trip', 'offline'] as const).map(state => ({ state, count: drivers.filter(driver => driver.dispatchStatus === state).length }))
+  const available = drivers.filter(driver => driver.dispatchStatus === 'available')
+  const createdTimes: string[] = (items as Array<{ createdAt?: string | null }>).map(item => item.createdAt ?? '').filter(Boolean)
+  const oldest = createdTimes.length ? createdTimes.reduce((first, value) => (value < first ? value : first)) : null
   return <OperationsBoard
     title="Dispatch"
     meta={loaded ? <span className="tabular-nums">{total} {['cancelled', 'expired'].includes(selection.status) ? selection.status : 'waiting'}</span> : null}
@@ -73,6 +80,18 @@ export async function DispatchBoardPage({ searchParams }: { searchParams?: Promi
     columns={[{ key: 'all', label: 'Open' }, { key: 'requested', label: 'Requested' }, { key: 'matching', label: 'Matching' }, { key: 'cancelled', label: 'Cancelled' }, { key: 'expired', label: 'Expired' }]}
     empty="No rides waiting for a driver"
     before={<>
+      {supplyResponse.success ? (
+        <section aria-label="Driver supply" className="grid gap-x-6 gap-y-3 border-y border-border py-3 md:grid-cols-[auto_minmax(0,1fr)] md:items-center">
+          <dl className="grid grid-cols-3 gap-x-5 gap-y-2 sm:grid-cols-6">
+            <div><dt className="text-xs text-muted-foreground">Waiting</dt><dd className="rf-figures text-xl font-semibold">{loaded ? total : '—'}</dd></div>
+            <div><dt className="text-xs text-muted-foreground">Oldest</dt><dd className="rf-figures text-xl font-semibold">{oldest ? waitedFor(oldest) : '—'}</dd></div>
+            {supply.slice(0, 4).map(entry => <div key={entry.state}><dt className="text-xs text-muted-foreground">{statusLabel(entry.state)}</dt><dd className={`rf-figures text-xl font-semibold ${entry.count ? '' : 'text-muted-foreground/60'}`}>{entry.count}</dd></div>)}
+          </dl>
+          <p className="min-w-0 text-sm text-muted-foreground md:text-right">
+            {available.length ? <>Available now: <span className="font-medium text-foreground">{available.slice(0, 6).map(driver => driver.publicName).join(', ')}{available.length > 6 ? ` +${available.length - 6}` : ''}</span></> : 'No driver is available right now'}
+          </p>
+        </section>
+      ) : null}
       <QueueIssues issues={selection.issues} href={queueSearchHref(dispatchPageHref(selection.page, selection.status), query)} />
       <CommandRecovery actorId={actorId} />
     </>}
@@ -84,12 +103,20 @@ export async function DispatchBoardPage({ searchParams }: { searchParams?: Promi
         <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1"><Users className="size-3.5" aria-hidden="true" />{item.passengerCount || 1}</span>
           <span className="inline-flex items-center gap-1"><Clock className="size-3.5" aria-hidden="true" />{item.requestedFor ? formatWhen(item.requestedFor) : 'Now'}</span>
+          {item.createdAt ? <span className="rf-figures">waiting {waitedFor(item.createdAt)}</span> : null}
           <span className="tabular-nums">{item.matchOffers.length}{item.matchOffers.length === 50 ? '+' : ''} live offers</span>
         </p>
       </div>
       <DispatchOfferControl request={item} actorId={actorId} actionsEnabled={actionsEnabled && operationsEnabled(item.fleet?.operationsMode)} operationsOff={!operationsEnabled(item.fleet?.operationsMode)} />
     </div>}
   />
+}
+
+/** Minutes (or hours) since a request was made, read at render time. */
+function waitedFor(iso: string) {
+  const minutes = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000))
+  if (!Number.isFinite(minutes)) return '—'
+  return minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`
 }
 
 export default DispatchBoardPage

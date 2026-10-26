@@ -19,7 +19,7 @@ export function QueuePagination({ label, noun, page, total, pageCount, maxPage, 
 }) {
   const reachablePageCount = Math.min(pageCount, maxPage)
   const recoveryPage = staleReason === 'page_out_of_range' ? Math.max(1, reachablePageCount) : page
-  const link = 'inline-flex h-9 items-center gap-1 rounded-full border bg-background px-3 text-sm font-medium transition-colors hover:bg-muted'
+  const link = 'inline-flex h-9 items-center gap-1 rounded-[4px] border bg-background px-3 text-sm font-medium transition-colors hover:bg-muted'
   return <section aria-label={label} className="flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
     {staleReason
       ? <p role="status" className="text-amber-700 dark:text-amber-300">{staleReason === 'page_out_of_range' ? `Page ${page} no longer exists; this queue ends at page ${pageCount}.` : 'The queue changed while loading.'} <Link className="font-medium underline underline-offset-4" href={hrefFor(recoveryPage)}>{staleReason === 'page_out_of_range' ? 'Open last page' : 'Reload'}</Link></p>
@@ -35,5 +35,5 @@ export function QueuePagination({ label, noun, page, total, pageCount, maxPage, 
 /** A malformed-URL banner that links to the canonical view. */
 export function QueueIssues({ issues, href }: { issues: string[]; href: string }) {
   if (!issues.length) return null
-  return <p role="alert" className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-200">{issues.join(' ')} <Link className="font-medium underline underline-offset-4" href={href}>Open canonical view</Link></p>
+  return <p role="alert" className="rounded-[6px] border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-200">{issues.join(' ')} <Link className="font-medium underline underline-offset-4" href={href}>Open canonical view</Link></p>
 }

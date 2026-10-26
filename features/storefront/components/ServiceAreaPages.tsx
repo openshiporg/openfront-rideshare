@@ -26,7 +26,7 @@ export function ServiceAreaPages({ serviceId }: { serviceId: string }) {
     finally { if (generation.current === current) { flight.current = false; setBusy(false) } }
   }
   return <div className="min-w-0 space-y-2 text-xs" aria-live="polite">
-    {loaded && (labels.length ? <ul aria-label="All service areas" className="flex flex-wrap gap-1.5">{labels.map((label, index) => <li key={index} className="rounded-full bg-lane px-2.5 py-1 [overflow-wrap:anywhere]">{label}</li>)}</ul> : <p className="text-muted-foreground">No areas listed</p>)}
+    {loaded && (labels.length ? <ul aria-label="All service areas" className="flex flex-wrap gap-1.5">{labels.map((label, index) => <li key={index} className="rounded-[4px] bg-lane px-2.5 py-1 [overflow-wrap:anywhere]">{label}</li>)}</ul> : <p className="text-muted-foreground">No areas listed</p>)}
     {(!loaded || cursor) && <RiderButton tone="quiet" size="sm" disabled={busy} onClick={() => void load()} className="-ml-3">{busy ? 'Loading…' : loaded ? 'More areas' : 'All service areas'}</RiderButton>}
     {error && <p role="alert" className="text-[#ff8a7f]">Areas unavailable. Try again.</p>}
   </div>

@@ -50,7 +50,7 @@ export function FleetOperationsSettings() {
     { name: 'currencyCode', label: 'Currency', type: 'text', required: true, defaultValue: 'USD', maxLength: 3 },
     { name: 'timezone', label: 'Time zone', type: 'text', required: true, defaultValue: 'America/New_York', maxLength: 64 },
   ]} />}>
-    {fleets === null ? <div className="h-28 animate-pulse rounded-xl bg-muted motion-reduce:animate-none" aria-label="Loading fleets" />
+    {fleets === null ? <div className="h-28 animate-pulse rounded-[6px] bg-muted motion-reduce:animate-none" aria-label="Loading fleets" />
       : !fleets.length && !error ? <PlatformEmpty>No fleets yet</PlatformEmpty>
       : <ul className="space-y-3">{fleets.map(fleet => {
         const open = fleet.status === 'active' && fleet.operationsMode === 'manual'
@@ -62,7 +62,7 @@ export function FleetOperationsSettings() {
         ]
         const ready = checks.every(check => check.done)
         const live = open && ready
-        return <li key={fleet.id} className="space-y-4 rounded-xl border bg-card p-4 md:p-5" data-command-pending={busy === fleet.id ? 'true' : undefined}>
+        return <li key={fleet.id} className="space-y-4 rounded-[6px] border bg-card p-4 md:p-5" data-command-pending={busy === fleet.id ? 'true' : undefined}>
           <StatusTitle as="h3" tone={live ? 'green' : 'amber'} pulse={live} status={live ? 'Taking rides' : fleet.status !== 'active' ? 'Fleet not active' : fleet.operationsMode !== 'manual' ? 'Manual dispatch off' : 'Setup incomplete'} className="font-semibold">{fleet.name}</StatusTitle>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             <div className="space-y-1.5"><p className="text-xs font-medium text-muted-foreground">Fleet status</p>
@@ -75,7 +75,7 @@ export function FleetOperationsSettings() {
               <PillTrack label={`${fleet.name} rider accounts`}>{(['closed', 'open'] as const).map(value => <PillButton key={value} active={fleet.riderAccounts === value} disabled={Boolean(busy)} onClick={() => { if (fleet.riderAccounts !== value) void update(fleet, { riderAccounts: value }) }}>{value === 'closed' ? 'Closed' : 'Open'}</PillButton>)}</PillTrack>
             </div>
           </div>
-          <ul className="grid gap-1.5 text-sm sm:grid-cols-2" aria-label="Storefront requirements">{checks.map(check => <li key={check.label}><Link href={check.href} className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-muted/60"><span className={`grid size-5 shrink-0 place-items-center rounded-full ${check.done ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' : 'bg-muted text-muted-foreground'}`}>{check.done ? <Check className="size-3.5" aria-hidden="true" /> : <span className="size-1.5 rounded-full bg-current" />}</span><span className={check.done ? '' : 'text-muted-foreground'}>{check.label}</span><span className="sr-only">{check.done ? 'done' : 'missing'}</span><ArrowUpRight className="ml-auto size-3.5 text-muted-foreground" aria-hidden="true" /></Link></li>)}</ul>
+          <ul className="grid gap-1.5 text-sm sm:grid-cols-2" aria-label="Storefront requirements">{checks.map(check => <li key={check.label}><Link href={check.href} className="flex items-center gap-2 rounded-[4px] px-2 py-1.5 hover:bg-muted/60"><span className={`grid size-5 shrink-0 place-items-center rounded-[4px] ${check.done ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' : 'bg-muted text-muted-foreground'}`}>{check.done ? <Check className="size-3.5" aria-hidden="true" /> : <span className="size-1.5 rounded-[1px] bg-current" />}</span><span className={check.done ? '' : 'text-muted-foreground'}>{check.label}</span><span className="sr-only">{check.done ? 'done' : 'missing'}</span><ArrowUpRight className="ml-auto size-3.5 text-muted-foreground" aria-hidden="true" /></Link></li>)}</ul>
         </li>
       })}</ul>}
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}

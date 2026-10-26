@@ -54,8 +54,8 @@ export function SupportCaseStatusBoard({
     <PillTrack label="Support case status">
       {columns.map(column => <PillLink key={column.key} href={supportCasePageHref(1, column.key, safetyStatus, safetyPage)} active={status === column.key}>{column.label}</PillLink>)}
     </PillTrack>
-    {error ? <p role="alert" className="rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">{error}</p>
-      : items.length && !staleReason ? <ul className="divide-y overflow-hidden rounded-xl border bg-card">
+    {error ? <p role="alert" className="rounded-[6px] border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">{error}</p>
+      : items.length && !staleReason ? <ul className="divide-y overflow-hidden rounded-[6px] border bg-card">
         {items.map(item => <li key={item.caseNumber} className="flex flex-wrap items-center justify-between gap-2 p-4">
           <StatusTitle tone={statusTone(item.status)} status={statusLabel(item.status)} className="font-mono text-sm font-semibold">{item.caseNumber}</StatusTitle>
           <span className="text-xs text-muted-foreground">{item.category === 'trip' ? 'Trip' : 'General'} · {formatWhen(item.createdAt)}{item.trip && <> · <Link href={`/dashboard/platform/trips/${item.trip.id}`} className="font-mono hover:underline">{item.trip.confirmationCode}</Link></>}</span>

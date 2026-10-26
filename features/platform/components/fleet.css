@@ -1,0 +1,24 @@
+/* Rideshare platform tokens. Licence plate: cab yellow for the primary action and the current
+ * tab, plate black for identifiers, pale plate white for table heads. Platform pages only; the
+ * shared dashboard shell keeps its own tokens. */
+:root {
+  --rf-yellow: oklch(0.86 0.165 92);
+  --rf-yellow-hover: oklch(0.81 0.165 88);
+  --rf-on-yellow: oklch(0.18 0.01 90);
+  --rf-rule: oklch(0.7 0.15 88);
+  --rf-plate: oklch(0.975 0.01 95);
+  --rf-plate-line: oklch(0.86 0.03 95);
+}
+
+.dark {
+  --rf-yellow: oklch(0.84 0.16 92);
+  --rf-yellow-hover: oklch(0.89 0.15 92);
+  --rf-on-yellow: oklch(0.18 0.01 90);
+  --rf-rule: oklch(0.84 0.16 92);
+  --rf-plate: oklch(0.24 0.01 95);
+  --rf-plate-line: oklch(0.36 0.02 95);
+}
+
+.rf-figures {
+  font-variant-numeric: tabular-nums slashed-zero;
+}

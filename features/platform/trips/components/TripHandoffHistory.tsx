@@ -47,7 +47,7 @@ export function TripHandoffHistory({ tripId, revision }: { tripId: string; revis
     </ActionTrack>
     {error ? <p role="alert" className="text-xs text-destructive">History unavailable. Try again.</p>
       : checked && !loading && !handoff ? <p role="status" className="text-xs text-amber-700 dark:text-amber-300">History unavailable for your fleet access</p>
-      : handoff && <div className="space-y-2 rounded-xl border bg-muted/30 p-3 text-xs">
+      : handoff && <div className="space-y-2 rounded-[6px] border bg-muted/30 p-3 text-xs">
         <p className="flex flex-wrap gap-x-3 gap-y-1 text-muted-foreground"><span>As of {observedAt}</span>{handoff.available && <span>Request <span className="font-mono text-foreground">{handoff.requestNumber}</span> · {statusLabel(handoff.requestStatus)}</span>}</p>
         {!handoff.available ? <p className="text-amber-700 dark:text-amber-300">Assignment details unavailable; needs reconciliation</p> : <ol className="space-y-1.5">{handoff.events.map((event, index) => { const state = event.toStatus || event.eventType; return <li key={`${event.eventType}:${event.occurredAt}:${index}`} className="flex items-center gap-2"><StatusDot tone={statusTone(state)} /><span className="font-medium">{statusLabel(state)}</span><span className="ml-auto tabular-nums text-muted-foreground">{formatWhen(event.occurredAt)}</span></li> })}</ol>}
         {handoff.available && handoff.historyTruncated && <p className="text-muted-foreground">Older events available</p>}

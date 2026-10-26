@@ -15,7 +15,7 @@ async function send(query: string, variables: Record<string, unknown>) {
   return payload.data
 }
 
-const field = 'w-full rounded-2xl bg-asphalt px-4 py-3 text-base outline-none ring-1 ring-inset ring-white/10 placeholder:text-muted-foreground/70 focus-visible:ring-2 focus-visible:ring-signal'
+const field = 'w-full rounded-[6px] bg-asphalt px-4 py-3 text-base outline-none ring-1 ring-inset ring-white/10 placeholder:text-muted-foreground/70 focus-visible:ring-2 focus-visible:ring-signal'
 
 /** Rate, get help, report a safety issue or message the driver. The server allows only the signed-in rider of this trip. */
 export function TripRiderActions({ tripId, status }: { tripId: string; status: string }) {
@@ -34,7 +34,7 @@ export function TripRiderActions({ tripId, status }: { tripId: string; status: s
     return () => { active = false }
   }, [])
   if (signedIn === null) return null
-  if (!signedIn) return <section aria-label="Trip help" className="flex flex-wrap items-center justify-between gap-3 rounded-[1.5rem] border border-border bg-kerb p-5">
+  if (!signedIn) return <section aria-label="Trip help" className="flex flex-wrap items-center justify-between gap-3 rounded-[6px] border border-border bg-kerb p-5">
     <p className="text-sm text-muted-foreground">Sign in with the account you booked with to rate, message or get help.</p>
     <RiderButtonLink href="/account/signin" tone="raised">Sign in</RiderButtonLink>
   </section>
@@ -69,10 +69,10 @@ export function TripRiderActions({ tripId, status }: { tripId: string; status: s
     } catch { setError(panel === 'rate' ? 'Rating not sent. Each ride can be rated once.' : 'Not sent. Try again.') }
     finally { setBusy(false) }
   }
-  return <section aria-label="Trip help" className="space-y-4 rounded-[1.5rem] border border-border bg-kerb p-5">
+  return <section aria-label="Trip help" className="space-y-4 rounded-[6px] border border-border bg-kerb p-5">
     <RiderTrack label="Trip actions" className="flex-wrap">{choices.map(([key, label, Icon]) => <RiderPill key={key} active={panel === key} onClick={() => { setPanel(panel === key ? null : key); setError(''); setDone('') }}><Icon className="size-4" aria-hidden="true" />{label}</RiderPill>)}</RiderTrack>
     {panel && <div className="space-y-3">
-      {panel === 'rate' && <div role="radiogroup" aria-label="Rating" className="flex gap-1">{[1, 2, 3, 4, 5].map(value => <button key={value} type="button" role="radio" aria-checked={rating === value} aria-label={`${value} star${value === 1 ? '' : 's'}`} onClick={() => setRating(value)} className="grid size-11 place-items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-signal"><Star className={`size-7 ${value <= rating ? 'fill-signal text-signal' : 'text-lane'}`} aria-hidden="true" /></button>)}</div>}
+      {panel === 'rate' && <div role="radiogroup" aria-label="Rating" className="flex gap-1">{[1, 2, 3, 4, 5].map(value => <button key={value} type="button" role="radio" aria-checked={rating === value} aria-label={`${value} star${value === 1 ? '' : 's'}`} onClick={() => setRating(value)} className="grid size-11 place-items-center rounded-[4px] outline-none focus-visible:ring-2 focus-visible:ring-signal"><Star className={`size-7 ${value <= rating ? 'fill-signal text-signal' : 'text-lane'}`} aria-hidden="true" /></button>)}</div>}
       {panel === 'help' && <label className="block space-y-1.5"><span className="text-sm font-medium">Subject</span><input value={subject} onChange={event => setSubject(event.target.value)} maxLength={160} className={field} /></label>}
       {panel === 'safety' && <RiderTrack label="Severity">{[['low', 'Low'], ['medium', 'Medium'], ['high', 'High'], ['critical', 'Urgent']].map(([value, label]) => <RiderPill key={value} active={severity === value} onClick={() => setSeverity(value)}>{label}</RiderPill>)}</RiderTrack>}
       <label className="block space-y-1.5"><span className="text-sm font-medium">{panel === 'rate' ? 'Comment' : panel === 'message' ? 'Message' : 'What happened'}{panel === 'rate' && <span className="font-normal text-muted-foreground"> · optional</span>}</span><textarea value={text} onChange={event => setText(event.target.value)} rows={3} maxLength={panel === 'safety' ? 500 : 2000} className={field} /></label>

@@ -22,7 +22,7 @@ export async function platformGraphql<T = any>(query: string, variables: Record<
   return payload.data as T
 }
 
-const input = 'h-10 w-full min-w-0 rounded-xl border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring'
+const input = 'h-10 w-full min-w-0 rounded-[6px] border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
 /** A right-hand drawer with a validated form. `onSubmit` receives typed values (money in minor units). */
 export function SetupSheet({ trigger, title, fields, submitLabel, onSubmit, tone = 'primary' }: {
@@ -68,14 +68,14 @@ export function SetupSheet({ trigger, title, fields, submitLabel, onSubmit, tone
                 ? <label className="flex min-h-10 items-center gap-3 text-sm font-medium"><input type="checkbox" name={field.name} defaultChecked={field.defaultValue} className="size-4 accent-foreground" />{field.label}</label>
                 : <label className="block space-y-1.5"><span className="text-sm font-medium">{field.label}{'required' in field && field.required ? '' : <span className="font-normal text-muted-foreground"> · optional</span>}</span>
                   {field.type === 'select' ? <select name={field.name} defaultValue={field.defaultValue} className={input}>{!field.required && <option value="">None</option>}{field.options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
-                    : field.type === 'multi' ? <span className="block max-h-48 space-y-1 overflow-y-auto rounded-xl border p-2">{field.options.length ? field.options.map(option => <span key={option.value} className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-muted"><input type="checkbox" name={field.name} value={option.value} defaultChecked={field.defaultValue?.includes(option.value)} className="size-4 accent-foreground" />{option.label}</span>) : <span className="block px-2 py-1.5 text-sm text-muted-foreground">Nothing to choose yet</span>}</span>
+                    : field.type === 'multi' ? <span className="block max-h-48 space-y-1 overflow-y-auto rounded-[6px] border p-2">{field.options.length ? field.options.map(option => <span key={option.value} className="flex items-center gap-2 rounded-[4px] px-2 py-1.5 text-sm hover:bg-muted"><input type="checkbox" name={field.name} value={option.value} defaultChecked={field.defaultValue?.includes(option.value)} className="size-4 accent-foreground" />{option.label}</span>) : <span className="block px-2 py-1.5 text-sm text-muted-foreground">Nothing to choose yet</span>}</span>
                     : field.type === 'textarea' ? <textarea name={field.name} defaultValue={field.defaultValue} maxLength={field.maxLength} className={`${input} h-24 py-2`} />
                     : field.type === 'money' ? <span className="relative block"><span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-medium text-muted-foreground">{field.currency}</span><input name={field.name} type="number" inputMode="decimal" min={0} step="0.01" defaultValue={field.defaultValue !== undefined ? (field.defaultValue / 100).toFixed(2) : ''} required={field.required} className={`${input} pl-12 tabular-nums`} /></span>
                     : field.type === 'number' ? <input name={field.name} type="number" inputMode="numeric" min={field.min} max={field.max} defaultValue={field.defaultValue} required={field.required} className={`${input} tabular-nums`} />
                     : <input name={field.name} type={field.type} defaultValue={field.defaultValue} maxLength={'maxLength' in field ? field.maxLength : undefined} placeholder={'placeholder' in field ? field.placeholder : undefined} required={field.required} className={input} />}
                 </label>}
             </div>)}
-            {error && <p role="alert" className="rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
+            {error && <p role="alert" className="rounded-[6px] border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
           </fieldset>
           <div className="sticky bottom-0 flex justify-end border-t bg-background p-4"><ActionTrack><TrackButton size="md" disabled={busy} onClick={() => setOpen(false)}>Cancel</TrackButton><TrackButton type="submit" tone="primary" size="md" disabled={busy}>{busy ? 'Saving…' : submitLabel}</TrackButton></ActionTrack></div>
         </form>

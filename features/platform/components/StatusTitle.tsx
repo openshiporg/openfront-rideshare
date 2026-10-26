@@ -18,8 +18,8 @@ const DOT: Record<StatusTone, string> = {
 
 export function StatusDot({ tone, pulse = false, className }: { tone: StatusTone; pulse?: boolean; className?: string }) {
   return (
-    <span className={cn("relative inline-flex size-2 shrink-0 -translate-y-px rounded-full", DOT[tone], className)} aria-hidden="true">
-      {pulse ? <span className={cn("absolute inset-0 animate-ping rounded-full opacity-60 motion-reduce:animate-none", DOT[tone])} /> : null}
+    <span className={cn("relative inline-flex size-2 shrink-0 -translate-y-px rounded-[1px]", DOT[tone], className)} aria-hidden="true">
+      {pulse ? <span className={cn("absolute inset-0 animate-ping rounded-[1px] opacity-60 motion-reduce:animate-none", DOT[tone])} /> : null}
     </span>
   );
 }

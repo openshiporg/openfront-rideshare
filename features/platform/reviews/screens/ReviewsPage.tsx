@@ -28,8 +28,8 @@ export async function ReviewsPage({ searchParams }: { searchParams?: Promise<{ s
     <div className="mx-auto w-full max-w-5xl space-y-5 p-4 md:p-6">
       <PlatformHeader title="Reviews" meta={response.success ? <><span className="tabular-nums">{response.data?.reviewsCount ?? 0} published</span>{average !== null && <span className="inline-flex items-center gap-1 tabular-nums"><Star className="size-3.5 fill-current" aria-hidden="true" />{average.toFixed(1)} in this view</span>}</> : null} />
       <PillTrack label="Review status">{STATUSES.map(item => <PillLink key={item.key} href={`?status=${item.key}`} active={status === item.key}>{item.label}</PillLink>)}</PillTrack>
-      {!response.success ? <p role="alert" className="rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">Reviews unavailable for your access.</p>
-        : reviews.length ? <ul className="divide-y overflow-hidden rounded-xl border bg-card">{reviews.map(review => <li key={review.id} className="grid gap-3 p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-start md:px-5">
+      {!response.success ? <p role="alert" className="rounded-[6px] border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">Reviews unavailable for your access.</p>
+        : reviews.length ? <ul className="divide-y overflow-hidden rounded-[6px] border bg-card">{reviews.map(review => <li key={review.id} className="grid gap-3 p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-start md:px-5">
           <div className="min-w-0 space-y-1.5">
             <StatusTitle tone={TONE[review.status] || 'zinc'} status={STATUSES.find(item => item.key === review.status)?.label || review.status} className="text-sm font-semibold">
               {typeof review.rating === 'number' ? <span className="inline-flex gap-0.5" aria-label={`${review.rating} out of 5`}>{[1, 2, 3, 4, 5].map(star => <Star key={star} aria-hidden="true" className={`size-4 ${star <= review.rating ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/30'}`} />)}</span> : 'No rating'}

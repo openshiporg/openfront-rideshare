@@ -28,7 +28,7 @@ export async function ServicesPage() {
     <PageBreadcrumbs items={[{ type: 'link', label: 'Dashboard', href: '' }, { type: 'page', label: 'Platform' }, { type: 'page', label: 'Services & fares' }]} />
     <div className="mx-auto w-full max-w-5xl space-y-10 p-4 md:p-6">
       <PlatformHeader title="Services & fares" meta={response.success ? <span className="tabular-nums">{fleets.reduce((sum, fleet) => sum + fleet.services.length, 0)} services</span> : null} />
-      {!response.success && <p role="alert" className="rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">Services unavailable for your access.</p>}
+      {!response.success && <p role="alert" className="rounded-[6px] border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">Services unavailable for your access.</p>}
       {response.success && !fleets.length && <PlatformEmpty>No fleets yet. Create one in Settings → Operations.</PlatformEmpty>}
       {fleets.map(fleet => {
         const areas = fleet.serviceAreas
@@ -36,7 +36,7 @@ export async function ServicesPage() {
         return <section key={fleet.id} aria-labelledby={`fleet-${fleet.id}`} className="space-y-8">
           {fleets.length > 1 && <h2 id={`fleet-${fleet.id}`} className="text-lg font-semibold tracking-tight">{fleet.name}</h2>}
           <PlatformSection id={`areas-${fleet.id}`} title="Service areas" meta={areas.length || undefined} actions={<AddAreaSheet fleetId={fleet.id} />}>
-            {areas.length ? <ul className="divide-y overflow-hidden rounded-xl border bg-card">{areas.map((area: any) => <li key={area.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+            {areas.length ? <ul className="divide-y overflow-hidden rounded-[6px] border bg-card">{areas.map((area: any) => <li key={area.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
               <div className="min-w-0"><StatusTitle as="p" tone={tone(area.status)} status={label(area.status)} className="text-sm font-medium">{area.name}</StatusTitle><p className="inline-flex items-center gap-1 text-xs text-muted-foreground"><MapPin className="size-3" aria-hidden="true" />{area.publicRegionLabel}</p></div>
               <AreaStatusTrack id={area.id} status={area.status} />
             </li>)}</ul> : <PlatformEmpty>Add the area you drive in first</PlatformEmpty>}
@@ -46,7 +46,7 @@ export async function ServicesPage() {
             {fleet.services.length ? <ul className="space-y-3">{fleet.services.map((service: any) => {
               const activeFares = service.fareRules.filter((fare: any) => fare.status === 'active')
               const bookable = service.status === 'active' && activeFares.length > 0 && service.serviceAreas.some((area: any) => activeAreas.some((item: any) => item.id === area.id))
-              return <li key={service.id} className="space-y-4 rounded-xl border bg-card p-4 md:p-5">
+              return <li key={service.id} className="space-y-4 rounded-[6px] border bg-card p-4 md:p-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 space-y-1">
                     <StatusTitle as="h3" tone={bookable ? 'green' : tone(service.status === 'active' ? 'draft' : service.status)} status={bookable ? 'Bookable' : service.status !== 'active' ? label(service.status) : !activeFares.length ? 'Needs a fare' : 'Needs an active area'} className="font-semibold">{service.name}</StatusTitle>
@@ -62,7 +62,7 @@ export async function ServicesPage() {
                 </div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-2"><p className="text-xs font-medium text-muted-foreground">Fares</p>{service.serviceAreas.length > 0 && <AddFareSheet serviceId={service.id} serviceName={service.name} currency={fleet.currencyCode || 'USD'} areas={service.serviceAreas} />}</div>
-                  {service.fareRules.length ? <ul className="divide-y overflow-hidden rounded-lg border">{service.fareRules.map((fare: any) => <li key={fare.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 text-sm">
+                  {service.fareRules.length ? <ul className="divide-y overflow-hidden rounded-[4px] border">{service.fareRules.map((fare: any) => <li key={fare.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5 text-sm">
                     <StatusTitle as="span" tone={tone(fare.status)} status={`v${fare.version} · ${label(fare.status)}`}>{fare.serviceArea?.name || fare.name}</StatusTitle>
                     <span className="text-xs tabular-nums text-muted-foreground">{formatMoney(fare.baseFareMinor, fare.currencyCode)} + {formatMoney(fare.perDistanceUnitMinor, fare.currencyCode)}/{fare.distanceUnit === 'kilometer' ? 'km' : 'mi'} + {formatMoney(fare.perMinuteMinor, fare.currencyCode)}/min · min {formatMoney(fare.minimumFareMinor, fare.currencyCode)}</span>
                   </li>)}</ul> : <PlatformEmpty className="py-5">No fares yet</PlatformEmpty>}

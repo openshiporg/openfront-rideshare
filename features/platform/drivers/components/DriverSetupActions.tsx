@@ -60,7 +60,7 @@ export function VehicleReviewTrack({ vehicleId, status }: { vehicleId: string; s
   const actions = [
     ...(status !== 'active' && status !== 'retired' ? [{ label: 'Approve', tone: 'primary' as const, run: () => setup.reviewVehicle(vehicleId, 'active') }] : []),
     ...(status === 'active' ? [{ label: 'Maintenance', run: () => setup.reviewVehicle(vehicleId, 'maintenance') }] : []),
-    ...(status !== 'retired' ? [{ label: 'Retire', tone: 'quiet' as const, run: () => setup.reviewVehicle(vehicleId, 'retired'), confirm: 'Retire this vehicle?' }] : []),
+    ...(status !== 'retired' ? [{ label: 'Retire vehicle', tone: 'danger' as const, run: () => setup.reviewVehicle(vehicleId, 'retired'), confirm: 'Retire this vehicle? It stops taking trips and leaves the active fleet.' }] : []),
   ]
   return actions.length ? <TransitionTrack label="Vehicle review" actions={actions} /> : null
 }
@@ -85,12 +85,12 @@ export function AvailabilityEditor({ driverId, timezone, rules }: { driverId: st
     finally { setBusy(false) }
   }
   return <div className="space-y-3" data-unsaved={dirty ? 'true' : undefined}>
-    <ul className="divide-y overflow-hidden rounded-xl border bg-card">{days.map((item, day) => <li key={day} className="flex flex-wrap items-center gap-3 px-3 py-2 text-sm">
+    <ul className="divide-y overflow-hidden rounded-[6px] border bg-card">{days.map((item, day) => <li key={day} className="flex flex-wrap items-center gap-3 px-3 py-2 text-sm">
       <label className="flex w-20 items-center gap-2 font-medium"><input type="checkbox" checked={item.on} onChange={event => update(day, { on: event.target.checked })} className="size-4 accent-foreground" />{DAYS[day]}</label>
-      {item.on ? <span className="flex items-center gap-2"><input type="time" aria-label={`${DAYS[day]} start`} value={item.start} onChange={event => update(day, { start: event.target.value })} className="h-9 rounded-lg border bg-background px-2 tabular-nums" /><span className="text-muted-foreground">–</span><input type="time" aria-label={`${DAYS[day]} end`} value={item.end} onChange={event => update(day, { end: event.target.value })} className="h-9 rounded-lg border bg-background px-2 tabular-nums" /></span> : <span className="text-muted-foreground">Off</span>}
+      {item.on ? <span className="flex items-center gap-2"><input type="time" aria-label={`${DAYS[day]} start`} value={item.start} onChange={event => update(day, { start: event.target.value })} className="h-9 rounded-[4px] border bg-background px-2 tabular-nums" /><span className="text-muted-foreground">–</span><input type="time" aria-label={`${DAYS[day]} end`} value={item.end} onChange={event => update(day, { end: event.target.value })} className="h-9 rounded-[4px] border bg-background px-2 tabular-nums" /></span> : <span className="text-muted-foreground">Off</span>}
     </li>)}</ul>
     <div className="flex flex-wrap items-center gap-2">
-      <label className="flex min-w-0 flex-1 items-center gap-2 text-sm"><span className="shrink-0 text-muted-foreground">Time zone</span><input value={zone} onChange={event => setZone(event.target.value)} maxLength={64} className="h-9 min-w-0 flex-1 rounded-lg border bg-background px-2" /></label>
+      <label className="flex min-w-0 flex-1 items-center gap-2 text-sm"><span className="shrink-0 text-muted-foreground">Time zone</span><input value={zone} onChange={event => setZone(event.target.value)} maxLength={64} className="h-9 min-w-0 flex-1 rounded-[4px] border bg-background px-2" /></label>
       <ActionTrack><TrackButton tone="primary" disabled={busy || !dirty} onClick={() => void save()}>{busy ? 'Saving…' : 'Save hours'}</TrackButton></ActionTrack>
     </div>
     {message && <p role="status" className="text-xs text-emerald-700 dark:text-emerald-300">{message}</p>}

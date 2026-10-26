@@ -18,7 +18,7 @@ export function ConfirmPaymentTrack({ paymentId }: { paymentId: string }) {
   return <div className="space-y-1.5">
     <ActionTrack label="Mark paid">
       <label className="sr-only" htmlFor={`method-${paymentId}`}>Paid by</label>
-      <select id={`method-${paymentId}`} value={method} onChange={event => setMethod(event.target.value)} className="h-8 rounded-full bg-background px-3 text-sm ring-1 ring-foreground/10">
+      <select id={`method-${paymentId}`} value={method} onChange={event => setMethod(event.target.value)} className="h-8 rounded-[4px] bg-background px-3 text-sm ring-1 ring-foreground/10">
         <option value="cash">Cash</option><option value="card_terminal">Card terminal</option><option value="bank_transfer">Bank transfer</option><option value="other">Other</option>
       </select>
       <TrackButton tone="primary" disabled={busy} onClick={async () => { setBusy(true); setError(''); try { await ops.confirmPayment(paymentId, method); router.refresh() } catch (reason) { setError(reason instanceof Error ? reason.message : 'Did not save.') } finally { setBusy(false) } }}>{busy ? 'Saving…' : 'Mark paid'}</TrackButton>
@@ -53,7 +53,7 @@ export function MessageComposer({ tripId }: { tripId: string }) {
     try { await ops.message(tripId, body.trim()); setBody(''); router.refresh() } catch (reason) { setError(reason instanceof Error ? reason.message : 'Message not sent.') } finally { setBusy(false) }
   }}>
     <label className="sr-only" htmlFor={`message-${tripId}`}>Message</label>
-    <textarea id={`message-${tripId}`} value={body} onChange={event => setBody(event.target.value)} maxLength={2000} rows={2} placeholder="Message rider and driver" className="w-full rounded-xl border bg-background p-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+    <textarea id={`message-${tripId}`} value={body} onChange={event => setBody(event.target.value)} maxLength={2000} rows={2} placeholder="Message rider and driver" className="w-full rounded-[6px] border bg-background p-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" />
     <div className="flex justify-end"><ActionTrack><TrackButton type="submit" tone="primary" disabled={busy || !body.trim()}>{busy ? 'Sending…' : 'Send'}</TrackButton></ActionTrack></div>
     {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
   </form>

@@ -34,8 +34,8 @@ export async function VehiclesPage({ searchParams }: { searchParams?: Promise<{ 
     <div className="mx-auto w-full max-w-6xl space-y-5 p-4 md:p-6">
       <PlatformHeader title="Vehicles" meta={response.success ? <span className="tabular-nums">{vehicles.length}{vehicles.length === 100 ? '+' : ''} {vehicles.length === 1 ? 'vehicle' : 'vehicles'}</span> : null} actions={<AddFleetVehicleSheet fleets={fleets} drivers={drivers} />} />
       <PillTrack label="Vehicle status">{STATUSES.map(item => <PillLink key={item.key} href={`?status=${item.key}`} active={status === item.key}>{item.label}</PillLink>)}</PillTrack>
-      {!response.success ? <p role="alert" className="rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">Vehicles unavailable for your access.</p>
-        : vehicles.length ? <ul className="divide-y overflow-hidden rounded-xl border bg-card">{vehicles.map(vehicle => {
+      {!response.success ? <p role="alert" className="rounded-[6px] border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">Vehicles unavailable for your access.</p>
+        : vehicles.length ? <ul className="divide-y overflow-hidden rounded-[6px] border bg-card">{vehicles.map(vehicle => {
           const missing = REQUIRED.filter(kind => !vehicle.documents.some((document: any) => document.kind === kind && document.status === 'accepted_evidence' && (!document.expiresAt || Date.parse(document.expiresAt) > Date.now())))
           return <li key={vehicle.id} className="grid gap-3 p-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center md:px-5">
             <div className="min-w-0 space-y-1">

@@ -46,5 +46,5 @@ export function PlatformSection({
 
 /** Quiet inline empty state for a section with nothing in it. */
 export function PlatformEmpty({ children, className }: { children: ReactNode; className?: string }) {
-  return <p className={cn("rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground", className)}>{children}</p>;
+  return <p className={cn("border-t border-border py-3 text-sm text-muted-foreground", className)}>{children}</p>;
 }

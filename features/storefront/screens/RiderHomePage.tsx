@@ -378,7 +378,7 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
       </div>
 
       <div className="min-w-0">
-        {receipt ? receiptPanel() : <form className="relative rounded-[1.75rem] border border-border bg-kerb p-4 shadow-[0_30px_80px_-40px_rgba(0,0,0,0.9)] sm:p-5" onSubmit={event => {
+        {receipt ? receiptPanel() : <form className="relative rounded-[6px] border border-border bg-kerb p-4 shadow-[0_30px_80px_-40px_rgba(0,0,0,0.9)] sm:p-5" onSubmit={event => {
           event.preventDefault()
           if (uncertainRequest) {
             if (visibleQuoteBinding) void requestRide(visibleQuoteBinding)
@@ -389,10 +389,10 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
         }}>
           <fieldset disabled={formLocked} className="min-w-0 space-y-5 disabled:opacity-70">
             <legend className="sr-only">Plan a ride</legend>
-            <div className="relative rounded-2xl bg-asphalt ring-1 ring-inset ring-white/10">
+            <div className="relative rounded-[6px] bg-asphalt ring-1 ring-inset ring-white/10">
               <span aria-hidden="true" className="absolute left-[1.3rem] top-[1.6rem] bottom-[1.6rem] w-px bg-[linear-gradient(to_bottom,#9aa0aa_50%,transparent_0)] bg-[length:1px_6px]" />
               <label className="flex items-center gap-3 px-4 py-1">
-                <span aria-hidden="true" className="relative z-10 size-3 shrink-0 rounded-full border-[3px] border-foreground bg-asphalt" />
+                <span aria-hidden="true" className="relative z-10 size-3 shrink-0 rounded-[4px] border-[3px] border-foreground bg-asphalt" />
                 <span className="sr-only">Pickup</span>
                 <input id="pickup" name="pickup" autoComplete="off" placeholder="Pickup area" value={pickupLabel} onChange={change(setPickupLabel)} required minLength={2} maxLength={120} className="h-12 min-w-0 flex-1 bg-transparent text-base font-medium outline-none placeholder:text-muted-foreground/80" />
               </label>
@@ -418,7 +418,7 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
                   <RiderPill active={scheduling} onClick={() => { if (locked()) return; setScheduleOpen(true) }}><CalendarClock className="size-4" aria-hidden="true" />Schedule</RiderPill>
                 </RiderTrack>
               </div>
-              {scheduling && <label className="block"><span className="sr-only">Pickup time</span><input id="schedule" name="schedule" type="datetime-local" value={scheduledFor} onChange={change(setScheduledFor)} className="h-12 w-full rounded-2xl bg-asphalt px-4 text-base outline-none ring-1 ring-inset ring-white/10 focus-visible:ring-2 focus-visible:ring-signal" /></label>}
+              {scheduling && <label className="block"><span className="sr-only">Pickup time</span><input id="schedule" name="schedule" type="datetime-local" value={scheduledFor} onChange={change(setScheduledFor)} className="h-12 w-full rounded-[6px] bg-asphalt px-4 text-base outline-none ring-1 ring-inset ring-white/10 focus-visible:ring-2 focus-visible:ring-signal" /></label>}
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <label htmlFor="passengers" className="text-sm font-medium">Passengers</label>
                 <RiderTrack label="Passengers">
@@ -435,13 +435,13 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
             </div>
           </fieldset>
 
-          {quote && visibleQuoteBinding && <section aria-live="polite" aria-label="Price" className="relative mt-5 overflow-hidden rounded-2xl bg-signal p-4 text-zinc-950">
+          {quote && visibleQuoteBinding && <section aria-live="polite" aria-label="Price" className="relative mt-5 overflow-hidden rounded-[6px] bg-signal p-4 text-zinc-950">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-800">{selectedService?.title || 'Ride'}</p>
                 <p className="mt-1 font-display text-4xl font-extrabold tracking-tight tabular-nums [font-stretch:115%]">{formatMoney(quote.fare.totalMinor, quote.fare.currencyCode)}</p>
               </div>
-              <p className="shrink-0 rounded-full bg-zinc-950/10 px-2.5 py-1 text-xs font-semibold tabular-nums"><QuoteCountdown expiresAt={quote.expiresAt} /></p>
+              <p className="shrink-0 rounded-[4px] bg-zinc-950/10 px-2.5 py-1 text-xs font-semibold tabular-nums"><QuoteCountdown expiresAt={quote.expiresAt} /></p>
             </div>
             <dl className="mt-3 grid grid-cols-3 gap-2 border-t border-zinc-950/15 pt-3 text-xs">
               <div><dt className="text-zinc-800">Time</dt><dd className="font-semibold tabular-nums">{formatDuration(quote.estimatedDurationSeconds)}</dd></div>
@@ -474,19 +474,19 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
 
   function receiptPanel() {
     if (!receipt) return null
-    return <section aria-live="polite" aria-labelledby="receipt-title" className="space-y-5 rounded-[1.75rem] border border-border bg-kerb p-5 shadow-[0_30px_80px_-40px_rgba(0,0,0,0.9)]">
+    return <section aria-live="polite" aria-labelledby="receipt-title" className="space-y-5 rounded-[6px] border border-border bg-kerb p-5 shadow-[0_30px_80px_-40px_rgba(0,0,0,0.9)]">
       <div className="space-y-1">
         <StatusTitle as="h2" id="receipt-title" tone={requestView ? statusTone(liveState) : 'zinc'} pulse={Boolean(requestView) && !terminal} status={requestView ? statusLabel(liveState) : statusError ? 'Status unavailable' : 'Checking…'} className="font-mono text-base font-semibold">{receipt.requestNumber}</StatusTitle>
         {statusAsOf && <p className="text-xs text-muted-foreground">Updated {statusAsOf}</p>}
       </div>
-      {requestView?.trip ? <div className="space-y-3 rounded-2xl bg-asphalt p-4 ring-1 ring-inset ring-white/10">
+      {requestView?.trip ? <div className="space-y-3 rounded-[6px] bg-asphalt p-4 ring-1 ring-inset ring-white/10">
         <TripProgress status={requestView.trip.status} />
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0"><p className="text-xs text-muted-foreground">Trip</p><p className="font-mono text-lg font-semibold">{requestView.trip.confirmationCode}</p>{requestView.trip.scheduledFor && <p className="text-xs text-muted-foreground">Pickup {new Date(requestView.trip.scheduledFor).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</p>}</div>
           <RiderButtonLink href={riderStatusHref(requestView.trip.confirmationCode, receipt.requestId)} tone="signal">Track ride<ArrowUpRight className="size-4" aria-hidden="true" /></RiderButtonLink>
         </div>
         {requestView.handoffState === 'reassignment_pending' && <p className="text-sm text-amber-300">Driver cancelled. Finding another driver.</p>}
-      </div> : requestView && !terminal && <div className="flex items-center gap-3 rounded-2xl bg-asphalt p-4 ring-1 ring-inset ring-white/10"><span className="relative grid size-10 shrink-0 place-items-center rounded-full bg-signal/15"><Search className="size-4 text-signal" aria-hidden="true" /><span className="absolute inset-0 animate-ping rounded-full bg-signal/20 motion-reduce:animate-none" /></span><p className="text-sm font-medium">Finding your driver</p></div>}
+      </div> : requestView && !terminal && <div className="flex items-center gap-3 rounded-[6px] bg-asphalt p-4 ring-1 ring-inset ring-white/10"><span className="relative grid size-10 shrink-0 place-items-center rounded-[4px] bg-signal/15"><Search className="size-4 text-signal" aria-hidden="true" /><span className="absolute inset-0 animate-ping rounded-[4px] bg-signal/20 motion-reduce:animate-none" /></span><p className="text-sm font-medium">Finding your driver</p></div>}
       {requestView?.handoffState === 'unavailable' && <p className="text-sm text-amber-300">Assignment details unavailable. The operator needs to reconcile this request.</p>}
       {statusError && <p role="status" className="text-sm text-amber-300">{statusError}</p>}
       {error && <p role="alert" className="text-sm text-[#ff8a7f]">{error}</p>}
@@ -517,13 +517,13 @@ function formatDistance(meters: number) {
 }
 
 function ServiceList({ services, serviceId, disabled, onChange, loading, more, name }: { services: Service[]; serviceId: string; disabled: boolean; onChange: (event: React.ChangeEvent<HTMLInputElement>) => void; loading: boolean; more?: () => void; name: string }) {
-  if (loading && !services.length) return <div className="mt-3 space-y-2" aria-hidden="true">{[0, 1].map(index => <div key={index} className="h-[4.25rem] animate-pulse rounded-2xl bg-lane motion-reduce:animate-none" />)}</div>
+  if (loading && !services.length) return <div className="mt-3 space-y-2" aria-hidden="true">{[0, 1].map(index => <div key={index} className="h-[4.25rem] animate-pulse rounded-[6px] bg-lane motion-reduce:animate-none" />)}</div>
   return <div className="mt-3 space-y-2" role="radiogroup" aria-label="Ride">
     {services.map(service => {
       const ready = service.readiness?.bookingEnabled === true
-      return <label key={service.id} className="group flex cursor-pointer items-center gap-3 rounded-2xl bg-asphalt p-3 ring-1 ring-inset ring-white/10 transition-[box-shadow,background-color] has-[:checked]:bg-lane has-[:checked]:ring-2 has-[:checked]:ring-signal has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-signal has-[:disabled]:cursor-default">
+      return <label key={service.id} className="group flex cursor-pointer items-center gap-3 rounded-[6px] bg-asphalt p-3 ring-1 ring-inset ring-white/10 transition-[box-shadow,background-color] has-[:checked]:bg-lane has-[:checked]:ring-2 has-[:checked]:ring-signal has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-signal has-[:disabled]:cursor-default">
         <input type="radio" name={name} value={service.id} checked={serviceId === service.id} disabled={disabled} onChange={onChange} className="sr-only" />
-        <span aria-hidden="true" className="grid size-11 shrink-0 place-items-center rounded-xl bg-kerb ring-1 ring-inset ring-white/10 group-has-[:checked]:bg-signal group-has-[:checked]:text-zinc-950">{service.wheelchairAccessible ? <Accessibility className="size-5" /> : <CarFront className="size-5" />}</span>
+        <span aria-hidden="true" className="grid size-11 shrink-0 place-items-center rounded-[6px] bg-kerb ring-1 ring-inset ring-white/10 group-has-[:checked]:bg-signal group-has-[:checked]:text-zinc-950">{service.wheelchairAccessible ? <Accessibility className="size-5" /> : <CarFront className="size-5" />}</span>
         <span className="min-w-0 flex-1">
           <StatusTitle as="span" tone={ready ? 'green' : 'amber'} className="text-sm font-semibold">{service.title}</StatusTitle>
           <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground"><span className="truncate">{service.fleet.name}</span><span className="inline-flex items-center gap-1"><Users className="size-3" aria-hidden="true" />{service.passengerCapacity}</span>{service.category && <span className="capitalize">{service.category.replaceAll('_', ' ')}</span>}</span>
@@ -536,9 +536,9 @@ function ServiceList({ services, serviceId, disabled, onChange, loading, more, n
 }
 
 function ServiceDetail({ service }: { service: Service }) {
-  return <div className="mt-3 space-y-2 rounded-2xl border border-dashed border-border p-3 text-sm">
+  return <div className="mt-3 space-y-2 rounded-[6px] border  border-border p-3 text-sm">
     {service.description && <p className="text-muted-foreground">{service.description}</p>}
-    {service.publicRegionLabels.length > 0 && <ul aria-label="Service areas" className="flex flex-wrap gap-1.5">{service.publicRegionLabels.map(label => <li key={label} className="inline-flex items-center gap-1 rounded-full bg-lane px-2.5 py-1 text-xs"><MapPin className="size-3 text-signal" aria-hidden="true" />{label}</li>)}</ul>}
+    {service.publicRegionLabels.length > 0 && <ul aria-label="Service areas" className="flex flex-wrap gap-1.5">{service.publicRegionLabels.map(label => <li key={label} className="inline-flex items-center gap-1 rounded-[4px] bg-lane px-2.5 py-1 text-xs"><MapPin className="size-3 text-signal" aria-hidden="true" />{label}</li>)}</ul>}
     {service.advanceBookingMinutes > 0 && <p className="text-xs text-muted-foreground">Book {service.advanceBookingMinutes >= 60 ? `${Math.round(service.advanceBookingMinutes / 60)} h` : `${service.advanceBookingMinutes} min`} ahead</p>}
     <ServiceAreaPages serviceId={service.id} />
   </div>
@@ -547,5 +547,5 @@ function ServiceDetail({ service }: { service: Service }) {
 function TripProgress({ status }: { status: string }) {
   const current = tripStageIndex(status)
   if (current < 0) return null
-  return <ol className="grid grid-cols-5 gap-1" aria-label={`Trip: ${statusLabel(status)}`}>{TRIP_STAGES.map((stage, index) => <li key={stage} aria-current={index === current ? 'step' : undefined} className={`h-1.5 rounded-full ${index <= current ? 'bg-signal' : 'bg-lane'}`}><span className="sr-only">{statusLabel(stage)}</span></li>)}</ol>
+  return <ol className="grid grid-cols-5 gap-1" aria-label={`Trip: ${statusLabel(status)}`}>{TRIP_STAGES.map((stage, index) => <li key={stage} aria-current={index === current ? 'step' : undefined} className={`h-1.5 rounded-[4px] ${index <= current ? 'bg-signal' : 'bg-lane'}`}><span className="sr-only">{statusLabel(stage)}</span></li>)}</ol>
 }
