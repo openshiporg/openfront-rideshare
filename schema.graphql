@@ -4683,6 +4683,8 @@ type Mutation {
   sendTripMessage(tripId: ID!, tripToken: String, body: String!, idempotencyKey: String!): Message!
   initiateTripPayment(tripId: ID!, providerCode: String!, idempotencyKey: String!): Payment!
   requestTripRefund(paymentId: ID!, amountMinor: Int!, reason: String, idempotencyKey: String!): Refund!
+  startTripCardPayment(tripId: ID!): TripCardPayment!
+  confirmTripCardPayment(tripId: ID!): TripCardPayment!
   saveFleetBranding(fleetId: ID!, expectedUpdatedAt: DateTime!, logoIcon: String!, logoColor: String!, idempotencyKey: String!, expectedActorId: ID!): JSON!
   dismissRideshareOnboarding: Boolean!
   bootstrapRideshare(mode: String!): RideshareBootstrapResult!
@@ -4879,6 +4881,7 @@ type Query {
   riderTripHistory(requestId: ID!, requestProof: String, kind: String!, cursor: String): JSON
   dispatchCandidatePage(requestId: ID!, cursor: String, query: String): JSON
   dispatchQueueScope: Boolean!
+  tripCardPayment(tripId: ID!): TripCardPayment!
 }
 
 union AuthenticatedItem = User
@@ -5195,6 +5198,15 @@ type PublicTripEvent {
   fromStatus: String
   toStatus: String
   occurredAt: DateTime!
+}
+
+type TripCardPayment {
+  enabled: Boolean!
+  payable: Boolean!
+  status: String
+  amountMinor: Int
+  currencyCode: String
+  url: String
 }
 
 type PublicTripPayment {

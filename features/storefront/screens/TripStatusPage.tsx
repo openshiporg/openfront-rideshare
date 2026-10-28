@@ -9,6 +9,7 @@ import { StatusDot, StatusTitle } from '@/features/platform/components/StatusTit
 import { TRIP_STAGES, statusLabel, statusTone, tripStageIndex } from '@/features/platform/lib/statusTone'
 import { RiderTripHistory } from '../components/RiderTripHistory'
 import { TripRiderActions } from '../components/TripRiderActions'
+import { TripCardPayment } from '../components/TripCardPayment'
 import { storedReceipt } from '../domain/riderReceiptStorage'
 
 type TripView = {
@@ -96,6 +97,7 @@ export default function TripStatusPage({ confirmationCode, requestId }: { confir
             {trip.historyTruncated && <p className="text-xs text-muted-foreground">Showing the latest 100 updates</p>}
             <RiderTrack><RiderButton onClick={() => setRetry(value => value + 1)}><RefreshCw className="size-4" aria-hidden="true" />Refresh</RiderButton><RiderButtonLink href="/account/rides" tone="quiet">My rides</RiderButtonLink></RiderTrack>
           </section>
+          <TripCardPayment tripId={trip.id} status={trip.status} />
           <TripRiderActions tripId={trip.id} status={trip.status} />
           <RiderTripHistory requestId={trip.requestId} tripId={trip.id} />
         </>}

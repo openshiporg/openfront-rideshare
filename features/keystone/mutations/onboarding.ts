@@ -4,7 +4,7 @@ import { demoSeedInspectionSelections, inspectExistingDemoFleet } from '../domai
 import { currentRiderId } from '../domain/requestAuthority'
 
 // Same resolution as features/dashboard/lib/getBaseUrl, read from the Keystone request.
-function requestBaseUrl(req?: { headers?: Record<string, string | string[] | undefined> }) {
+export function requestBaseUrl(req?: { headers?: Record<string, string | string[] | undefined> }) {
   const header = (name: string) => String(req?.headers?.[name] || '').split(',')[0].trim()
   const host = header('x-forwarded-host') || header('host')
   return host ? `${header('x-forwarded-proto') || 'https'}://${host}` : ''

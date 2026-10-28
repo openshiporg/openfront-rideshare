@@ -43,7 +43,7 @@ Openfront Rideshare is a self-hostable ride-booking and fleet-operations applica
   - `/book`
   - `/rides/*`
   - `/account/*`
-- **Payments** are manual payment records. The product does not claim live card processing.
+- **Payments** are manual payment records by default. A fleet can turn on rider card payment through Stripe Checkout (the `pp_stripe` provider with `STRIPE_SECRET_KEY` on the service); the signed-in rider pays the quoted fare from the trip page once a driver is assigned. The demo uses Stripe test mode.
 
 ## Brand Commitments
 - The service name, logo and contact details come from the operator's settings. The demo service is Harbor Independent Mobility.

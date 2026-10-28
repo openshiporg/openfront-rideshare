@@ -8,6 +8,7 @@ import { commandBodyHash } from '../domain/commandBinding'
 import { currencyDigits, validMinor } from '../../lib/currency'
 import { randomUUID } from 'node:crypto'
 import { requireFleetOperations } from '../domain/operationalReadiness'
+import { requestBaseUrl } from './onboarding'
 
 function requireIdempotencyKey(value: unknown) {
   const key = String(value || '').trim()
@@ -26,7 +27,7 @@ async function appendObservation(prisma: any, paymentId: string, observation: Re
   }, { isolationLevel: 'Serializable' })
 }
 
-function moneySnapshot(value: any) {
+export function moneySnapshot(value: any) {
   const quote = value?.quote && typeof value.quote === 'object' ? value.quote : {}
   const fare = quote.fare && typeof quote.fare === 'object' ? quote.fare : {}
   const amount = quote.totalMinor ?? fare.totalMinor
@@ -44,7 +45,7 @@ export async function initiateTripPayment(_root: unknown, args: { tripId: string
   const preflight = await prisma.$transaction(async tx => {
     const authority = await authorizedTripHeader(tx, context.session, args.tripId, 'riderOrOperator', 'finance')
     if (!authority?.bound) throw new Error('Trip not found.')
-    const trip = await tx.trip.findFirst({ where: tripAuthorityWhere(authority.header), select: { id: true, status: true, rider: { select: { id: true } }, fleet: { select: { id: true } }, bookingSnapshot: true } })
+    const trip = await tx.trip.findFirst({ where: tripAuthorityWhere(authority.header), select: { id: true, status: true, confirmationCode: true, rider: { select: { id: true } }, fleet: { select: { id: true } }, bookingSnapshot: true } })
     if (!trip) throw new Error('Trip not found.')
     return { trip, header: authority.header }
   }, { isolationLevel: 'RepeatableRead' })
@@ -85,7 +86,7 @@ export async function initiateTripPayment(_root: unknown, args: { tripId: string
 
   let evidence: any
   try {
-    evidence = await executePaymentAdapter({ provider, functionName: 'createPaymentFunction', args: { trip, amount, currency, idempotencyKey } })
+    evidence = await executePaymentAdapter({ provider, functionName: 'createPaymentFunction', args: { trip, amount, currency, idempotencyKey, origin: requestBaseUrl(context.req) } })
   } catch {
     await appendObservation(prisma, reservation.payment.id, { observationId: `${reservation.payment.id}:create`, providerId: provider.id, amountMinor: amount, currencyCode: currency, phase: 'outcome_indeterminate', observedAt: new Date().toISOString() })
     throw new Error('Payment outcome is indeterminate. The durable intent was retained for reconciliation; do not submit a new key.')
