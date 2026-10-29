@@ -20,6 +20,7 @@ export default function RiderAccountPage() {
   const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
+  const [signedOut, setSignedOut] = useState(false)
   const [retry, setRetry] = useState(0)
   const [receipt, setReceipt] = useState<RiderReceipt | null>(null)
   useEffect(() => {
@@ -28,7 +29,7 @@ export default function RiderAccountPage() {
   useEffect(() => {
     let active = true
     const controller = new AbortController()
-    setLoading(true); setError(false); setItems([]); setNextCursor(null)
+    setLoading(true); setError(false); setSignedOut(false); setItems([]); setNextCursor(null)
     async function load() {
       try {
         const response = await fetch('/api/graphql', {
@@ -39,7 +40,15 @@ export default function RiderAccountPage() {
         const payload = await response.json()
         if (payload.errors?.length || !Array.isArray(payload.data?.myRideshareRequests?.items)) throw new Error('Unavailable')
         if (active) { setItems(payload.data.myRideshareRequests.items); setNextCursor(payload.data.myRideshareRequests.nextCursor) }
-      } catch { if (active && !controller.signal.aborted) setError(true) }
+      } catch {
+        if (!active || controller.signal.aborted) return
+        // A signed-out rider gets the same error as an outage; ask who is signed in before choosing the message.
+        try {
+          const identity = await fetch('/api/graphql', { method: 'POST', headers: { 'content-type': 'application/json' }, signal: controller.signal, body: JSON.stringify({ query: 'query RiderSignedIn { authenticatedItem { __typename } }' }) }).then(response => response.json())
+          if (active && identity?.data && identity.data.authenticatedItem === null) setSignedOut(true)
+        } catch { /* fall through to the outage message */ }
+        if (active) setError(true)
+      }
       finally { if (active) setLoading(false) }
     }
     void load()
@@ -55,8 +64,9 @@ export default function RiderAccountPage() {
       {receipt && <Link href="/book" className="flex items-center justify-between gap-3 rounded-[6px] bg-signal/10 p-4 text-sm ring-1 ring-inset ring-signal/30"><span className="flex min-w-0 items-center gap-2"><StatusDot tone="amber" pulse /><span className="truncate">Current request <span className="font-mono font-semibold">{receipt.requestNumber}</span></span></span><ArrowUpRight className="size-4 shrink-0 text-signal" aria-hidden="true" /></Link>}
       <div aria-live="polite">
         {loading ? <ul className="space-y-3" aria-label="Loading rides">{[0, 1, 2].map(index => <li key={index} className="h-32 animate-pulse rounded-[6px] bg-kerb motion-reduce:animate-none" />)}</ul>
-          : error ? <div role="alert" className="space-y-4 rounded-[6px] border border-border bg-kerb p-5"><p className="text-sm text-amber-300">Sign in to see your rides.</p><RiderTrack><RiderButtonLink href="/account/signin" tone="signal">Sign in</RiderButtonLink><RiderButton onClick={() => setRetry(value => value + 1)}>Try again</RiderButton></RiderTrack></div>
-          : !items.length ? <p role="status" className="rounded-[6px] border  border-border px-5 py-12 text-center text-sm text-muted-foreground">No rides yet</p>
+          : error ? signedOut ? <div className="space-y-4 rounded-[6px] border border-border bg-kerb p-5 sm:p-6"><div className="space-y-1"><p className="font-semibold">Sign in to see your rides</p><p className="text-sm text-muted-foreground">Rides you book while signed in show up here with their live status.</p></div><RiderTrack><RiderButtonLink href="/account/signin" tone="signal">Sign in</RiderButtonLink><RiderButtonLink href="/account/signup">Create account</RiderButtonLink></RiderTrack></div>
+          : <div role="alert" className="space-y-4 rounded-[6px] border border-border bg-kerb p-5"><p className="text-sm text-amber-300">Rides unavailable right now.</p><RiderTrack><RiderButton onClick={() => setRetry(value => value + 1)}>Try again</RiderButton><RiderButtonLink href="/account/signin">Sign in</RiderButtonLink></RiderTrack></div>
+          : !items.length ? <p role="status" className="rounded-[6px] border border-border px-5 py-12 text-center text-sm text-muted-foreground">No rides yet</p>
           : <ul className="space-y-3">{items.map(item => { const state = item.trip?.status || item.status; const stage = tripStageIndex(item.trip?.status); return <li key={item.requestId} className="min-w-0 space-y-4 rounded-[6px] border border-border bg-kerb p-5">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <StatusTitle as="h2" tone={statusTone(state)} pulse={live(item)} status={statusLabel(state)} className="font-mono text-sm font-semibold">{item.trip?.confirmationCode || item.requestNumber}</StatusTitle>

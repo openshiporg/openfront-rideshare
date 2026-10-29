@@ -512,12 +512,20 @@ function formatDuration(seconds: number) {
   return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} h ${minutes % 60} min`
 }
 
+function formatLeadTime(minutes: number) {
+  if (minutes < 60 || minutes % 60) return `${minutes} minutes`
+  const hours = minutes / 60
+  return hours === 1 ? '1 hour' : `${hours} hours`
+}
+
 function formatDistance(meters: number) {
   return meters < 1000 ? `${Math.round(meters)} m` : `${(meters / 1000).toFixed(meters < 10_000 ? 1 : 0)} km`
 }
 
 function ServiceList({ services, serviceId, disabled, onChange, loading, more, name }: { services: Service[]; serviceId: string; disabled: boolean; onChange: (event: React.ChangeEvent<HTMLInputElement>) => void; loading: boolean; more?: () => void; name: string }) {
   if (loading && !services.length) return <div className="mt-3 space-y-2" aria-hidden="true">{[0, 1].map(index => <div key={index} className="h-[4.25rem] animate-pulse rounded-[6px] bg-lane motion-reduce:animate-none" />)}</div>
+  // One fleet runs every ride here, and its name already sits under the heading.
+  const multiFleet = new Set(services.map(service => service.fleet.name)).size > 1
   return <div className="mt-3 space-y-2" role="radiogroup" aria-label="Ride">
     {services.map(service => {
       const ready = service.readiness?.bookingEnabled === true
@@ -526,7 +534,7 @@ function ServiceList({ services, serviceId, disabled, onChange, loading, more, n
         <span aria-hidden="true" className="grid size-11 shrink-0 place-items-center rounded-[6px] bg-kerb ring-1 ring-inset ring-white/10 group-has-[:checked]:bg-signal group-has-[:checked]:text-zinc-950">{service.wheelchairAccessible ? <Accessibility className="size-5" /> : <CarFront className="size-5" />}</span>
         <span className="min-w-0 flex-1">
           <StatusTitle as="span" tone={ready ? 'green' : 'amber'} className="text-sm font-semibold">{service.title}</StatusTitle>
-          <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground"><span className="truncate">{service.fleet.name}</span><span className="inline-flex items-center gap-1"><Users className="size-3" aria-hidden="true" />{service.passengerCapacity}</span>{service.category && <span className="capitalize">{service.category.replaceAll('_', ' ')}</span>}</span>
+          <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">{multiFleet && <span className="truncate">{service.fleet.name}</span>}<span className="inline-flex items-center gap-1"><Users className="size-3" aria-hidden="true" />{service.passengerCapacity}</span>{service.category && <span className="capitalize">{service.category.replaceAll('_', ' ')}</span>}</span>
         </span>
         {service.startingFareMinor !== null && <span className="shrink-0 text-right text-xs text-muted-foreground">from<span className="block text-sm font-semibold tabular-nums text-foreground">{formatMoney(service.startingFareMinor, service.currencyCode)}</span></span>}
       </label>
@@ -536,10 +544,10 @@ function ServiceList({ services, serviceId, disabled, onChange, loading, more, n
 }
 
 function ServiceDetail({ service }: { service: Service }) {
-  return <div className="mt-3 space-y-2 rounded-[6px] border  border-border p-3 text-sm">
+  return <div className="mt-3 space-y-2.5 rounded-[6px] border border-border p-3.5 text-sm">
     {service.description && <p className="text-muted-foreground">{service.description}</p>}
     {service.publicRegionLabels.length > 0 && <ul aria-label="Service areas" className="flex flex-wrap gap-1.5">{service.publicRegionLabels.map(label => <li key={label} className="inline-flex items-center gap-1 rounded-[4px] bg-lane px-2.5 py-1 text-xs"><MapPin className="size-3 text-signal" aria-hidden="true" />{label}</li>)}</ul>}
-    {service.advanceBookingMinutes > 0 && <p className="text-xs text-muted-foreground">Book {service.advanceBookingMinutes >= 60 ? `${Math.round(service.advanceBookingMinutes / 60)} h` : `${service.advanceBookingMinutes} min`} ahead</p>}
+    {service.advanceBookingMinutes > 0 && <p className="text-xs text-muted-foreground">Book at least {formatLeadTime(service.advanceBookingMinutes)} ahead</p>}
     <ServiceAreaPages serviceId={service.id} />
   </div>
 }
