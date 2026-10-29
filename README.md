@@ -1,6 +1,10 @@
+<!-- logo -->
+
 # Openfront Rideshare
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fopenshiporg%2Fopenfront-rideshare&env=DATABASE_URL%2CSESSION_SECRET)
+
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/openfront-rideshare)
 
 Openfront Rideshare is a self-hostable ride-booking and fleet-operations application for independent drivers and fleets. Riders can discover services, request quotes and rides, and review trip status. Operators manage drivers, dispatch, trip transitions, support, safety records, and manual payment records.
 
@@ -8,16 +12,14 @@ Openfront Rideshare is a self-hostable ride-booking and fleet-operations applica
 
 ## Demo
 
-Explore the application locally using the setup instructions below.
-
 | | |
 |---|---|
-| **Public application** | `/` on your development URL |
-| **Dashboard** | `/dashboard` on your development URL |
+| **Storefront** | [rideshare.openship.org](https://rideshare.openship.org) |
+| **Dashboard** | [rideshare.openship.org/dashboard](https://rideshare.openship.org/dashboard) |
 
 [Learn more →](https://openship.org/products/openfront-rideshare)
 
-[Documentation →](features/keystone/models)
+[Documentation →](https://docs.openship.org/docs/openfront/rideshare/)
 
 ## The Openfront Ecosystem
 
