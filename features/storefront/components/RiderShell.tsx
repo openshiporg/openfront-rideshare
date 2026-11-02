@@ -42,20 +42,20 @@ export function RiderShell({ fleet, children, className, map }: { fleet?: ShellF
       <span aria-hidden="true" className="absolute right-4 top-3 z-50 grid size-12 place-items-center rounded-full bg-white text-signal shadow-[0_6px_20px_-8px_rgba(11,43,46,0.45)] lg:bottom-10 lg:right-10 lg:top-auto lg:size-14"><Navigation className="size-5 fill-current" /></span>
       {map.corner && <div className="pointer-events-none absolute bottom-10 left-[31.5rem] z-20 hidden lg:block">{map.corner}</div>}
     </div>
-    <Footer name={brand?.name} />
+    <Footer brand={brand} />
   </div>
 
   return <div className="rs flex min-h-dvh flex-col bg-asphalt font-sans text-foreground [&_p]:break-words">
     <div className="sticky top-0 z-40 [&_header]:border-b [&_header]:border-border/80 [&_header]:bg-white/95 [&_header]:backdrop-blur-md">{header}</div>
     <main className={cn('mx-auto w-full max-w-6xl flex-1 px-4 pb-16 pt-6 sm:px-6 sm:pt-10', className)}>{children}</main>
-    <Footer name={brand?.name} />
+    <Footer brand={brand} />
   </div>
 }
 
-function Footer({ name }: { name?: string }) {
+function Footer({ brand }: { brand: ShellFleet | null }) {
   return <footer className="border-t border-border bg-white">
     <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-6 text-xs text-muted-foreground sm:px-6 lg:px-10">
-      <span>{name || 'Rideshare'}</span>
+      <FleetBrand fleet={brand} size="sm" />
       <Link href="/dashboard" className="font-medium hover:text-foreground">Drivers &amp; operators</Link>
     </div>
   </footer>

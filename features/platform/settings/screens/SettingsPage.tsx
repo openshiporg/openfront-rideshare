@@ -12,7 +12,7 @@ const records = [
 export function SettingsPage() {
   return <>
     <PageBreadcrumbs items={[{ type: 'link', label: 'Dashboard', href: '' }, { type: 'page', label: 'Platform' }, { type: 'page', label: 'Settings' }]} />
-    <div className="mx-auto w-full max-w-4xl space-y-8 p-4 md:p-6">
+    <div className="mx-auto w-full max-w-4xl space-y-8 p-4 pb-24 md:p-6">
       <PlatformHeader title="Settings" />
       <FleetOperationsSettings />
       <FleetBrandingSettings />

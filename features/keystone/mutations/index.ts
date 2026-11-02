@@ -98,7 +98,7 @@ export const typeDefs = graphql`
       requestTripRefund(paymentId: ID!, amountMinor: Int!, reason: String, idempotencyKey: String!): Refund!
       startTripCardPayment(tripId: ID!): TripCardPayment!
       confirmTripCardPayment(tripId: ID!): TripCardPayment!
-      saveFleetBranding(fleetId: ID!, expectedUpdatedAt: DateTime!, logoIcon: String!, logoColor: String!, idempotencyKey: String!, expectedActorId: ID!): JSON!
+      saveFleetBranding(fleetId: ID!, expectedUpdatedAt: DateTime!, logoIcon: String!, logoColor: String!, name: String, idempotencyKey: String!, expectedActorId: ID!): JSON!
       dismissRideshareOnboarding: Boolean!
       bootstrapRideshare(mode: String!): RideshareBootstrapResult!
       expireRideOffers(fleetId: ID!): OfferMaintenanceResult!

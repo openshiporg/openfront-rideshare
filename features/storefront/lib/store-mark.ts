@@ -1,21 +1,10 @@
 import { sanitizeStoreLogoSvg } from '../../keystone/utils/storeLogo'
 import { DEFAULT_STORE_LOGO_ICON } from '../../platform/settings/branding/store-logo'
 
-/**
- * The mark the fleet chose in Store Settings, sanitized, or "" for none.
- * An empty value, or the platform placeholder that onboarding saves when no mark
- * was picked, means the storefront shows the wordmark only.
- */
-export function storeOwnMark(logoIcon: string | null | undefined): string {
-  const raw = (logoIcon || '').trim()
-  if (!raw || raw === DEFAULT_STORE_LOGO_ICON.trim()) return ''
-  const svg = sanitizeStoreLogoSvg(raw)
-  return svg && svg !== sanitizeStoreLogoSvg(DEFAULT_STORE_LOGO_ICON) ? svg : ''
-}
-
-/** The header mark: the fleet's own, else the platform mark, as E-commerce does. */
+/** The storefront mark, shown beside the fleet name in the header and the footer: the saved icon,
+ * or this repo's default icon when none is saved or the saved one is unsafe. Never hidden. */
 export function storeLogoMark(logoIcon: string | null | undefined): string {
-  return storeOwnMark(logoIcon) || sanitizeStoreLogoSvg(DEFAULT_STORE_LOGO_ICON) || ''
+  return sanitizeStoreLogoSvg((logoIcon || '').trim()) || sanitizeStoreLogoSvg(DEFAULT_STORE_LOGO_ICON) || ''
 }
 
 /** A short header wordmark from the store name: its first word ("Harbor" for
