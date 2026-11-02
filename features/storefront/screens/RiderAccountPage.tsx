@@ -79,7 +79,7 @@ export default function RiderAccountPage() {
               {item.trip && item.handoffState !== 'unavailable' && <RiderButtonLink href={riderStatusHref(item.trip.confirmationCode, item.requestId)}>Trip details<ArrowUpRight className="size-4" aria-hidden="true" /></RiderButtonLink>}
               <RequestCancellation requestId={item.requestId} status={item.status} onAcknowledged={() => setRetry(value => value + 1)} />
             </div>
-            <p className="flex flex-wrap gap-x-2 text-[0.6875rem] text-muted-foreground">{item.fleetBrand?.name && <span>{item.fleetBrand.name}</span>}<span className="font-mono">{item.requestNumber}</span></p>
+            <p className="flex flex-wrap gap-x-2 text-xs text-muted-foreground">{item.fleetBrand?.name && <span>{item.fleetBrand.name}</span>}<span className="font-mono">{item.requestNumber}</span></p>
           </li> })}</ul>}
       </div>
       {!error && (cursor || nextCursor) && <nav aria-label="Ride history pages"><RiderTrack><RiderButton disabled={loading} onClick={() => { setCursor(null); setRetry(value => value + 1) }}>Latest</RiderButton>{nextCursor && <RiderButton disabled={loading} onClick={() => setCursor(nextCursor)}>Older rides</RiderButton>}</RiderTrack></nav>}

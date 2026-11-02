@@ -479,7 +479,7 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
           </dl>
           {quote.scheduledFor && <p className="mt-2 text-xs font-medium">Pickup {new Date(quote.scheduledFor).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</p>}
           <p className="mt-2 text-xs text-muted-foreground">Cancellation {formatMoney(quote.cancellationFeeMinor, quote.fare.currencyCode)} · No-show {formatMoney(quote.noShowFeeMinor, quote.fare.currencyCode)}</p>
-          <p className="mt-1 text-[0.6875rem] leading-4 text-muted-foreground">{quote.estimateDisclosure}</p>
+          <p className="mt-1 text-xs leading-4 text-muted-foreground">{quote.estimateDisclosure}</p>
         </section>}
 
         <div className="mt-3 space-y-2 empty:hidden" aria-live="polite">

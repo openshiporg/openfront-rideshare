@@ -94,7 +94,7 @@ export async function TripDetailPage({ params }: { params: Promise<{ id: string 
           </PlatformSection>
           <PlatformSection id="messages" title="Messages" meta={trip.conversation?.messages.length || undefined}>
             <div className="space-y-3 rounded-[6px] border bg-card p-4">
-              {trip.conversation?.messages.length ? <ol className="max-h-80 space-y-2 overflow-y-auto">{trip.conversation.messages.map((message: any) => <li key={message.id} className={`max-w-[85%] rounded-[6px] px-3 py-2 text-sm ${message.senderType === 'operator' ? 'ml-auto bg-foreground text-background' : 'bg-muted'}`}><p className="whitespace-pre-wrap">{message.body}</p><p className="mt-1 text-[0.6875rem] opacity-70">{message.senderType} · {formatWhen(message.createdAt)}</p></li>)}</ol> : <p className="text-sm text-muted-foreground">No messages</p>}
+              {trip.conversation?.messages.length ? <ol className="max-h-80 space-y-2 overflow-y-auto">{trip.conversation.messages.map((message: any) => <li key={message.id} className={`max-w-[85%] rounded-[6px] px-3 py-2 text-sm ${message.senderType === 'operator' ? 'ml-auto bg-foreground text-background' : 'bg-muted'}`}><p className="whitespace-pre-wrap">{message.body}</p><p className="mt-1 text-xs opacity-70">{message.senderType} · {formatWhen(message.createdAt)}</p></li>)}</ol> : <p className="text-sm text-muted-foreground">No messages</p>}
               {trip.conversation?.status !== 'blocked' && <MessageComposer tripId={trip.id} />}
             </div>
           </PlatformSection>

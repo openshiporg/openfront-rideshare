@@ -11,6 +11,6 @@ export function TripStageRail({ status, className }: { status: string; className
     <ol className="grid grid-cols-5 gap-1" aria-label={`Trip stage: ${statusLabel(status)}`}>
       {TRIP_STAGES.map((stage, index) => <li key={stage} aria-current={index === current ? 'step' : undefined} className={cn('h-1.5 rounded-[4px]', index <= current ? 'bg-foreground' : 'bg-muted')}><span className="sr-only">{SHORT[stage]}</span></li>)}
     </ol>
-    <p className="mt-1.5 flex justify-between gap-2 text-[0.6875rem] text-muted-foreground" aria-hidden="true"><span className="font-medium text-foreground">{SHORT[TRIP_STAGES[current]]}</span><span className="tabular-nums">{current + 1}/{TRIP_STAGES.length}</span></p>
+    <p className="mt-1.5 flex justify-between gap-2 text-xs text-muted-foreground" aria-hidden="true"><span className="font-medium text-foreground">{SHORT[TRIP_STAGES[current]]}</span><span className="tabular-nums">{current + 1}/{TRIP_STAGES.length}</span></p>
   </div>
 }
