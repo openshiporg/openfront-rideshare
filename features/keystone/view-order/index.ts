@@ -15,6 +15,7 @@ export const VIEW_ORDER = [
   "select",
   "timestamp",
   "checkbox",
+  "virtual",
   "json",
   "integer"
 ];
