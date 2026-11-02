@@ -26,3 +26,14 @@ test('a trip changed after review is still refused', () => {
 test('the replay binding stores one canonical form for Date and string', () => {
   assert.equal(reviewedIso(new Date('2026-11-02T01:11:40.087Z')), reviewedIso('2026-11-02T01:11:40.087Z'))
 })
+
+test('branding replay: a Date argument binds the same as the JSON string stored with the first save', () => {
+  const first = { expectedUpdatedAt: reviewedIso(DateTime.parseValue('2026-11-02T01:11:40.087Z')) }
+  const stored = JSON.parse(JSON.stringify(first))
+  const retry = { expectedUpdatedAt: reviewedIso(DateTime.parseValue('2026-11-02T01:11:40.087Z')) }
+  assert.deepStrictEqual(stored, retry)
+  // the raw Date did not survive the JSON round trip, which refused every retry
+  assert.notDeepStrictEqual(JSON.parse(JSON.stringify({ at: new Date('2026-11-02T01:11:40.087Z') })), { at: new Date('2026-11-02T01:11:40.087Z') })
+  // and Date.parse(Date) drops the milliseconds, so it was never a safe validator
+  assert.notEqual(Date.parse(new Date('2026-11-02T01:11:40.087Z') as unknown as string), Date.parse('2026-11-02T01:11:40.087Z'))
+})
