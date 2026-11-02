@@ -93,6 +93,11 @@ model Fleet {
   slug                           String                   @unique @default("")
   status                         String?                  @default("setup")
   publicDescription              String                   @default("")
+  heroImage_id                   String?
+  heroImage_filesize             Int?
+  heroImage_width                Int?
+  heroImage_height               Int?
+  heroImage_extension            String?
   publicCity                     String                   @default("")
   countryCode                    String                   @default("US")
   currencyCode                   String                   @default("USD")
@@ -153,6 +158,11 @@ model DriverProfile {
   publicName                    String                  @default("")
   publicBio                     String                  @default("")
   publicPhotoUrl                String                  @default("")
+  photo_id                      String?
+  photo_filesize                Int?
+  photo_width                   Int?
+  photo_height                  Int?
+  photo_extension               String?
   status                        String?                 @default("applicant")
   dispatchStatus                String?                 @default("offline")
   acceptsScheduled              Boolean                 @default(true)
@@ -343,6 +353,11 @@ model RideService {
   fleetId               String?       @map("fleet")
   name                  String        @default("")
   slug                  String        @unique @default("")
+  photo_id              String?
+  photo_filesize        Int?
+  photo_width           Int?
+  photo_height          Int?
+  photo_extension       String?
   description           String        @default("")
   status                String?       @default("draft")
   category              String?       @default("standard")

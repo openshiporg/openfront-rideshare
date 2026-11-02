@@ -3,6 +3,7 @@ import { hasRequestQuoteBinding, hasRequestTripBinding } from '../domain/request
 import { projectRiderTrip } from '../domain/riderTripProjection'
 import { fleetBrandSelect, projectFleetBrand } from '../domain/fleetBrand'
 import { decodeKeyset, encodeKeyset } from '../domain/keysetCursor'
+import { driverRating, imageSelect, imageUrl } from '../domain/publicMedia'
 
 const requestInclude = {
   fleet: { select: fleetBrandSelect },
@@ -13,6 +14,7 @@ const requestInclude = {
     events: { orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }], take: 101 },
     payments: { orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: 20 },
     reviews: { where: { status: 'published' }, orderBy: [{ submittedAt: 'desc' }, { id: 'desc' }], take: 20 },
+    driver: { select: { id: true, publicName: true, ...imageSelect('photo') } },
   } },
 }
 
@@ -66,6 +68,15 @@ export async function riderTripStatus(_root: unknown, args: { confirmationCode: 
     if (!header) return null
     const request = await tx.rideRequest.findFirst({ where: { ...requestOwnerWhere(header), trip: { is: { confirmationCode: args.confirmationCode } } }, include: requestInclude })
     if (!request || request.trip?.confirmationCode !== args.confirmationCode || !hasRequestTripBinding(request, request.trip)) return null
-    return projectRiderTrip(request.trip)
-  }, { isolationLevel: 'RepeatableRead' })
+    const driverId = request.trip.driver?.id
+    const driverReviews = driverId ? await tx.review.findMany({ where: { status: 'published', direction: 'rider_to_driver', trip: { is: { driverId } } }, select: { rating: true, direction: true, status: true }, take: 5000 }) : []
+    return { trip: projectRiderTrip(request.trip), driver: request.trip.driver, driverReviews }
+  }, { isolationLevel: 'RepeatableRead' }).then(async (found: any) => {
+    if (!found) return null
+    const { trip, driver, driverReviews } = found
+    if (!driver?.publicName) return { ...trip, driver: null }
+    const rating = driverRating(driverReviews)
+    // The rider who owns this trip sees their driver's own photo and, past the minimum, the rating with its count.
+    return { ...trip, driver: { publicName: driver.publicName, photoUrl: await imageUrl(context, driver, 'photo'), rating: rating?.average ?? null, ratingCount: rating?.count ?? null } }
+  })
 }

@@ -22,13 +22,21 @@ const { withAuth } = createAuth({
   sessionData: `id name email role { id name ${permissionNames.join(' ')} }`,
 })
 
-const storage = process.env.S3_BUCKET_NAME ? {
+// As in E-commerce and Coffee: placeholder storage only outside production.
+function productionEnv(name: string, developmentFallback: string): string {
+  if (process.env[name]) return process.env[name]!
+  if (process.env.NODE_ENV === 'production') throw new Error(`${name} is required in production`)
+  return developmentFallback
+}
+
+const s3Endpoint = productionEnv('S3_ENDPOINT', 'https://sfo3.digitaloceanspaces.com')
+const storage = {
   my_images: {
-    kind: 's3' as const, type: 'image' as const, bucketName: process.env.S3_BUCKET_NAME,
-    region: process.env.S3_REGION || 'auto', accessKeyId: process.env.S3_ACCESS_KEY_ID || '', secretAccessKey: process.env.S3_SECRET_ACCESS_KEY || '',
-    endpoint: process.env.S3_ENDPOINT, forcePathStyle: s3ForcePathStyle(process.env.S3_ENDPOINT), signed: { expiry: 5000 },
+    kind: 's3' as const, type: 'image' as const, bucketName: productionEnv('S3_BUCKET_NAME', 'keystone-test'),
+    region: productionEnv('S3_REGION', 'ap-southeast-2'), accessKeyId: productionEnv('S3_ACCESS_KEY_ID', 'keystone'), secretAccessKey: productionEnv('S3_SECRET_ACCESS_KEY', 'keystone'),
+    endpoint: s3Endpoint, forcePathStyle: s3ForcePathStyle(s3Endpoint), signed: { expiry: 5000 },
   },
-} : undefined
+}
 
 export default withAuth(config({
   db: { provider: 'postgresql', url: databaseURL }, lists: models, session,

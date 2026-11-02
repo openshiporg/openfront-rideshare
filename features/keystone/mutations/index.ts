@@ -23,13 +23,13 @@ import { addComplianceDocument, addFleetDriver, addFleetVehicle, assignVehicleDr
 const graphql = String.raw
 
 export const typeDefs = graphql`
-    type MarketplaceFleet { logoIcon: String, logoColor: String, id: ID!, name: String!, publicDescription: String, publicCity: String, countryCode: String }
+    type MarketplaceFleet { logoIcon: String, logoColor: String, id: ID!, name: String!, publicDescription: String, heroImageUrl: String, publicCity: String, countryCode: String }
     type RideshareExtension { schema: String!, value: JSON! }
     type RideReadiness { bookingEnabled: Boolean!, mode: String!, reason: String! }
     type OfferMaintenanceResult { releasedCount: Int!, hasMore: Boolean! }
     type PublicServiceArea { id: ID!, name: String!, publicRegionLabel: String!, countryCode: String }
     type PublicServiceAreaPage { items: [PublicServiceArea!]!, nextCursor: ID }
-    type MarketplaceRideshareService { nextCursor: String, areasTruncated: Boolean!, id: ID!, title: String!, description: String, category: String!, passengerCapacity: Int!, wheelchairAccessible: Boolean!, advanceBookingMinutes: Int!, publicRegionLabels: [String!]!, fleet: MarketplaceFleet!, startingFareMinor: Int, currencyCode: String!, extension: RideshareExtension!, readiness: RideReadiness! }
+    type MarketplaceRideshareService { nextCursor: String, areasTruncated: Boolean!, id: ID!, title: String!, description: String, photoUrl: String, category: String!, passengerCapacity: Int!, wheelchairAccessible: Boolean!, advanceBookingMinutes: Int!, publicRegionLabels: [String!]!, fleet: MarketplaceFleet!, startingFareMinor: Int, currencyCode: String!, extension: RideshareExtension!, readiness: RideReadiness! }
     type FareBreakdown { currencyCode: String!, baseFareMinor: Int!, distanceMinor: Int!, durationMinor: Int!, bookingFeeMinor: Int!, multiplierBasisPoints: Int!, subtotalMinor: Int!, totalMinor: Int! }
     type MarketplaceRideQuote { quoteId: ID!, quoteProof: String!, expiresAt: DateTime!, pickupLabel: String!, dropoffLabel: String!, scheduledFor: DateTime, estimatedDistanceMeters: Int!, estimatedDurationSeconds: Int!, cancellationFeeMinor: Int!, noShowFeeMinor: Int!, fare: FareBreakdown!, estimateDisclosure: String!, sourceCheckoutPath: String! }
     type RideRequestReceipt { requestId: ID!, requestNumber: String!, status: String!, requestProof: String!, replayed: Boolean! }
@@ -44,8 +44,9 @@ export const typeDefs = graphql`
     type PublicTripEvent { eventType: String!, fromStatus: String, toStatus: String, occurredAt: DateTime! }
     type TripCardPayment { enabled: Boolean!, payable: Boolean!, status: String, amountMinor: Int, currencyCode: String, url: String }
     type PublicTripPayment { amountMinor: Int, currencyCode: String, status: String }
+    type PublicTripDriver { publicName: String!, photoUrl: String, rating: Float, ratingCount: Int }
     type PublicTripReview { direction: String, rating: Int, body: String, status: String, submittedAt: DateTime }
-    type PublicRideshareTrip { requestId: ID!, fleetBrand: JSON, id: ID!, historyTruncated: Boolean!, confirmationCode: String!, status: String!, scheduledFor: DateTime, acceptedAt: DateTime, enRouteAt: DateTime, arrivedAt: DateTime, startedAt: DateTime, completedAt: DateTime, cancelledAt: DateTime, pickupLabel: String, dropoffLabel: String, bookingSnapshot: JSON!, finalFareSnapshot: JSON, events: [PublicTripEvent!]!, payments: [PublicTripPayment!]!, reviews: [PublicTripReview!]! }
+    type PublicRideshareTrip { driver: PublicTripDriver, requestId: ID!, fleetBrand: JSON, id: ID!, historyTruncated: Boolean!, confirmationCode: String!, status: String!, scheduledFor: DateTime, acceptedAt: DateTime, enRouteAt: DateTime, arrivedAt: DateTime, startedAt: DateTime, completedAt: DateTime, cancelledAt: DateTime, pickupLabel: String, dropoffLabel: String, bookingSnapshot: JSON!, finalFareSnapshot: JSON, events: [PublicTripEvent!]!, payments: [PublicTripPayment!]!, reviews: [PublicTripReview!]! }
     type DriverWorkspaceDriver { id: ID!, publicName: String!, status: String, dispatchStatus: String }
     type DriverWorkspaceRequest { id: ID!, requestNumber: String!, requestedFor: DateTime, passengerCount: Int, pickupLabel: String, dropoffLabel: String }
     type DriverWorkspaceVehicle { id: ID!, label: String!, make: String, model: String, color: String, plateMasked: String }

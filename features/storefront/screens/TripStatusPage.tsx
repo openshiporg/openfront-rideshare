@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { CalendarClock, DollarSign, Navigation, RefreshCw, Share2 } from 'lucide-react'
+import { CalendarClock, DollarSign, Navigation, RefreshCw, Share2, Star } from 'lucide-react'
 import { formatMoney } from '@/features/lib/currency'
 import { VehicleArt } from '../components/VehicleArt'
 import { type PublicFleetBrand } from '../components/FleetBrand'
@@ -26,7 +26,9 @@ type TripView = {
   finalFareSnapshot: { currencyCode: string | null; totalMinor: number | null } | null
   historyTruncated: boolean
   events: Array<{ eventType: string; toStatus: string | null; occurredAt: string }>
+  driver?: TripDriver | null
 }
+type TripDriver = { publicName: string; photoUrl: string | null; rating: number | null; ratingCount: number | null }
 type TripResponse = { data?: { publicRideshareTrip: TripView | null }; errors?: Array<{ message?: string }> }
 
 export default function TripStatusPage({ confirmationCode, requestId }: { confirmationCode: string; requestId?: string }) {
@@ -56,7 +58,7 @@ export default function TripStatusPage({ confirmationCode, requestId }: { confir
           headers: { 'content-type': 'application/json' },
           signal: controller.signal,
           body: JSON.stringify({
-            query: `query Trip($code: String!, $requestId: ID, $proof: String) { publicRideshareTrip(confirmationCode: $code, requestId: $requestId, requestProof: $proof) { id requestId fleetBrand confirmationCode status scheduledFor pickupLabel dropoffLabel bookingSnapshot finalFareSnapshot historyTruncated events { eventType toStatus occurredAt } } }`,
+            query: `query Trip($code: String!, $requestId: ID, $proof: String) { publicRideshareTrip(confirmationCode: $code, requestId: $requestId, requestProof: $proof) { id requestId fleetBrand confirmationCode status scheduledFor pickupLabel dropoffLabel bookingSnapshot finalFareSnapshot historyTruncated events { eventType toStatus occurredAt } driver { publicName photoUrl rating ratingCount } } }`,
             variables: { code: confirmationCode, requestId: requestId || matchingReceipt?.requestId || null, proof: matchingReceipt?.requestProof || null },
           }),
         })
@@ -106,11 +108,11 @@ export default function TripStatusPage({ confirmationCode, requestId }: { confir
               {trip.scheduledFor && <p className="inline-flex items-center gap-1.5 text-sm text-muted-foreground"><CalendarClock className="size-4" aria-hidden="true" />Pickup {new Date(trip.scheduledFor).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</p>}
             </div>
             <div className="flex items-center gap-4 border-y border-border py-4">
-              <div className="min-w-0 flex-1">
+              {trip.driver ? <DriverCard driver={trip.driver} confirmationCode={trip.confirmationCode} /> : <div className="min-w-0 flex-1">
                 <p className="text-xs text-muted-foreground">Trip</p>
                 <p className="font-mono text-lg font-semibold text-ink">{trip.confirmationCode}</p>
                 <p className="text-sm text-muted-foreground">{trip.bookingSnapshot?.service?.name || statusLabel(trip.status)}</p>
-              </div>
+              </div>}
               <span aria-hidden="true" className="h-16 w-px bg-border" />
               <div className="flex shrink-0 flex-col items-center gap-1"><VehicleArt className="h-14 w-28" />{vehicle?.plateMasked && <span className="text-sm font-semibold text-ink">{vehicle.plateMasked}</span>}</div>
             </div>
@@ -133,6 +135,21 @@ export default function TripStatusPage({ confirmationCode, requestId }: { confir
         </>}
     </div>
   </RiderShell>
+}
+
+/** The assigned driver: their own photo (initials without one), name, and rating only once enough riders have rated them. */
+function DriverCard({ driver, confirmationCode }: { driver: TripDriver; confirmationCode: string }) {
+  const initials = driver.publicName.split(/\s+/).map(part => part[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
+  return <div className="flex min-w-0 flex-1 items-center gap-3">
+    {driver.photoUrl
+      ? <img src={driver.photoUrl} alt="" className="size-14 shrink-0 rounded-full object-cover ring-2 ring-white shadow-sm" />
+      : <span aria-hidden="true" className="grid size-14 shrink-0 place-items-center rounded-full bg-foam text-lg font-semibold text-signal">{initials}</span>}
+    <div className="min-w-0">
+      <p className="truncate text-base font-semibold text-ink">{driver.publicName}</p>
+      {driver.rating != null && driver.ratingCount != null && <p className="flex items-center gap-1 text-sm text-ink"><Star className="size-3.5 fill-ink" aria-hidden="true" /><span className="font-semibold tabular-nums">{driver.rating.toFixed(2)}</span><span className="text-muted-foreground">({driver.ratingCount} {driver.ratingCount === 1 ? 'rating' : 'ratings'})</span></p>}
+      <p className="font-mono text-xs text-muted-foreground">{confirmationCode}</p>
+    </div>
+  </div>
 }
 
 const RIDER_EVENT_LABELS: Record<string, string> = {

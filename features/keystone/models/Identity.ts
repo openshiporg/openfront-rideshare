@@ -1,5 +1,5 @@
 import { list } from '@keystone-6/core'
-import { checkbox, json, relationship, select, text, timestamp } from '@keystone-6/core/fields'
+import { checkbox, image, json, relationship, select, text, timestamp } from '@keystone-6/core/fields'
 import { fleetScopedAccess, lockedOperationalAccess, permissions } from '../access'
 import { trackingFields } from './trackingFields'
 import { labels } from './labels'
@@ -14,6 +14,7 @@ export const Fleet = list({
     slug: text({ validation: { isRequired: true }, isIndexed: 'unique' }),
     status: select({ options: [{ label: 'Setup', value: 'setup' }, { label: 'Active', value: 'active' }, { label: 'Paused', value: 'paused' }], defaultValue: 'setup' }),
     publicDescription: text({ ui: { displayMode: 'textarea' } }),
+    heroImage: image({ storage: 'my_images', label: 'Hero image', ui: { description: 'Shown behind the rider home screen. Leave empty to show the map only.' } }),
     publicCity: text(), countryCode: text({ defaultValue: 'US' }), currencyCode: text({ defaultValue: 'USD' }), timezone: text({ defaultValue: 'UTC' }),
     supportEmail: text(), supportPhone: text(),
     logoIcon: text({ defaultValue: DEFAULT_STORE_LOGO_ICON, hooks: {
@@ -58,6 +59,7 @@ export const DriverProfile = list({
   fields: {
     user: relationship({ ref: 'User.driverProfile', access: { create: () => false, update: () => false } }), fleet: relationship({ ref: 'Fleet.drivers', access: { create: () => false, update: () => false } }),
     publicName: text({ validation: { isRequired: true } }), publicBio: text({ ui: { displayMode: 'textarea' } }), publicPhotoUrl: text(),
+    photo: image({ storage: 'my_images', label: 'Driver’s own photo', ui: { description: 'A photo the driver uploaded of themselves, shown to their rider on the trip card.' } }),
     status: select({ options: ['applicant', 'pending_review', 'active', 'paused', 'ineligible', 'offboarded'].map(value => ({ label: value, value })), defaultValue: 'applicant', access: { create: () => false, update: () => false } }),
     dispatchStatus: select({ options: ['offline', 'available', 'offered', 'assigned', 'on_trip'].map(value => ({ label: value, value })), defaultValue: 'offline', access: { create: () => false, update: () => false } }),
     acceptsScheduled: checkbox({ defaultValue: true }), languages: json({ defaultValue: [] }), accessibilityTrainingEvidence: text(),

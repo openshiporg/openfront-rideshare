@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils'
 import { FleetBrand, type PublicFleetBrand } from './FleetBrand'
 import { HarborMap } from './HarborMap'
 
-type ShellFleet = PublicFleetBrand & { publicCity?: string | null }
+type ShellFleet = PublicFleetBrand & { publicCity?: string | null; heroImageUrl?: string | null }
 type MapProps = { variant?: 'home' | 'route'; areas?: string[]; pickupLabel?: string | null; dropoffLabel?: string | null; corner?: React.ReactNode }
 
 /** Storefront frame: brand, the rider's city, ride history and account, and the staff entrance in the footer.
@@ -32,7 +32,9 @@ export function RiderShell({ fleet, children, className, map }: { fleet?: ShellF
 
   if (map) return <div className="rs flex min-h-dvh flex-col bg-asphalt font-sans text-foreground [&_p]:break-words">
     <div className="relative flex min-h-dvh flex-col lg:h-dvh lg:min-h-[44rem]">
-      <HarborMap variant={map.variant} city={brand?.publicCity} areas={map.areas} pickupLabel={map.pickupLabel} dropoffLabel={map.dropoffLabel} className="absolute inset-x-0 top-0 h-[17rem] overflow-hidden sm:h-[22rem] lg:bottom-0 lg:h-full" />
+      {map.variant !== 'route' && brand?.heroImageUrl
+        ? <div aria-hidden="true" className="absolute inset-x-0 top-0 h-[17rem] overflow-hidden sm:h-[22rem] lg:bottom-0 lg:h-full"><img src={brand.heroImageUrl} alt="" className="size-full object-cover" /><span className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(255,255,255,0.35),rgba(255,255,255,0)_30%)] lg:bg-[linear-gradient(to_right,rgba(11,43,46,0.18),rgba(11,43,46,0)_45%)]" /></div>
+        : <HarborMap variant={map.variant} city={brand?.publicCity} areas={map.areas} pickupLabel={map.pickupLabel} dropoffLabel={map.dropoffLabel} className="absolute inset-x-0 top-0 h-[17rem] overflow-hidden sm:h-[22rem] lg:bottom-0 lg:h-full" />}
       <div className="relative max-lg:bg-[linear-gradient(to_bottom,rgba(255,255,255,0.92),rgba(255,255,255,0))]">{header}</div>
       <main className={cn('relative z-10 flex-1 max-lg:mt-[10.5rem] max-lg:rounded-t-[1.75rem] max-lg:bg-white max-lg:px-4 max-lg:pb-8 max-lg:pt-3 max-lg:shadow-[0_-12px_40px_-24px_rgba(11,43,46,0.5)] sm:max-lg:mt-[15rem] sm:max-lg:px-6 lg:overflow-y-auto lg:px-10 lg:pb-10 lg:pt-6', className)}>
         <span aria-hidden="true" className="mx-auto mb-4 block h-1.5 w-12 rounded-full bg-[#c9d3d4] lg:hidden" />

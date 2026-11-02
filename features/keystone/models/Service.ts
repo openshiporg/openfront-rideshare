@@ -1,6 +1,6 @@
 import { list } from '@keystone-6/core'
 import { denyAll } from '@keystone-6/core/access'
-import { checkbox, integer, json, relationship, select, text, timestamp } from '@keystone-6/core/fields'
+import { checkbox, image, integer, json, relationship, select, text, timestamp } from '@keystone-6/core/fields'
 import { fleetScopedAccess, lockedOperationalAccess, operatorAccess, permissions } from '../access'
 import { trackingFields } from './trackingFields'
 import { labels } from './labels'
@@ -23,6 +23,7 @@ export const RideService = list({
   access: operatorAccess,
   fields: {
     fleet: relationship({ ref: 'Fleet.services', access: { create: () => false, update: () => false } }), name: text({ validation: { isRequired: true } }), slug: text({ validation: { isRequired: true }, isIndexed: 'unique' }),
+    photo: image({ storage: 'my_images', label: 'Vehicle photo', ui: { description: 'Shown on the ride option tile. Leave empty to show the built-in vehicle drawing.' } }),
     description: text({ ui: { displayMode: 'textarea' } }), status: select({ options: ['draft', 'active', 'paused'].map(value => ({ label: value, value })), defaultValue: 'draft' }),
     category: select({ options: ['standard', 'comfort', 'xl', 'accessible', 'pet_friendly', 'scheduled'].map(value => ({ label: value, value })), defaultValue: 'standard' }),
     passengerCapacity: integer({ defaultValue: 4, validation: { min: 1, max: 50 } }), wheelchairAccessible: checkbox({ defaultValue: false }), advanceBookingMinutes: integer({ defaultValue: 0 }),

@@ -55,15 +55,15 @@ export async function marketplaceRideshareServices(_root: unknown, args: { query
     take: limit + 1,
     orderBy: [{ name: 'asc' }, { id: 'asc' }],
     // Stable bounded public projection.
-    query: `id name slug description category passengerCapacity wheelchairAccessible advanceBookingMinutes fleet { id operationsMode name slug publicDescription publicCity countryCode currencyCode logoIcon logoColor } serviceAreas(where: { status: { equals: "active" } }, orderBy: [{ publicRegionLabel: asc }, { id: asc }], take: 25) { id name publicRegionLabel countryCode status fleet { id } } fareRules(where: { status: { equals: "active" } }, orderBy: { version: desc }, take: 1) { id currencyCode baseFareMinor minimumFareMinor }`,
+    query: `id name slug description photo { url } category passengerCapacity wheelchairAccessible advanceBookingMinutes fleet { id operationsMode name slug publicDescription heroImage { url } publicCity countryCode currencyCode logoIcon logoColor } serviceAreas(where: { status: { equals: "active" } }, orderBy: [{ publicRegionLabel: asc }, { id: asc }], take: 25) { id name publicRegionLabel countryCode status fleet { id } } fareRules(where: { status: { equals: "active" } }, orderBy: { version: desc }, take: 1) { id currencyCode baseFareMinor minimumFareMinor }`,
   })
   return services.slice(0, limit).filter((service: any) => service.fleet).map((service: any, index: number) => {
     const publicRegionLabels = service.serviceAreas.slice(0, 24).filter((area: any) => area.fleet?.id === service.fleet.id).map((area: any) => area.publicRegionLabel)
     return {
-      id: service.id, title: service.name, description: service.description, category: service.category, passengerCapacity: service.passengerCapacity,
+      id: service.id, title: service.name, description: service.description, photoUrl: service.photo?.url ?? null, category: service.category, passengerCapacity: service.passengerCapacity,
       wheelchairAccessible: service.wheelchairAccessible, advanceBookingMinutes: service.advanceBookingMinutes, publicRegionLabels,
       readiness: rideReadiness(service.fleet.operationsMode), areasTruncated: service.serviceAreas.length > 24, nextCursor: services.length > limit && index === limit - 1 ? Buffer.from(JSON.stringify({ v: 1, query, location, name: service.name, id: service.id })).toString('base64url') : null,
-      fleet: { ...projectFleetBrand(service.fleet), id: service.fleet.id, name: service.fleet.name, publicDescription: service.fleet.publicDescription, publicCity: service.fleet.publicCity, countryCode: service.fleet.countryCode },
+      fleet: { ...projectFleetBrand(service.fleet), id: service.fleet.id, name: service.fleet.name, publicDescription: service.fleet.publicDescription, heroImageUrl: service.fleet.heroImage?.url ?? null, publicCity: service.fleet.publicCity, countryCode: service.fleet.countryCode },
       startingFareMinor: service.fareRules?.[0]?.minimumFareMinor ?? null, currencyCode: service.fareRules?.[0]?.currencyCode || service.fleet.currencyCode,
       extension: { schema: 'openfront.rideshare.service/v1', value: { category: service.category, passengerCapacity: service.passengerCapacity, wheelchairAccessible: service.wheelchairAccessible, serviceAreas: publicRegionLabels } },
     }

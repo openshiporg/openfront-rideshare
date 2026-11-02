@@ -30,6 +30,7 @@ type Service = {
   areasTruncated?: boolean
   title: string
   description: string | null
+  photoUrl?: string | null
   category: string
   passengerCapacity: number
   wheelchairAccessible: boolean
@@ -38,7 +39,7 @@ type Service = {
   readiness?: { bookingEnabled: boolean; mode: string; reason: string }
   startingFareMinor: number | null
   currencyCode: string
-  fleet: { name: string; publicCity: string | null; logoIcon?: string; logoColor?: string }
+  fleet: { name: string; publicCity: string | null; logoIcon?: string; logoColor?: string; heroImageUrl?: string | null }
 }
 type Quote = {
   quoteId: string
@@ -117,7 +118,7 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
 
   useEffect(() => {
     let active = true
-    graphql<{ marketplaceRideshareServices: Service[] }>(`query RiderServices { marketplaceRideshareServices(limit: 12) { id nextCursor areasTruncated title description category passengerCapacity wheelchairAccessible advanceBookingMinutes publicRegionLabels readiness { bookingEnabled mode reason } startingFareMinor currencyCode fleet { name publicCity logoIcon logoColor } } }`)
+    graphql<{ marketplaceRideshareServices: Service[] }>(`query RiderServices { marketplaceRideshareServices(limit: 12) { id nextCursor areasTruncated title description photoUrl category passengerCapacity wheelchairAccessible advanceBookingMinutes publicRegionLabels readiness { bookingEnabled mode reason } startingFareMinor currencyCode fleet { name publicCity logoIcon logoColor heroImageUrl } } }`)
       .then(data => {
         if (!active) return
         const found = data.marketplaceRideshareServices || []
@@ -130,7 +131,7 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
       .catch(reason => { if (active) setError(reason instanceof Error ? reason.message : 'Rides are unavailable right now.') })
       .finally(() => { if (active) setServicesLoading(false) })
     if (initialServiceId) {
-      graphql<{ marketplaceRideshareService: Service | null }>(`query SelectedService($id: ID!) { marketplaceRideshareService(id: $id) { id title description category passengerCapacity wheelchairAccessible advanceBookingMinutes publicRegionLabels areasTruncated startingFareMinor currencyCode readiness { bookingEnabled mode reason } fleet { name publicCity logoIcon logoColor } } }`, { id: initialServiceId }).then(data => {
+      graphql<{ marketplaceRideshareService: Service | null }>(`query SelectedService($id: ID!) { marketplaceRideshareService(id: $id) { id title description photoUrl category passengerCapacity wheelchairAccessible advanceBookingMinutes publicRegionLabels areasTruncated startingFareMinor currencyCode readiness { bookingEnabled mode reason } fleet { name publicCity logoIcon logoColor heroImageUrl } } }`, { id: initialServiceId }).then(data => {
         if (!active) return
         if (data.marketplaceRideshareService) setServices(current => [...current.filter(item => item.id !== initialServiceId), data.marketplaceRideshareService!])
         else setError('That ride is unavailable. Choose another.')
@@ -311,7 +312,7 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
     if (!nextServiceCursor || servicesLoading) return
     setServicesLoading(true)
     try {
-      const data = await graphql<{ marketplaceRideshareServices: Service[] }>(`query MoreServices($after: String!) { marketplaceRideshareServices(limit: 12, after: $after) { id nextCursor areasTruncated title description category passengerCapacity wheelchairAccessible advanceBookingMinutes publicRegionLabels startingFareMinor currencyCode readiness { bookingEnabled mode reason } fleet { name publicCity logoIcon logoColor } } }`, { after: nextServiceCursor })
+      const data = await graphql<{ marketplaceRideshareServices: Service[] }>(`query MoreServices($after: String!) { marketplaceRideshareServices(limit: 12, after: $after) { id nextCursor areasTruncated title description photoUrl category passengerCapacity wheelchairAccessible advanceBookingMinutes publicRegionLabels startingFareMinor currencyCode readiness { bookingEnabled mode reason } fleet { name publicCity logoIcon logoColor heroImageUrl } } }`, { after: nextServiceCursor })
       const rows = data.marketplaceRideshareServices
       if (!Array.isArray(rows) || rows.length > 12) throw new Error()
       setServices(current => [...new Map([...current, ...rows].map(row => [row.id, row])).values()])
@@ -561,7 +562,9 @@ function ServiceList({ services, serviceId, disabled, onChange, loading, name }:
       const vehicle = vehicleFor(service, index)
       return <label key={service.id} className="group flex min-h-[3.75rem] cursor-pointer items-center gap-2.5 rounded-xl px-1.5 py-2 transition-[box-shadow,background-color] has-[:checked]:bg-foam has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-tide has-[:disabled]:cursor-default sm:gap-4 lg:min-h-[5.6rem] lg:rounded-xl lg:bg-white lg:px-3 lg:shadow-[0_4px_16px_-12px_rgba(11,43,46,0.4)] lg:ring-1 lg:ring-ink/5 lg:has-[:checked]:ring-2 lg:has-[:checked]:ring-tide">
         <input type="radio" name={name} value={service.id} checked={serviceId === service.id} disabled={disabled} onChange={onChange} className="sr-only" />
-        <VehicleArt kind={vehicle.kind} tone={vehicle.tone} className="h-9 w-[4.25rem] shrink-0 sm:h-12 sm:w-[6.5rem] lg:h-14 lg:w-[7rem]" />
+        {service.photoUrl
+          ? <img src={service.photoUrl} alt="" loading="lazy" className="h-9 w-[4.25rem] shrink-0 object-contain mix-blend-multiply sm:h-12 sm:w-[6.5rem] lg:h-14 lg:w-[7rem]" />
+          : <VehicleArt kind={vehicle.kind} tone={vehicle.tone} className="h-9 w-[4.25rem] shrink-0 sm:h-12 sm:w-[6.5rem] lg:h-14 lg:w-[7rem]" />}
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-2"><span className="line-clamp-2 text-[0.9375rem] font-semibold leading-tight text-ink [overflow-wrap:anywhere] lg:text-base">{service.title}</span>{!ready && <StatusDot tone="amber" />}</span>
           <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground lg:mt-1 lg:text-[0.8125rem]"><span className="inline-flex items-center gap-1"><Users className="size-3.5" aria-hidden="true" />{service.passengerCapacity}<span className="max-sm:hidden"> seats</span></span>{service.category && <><span aria-hidden="true" className="max-sm:hidden">·</span><span className="capitalize max-sm:hidden">{service.category.replaceAll('_', ' ')}</span></>}{multiFleet && <span className="truncate">· {service.fleet.name}</span>}</span>
