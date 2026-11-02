@@ -4,10 +4,11 @@ import "./fleet.css";
 import { cn } from "@/lib/utils";
 
 // Platform tabs and segmented choices: flat underline tabs; the current one carries the
-// cab-yellow rule. The row scrolls sideways on narrow screens instead of wrapping.
+// cab-yellow rule. The row scrolls sideways on narrow screens instead of wrapping; on phones its
+// right edge fades so a clipped last tab reads as "more this way" rather than cut-off text.
 export function PillTrack({ label, className, children }: { label: string; className?: string; children: ReactNode }) {
   return (
-    <div className={cn("max-w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", className)}>
+    <div className={cn("max-w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-sm:pr-6 max-sm:[mask-image:linear-gradient(to_right,black_calc(100%-2.5rem),transparent)]", className)}>
       <div role="group" aria-label={label} className="flex min-w-max items-end gap-5 border-b border-border">
         {children}
       </div>
