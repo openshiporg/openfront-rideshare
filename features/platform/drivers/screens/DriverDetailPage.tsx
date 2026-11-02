@@ -1,3 +1,4 @@
+import React from 'react'
 import Link from 'next/link'
 import { ArrowUpRight, CarFront, ChevronLeft } from 'lucide-react'
 import { keystoneClient } from '@/features/dashboard/lib/keystoneClient'
@@ -36,7 +37,7 @@ function DocumentList({ documents, required }: { documents: Document[]; required
     {documents.length ? <ul className="divide-y overflow-hidden rounded-[6px] border bg-card">{documents.map(document => <li key={document.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
       <div className="min-w-0">
         <StatusTitle as="p" tone={documentTone(document.status)} status={documentStatus(document.status)} className="text-sm font-medium">{kindLabel(document.kind)}</StatusTitle>
-        <p className="text-xs text-muted-foreground">{[document.issuer, document.referenceMasked && `···${document.referenceMasked}`, document.expiresAt && `Expires ${formatWhen(document.expiresAt)}`].filter(Boolean).join(' · ') || 'No details'}</p>
+        <p className="text-xs text-muted-foreground">{[document.issuer, document.referenceMasked && `···${document.referenceMasked}`, document.expiresAt && <>Expires {formatWhen(document.expiresAt)}</>].filter(Boolean).map((part, index) => <React.Fragment key={index}>{index > 0 ? ' · ' : ''}{part}</React.Fragment>)}{!(document.issuer || document.referenceMasked || document.expiresAt) && 'No details'}</p>
       </div>
       <DocumentReviewTrack documentId={document.id} status={document.status} />
     </li>)}</ul> : <PlatformEmpty className="py-5">No documents</PlatformEmpty>}
@@ -89,7 +90,7 @@ export async function DriverDetailPage({ params }: { params: Promise<{ id: strin
 
         <div className="grid gap-8 lg:grid-cols-2">
           <PlatformSection id="checks" title="Eligibility checks">
-            {driver.policyEvaluations.length ? <ul className="divide-y overflow-hidden rounded-[6px] border bg-card">{driver.policyEvaluations.map((evaluation: any) => <li key={evaluation.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm"><StatusTitle as="span" tone={evaluation.outcome === 'eligible' ? 'green' : evaluation.outcome === 'ineligible' ? 'red' : 'amber'} status={statusLabel(evaluation.outcome)}>{formatWhen(evaluation.evaluatedAt)}</StatusTitle><span className="text-xs text-muted-foreground">{evaluation.expiresAt ? `Until ${formatWhen(evaluation.expiresAt)}` : 'No expiry'}</span></li>)}</ul> : <PlatformEmpty>Not reviewed yet</PlatformEmpty>}
+            {driver.policyEvaluations.length ? <ul className="divide-y overflow-hidden rounded-[6px] border bg-card">{driver.policyEvaluations.map((evaluation: any) => <li key={evaluation.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm"><StatusTitle as="span" tone={evaluation.outcome === 'eligible' ? 'green' : evaluation.outcome === 'ineligible' ? 'red' : 'amber'} status={statusLabel(evaluation.outcome)}>{formatWhen(evaluation.evaluatedAt)}</StatusTitle><span className="text-xs text-muted-foreground">{evaluation.expiresAt ? <>Until {formatWhen(evaluation.expiresAt)}</> : 'No expiry'}</span></li>)}</ul> : <PlatformEmpty>Not reviewed yet</PlatformEmpty>}
           </PlatformSection>
           <PlatformSection id="trips" title="Recent trips">
             {driver.trips.length ? <ul className="divide-y overflow-hidden rounded-[6px] border bg-card">{driver.trips.map((trip: any) => <li key={trip.id}><Link href={`/dashboard/platform/trips?q=${encodeURIComponent(trip.confirmationCode)}`} className="flex items-center justify-between gap-3 px-4 py-3 text-sm hover:bg-muted/60"><StatusTitle as="span" tone={statusTone(trip.status)} status={statusLabel(trip.status)} className="font-mono">{trip.confirmationCode}</StatusTitle><span className="flex items-center gap-1 text-xs text-muted-foreground">{formatWhen(trip.createdAt)}<ArrowUpRight className="size-3.5" aria-hidden="true" /></span></Link></li>)}</ul> : <PlatformEmpty>No trips yet</PlatformEmpty>}

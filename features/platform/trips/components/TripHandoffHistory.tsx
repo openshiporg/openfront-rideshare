@@ -1,4 +1,5 @@
 'use client'
+import { formatInZone } from '@/features/dashboard/lib/storeTime';
 
 import { useEffect, useRef, useState } from 'react'
 import { ActionTrack, TrackButton } from '@/features/platform/components/PillTabs'
@@ -35,7 +36,7 @@ export function TripHandoffHistory({ tripId, revision }: { tripId: string; revis
       if (payload.errors?.length) throw new Error('Unavailable')
       const detail = payload.data?.operatorTripHandoff || null
       if (detail && (detail.tripId !== tripId || typeof detail.available !== 'boolean' || !Array.isArray(detail.events))) throw new Error('Unavailable')
-      if (controllerRef.current === controller && !controller.signal.aborted) { setHandoff(detail); setChecked(true); setCursor(nextCursor); setObservedAt(new Date().toLocaleTimeString()) }
+      if (controllerRef.current === controller && !controller.signal.aborted) { setHandoff(detail); setChecked(true); setCursor(nextCursor); setObservedAt(formatInZone(new Date(), undefined, "datetime")) }
     } catch { if (controllerRef.current === controller) setError(true) }
     finally { window.clearTimeout(timeout); if (controllerRef.current === controller) { controllerRef.current = null; setLoading(false) } }
   }

@@ -1,4 +1,5 @@
 'use client'
+import { ViewerTime } from '@/features/dashboard/components/ViewerTime';
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -84,7 +85,7 @@ export function DispatchOfferControl({ request, actionsEnabled, actorId = '', op
         <ActionTrack><TrackButton type="submit" disabled={loading}>Search</TrackButton></ActionTrack>
       </form>
       {loading ? <p role="status" className="text-sm text-muted-foreground">Checking drivers…</p> : page?.blockedReason ? <p role="status" className="text-sm text-amber-700 dark:text-amber-300">{page.blockedReason}</p> : page && (page.items.length
-        ? <fieldset disabled={command.busy} className="space-y-2"><legend className="mb-1 text-xs text-muted-foreground">Checked {new Date(page.evaluatedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</legend>
+        ? <fieldset disabled={command.busy} className="space-y-2"><legend className="mb-1 text-xs text-muted-foreground">Checked <ViewerTime value={page.evaluatedAt} style="datetime" /></legend>
             <div className="divide-y overflow-hidden rounded-[4px] border bg-background">{page.items.map(item => { const value = JSON.stringify([item.driverId, item.vehicleId]); return <label key={value} className="flex cursor-pointer items-center gap-3 px-3 py-2.5 text-sm has-[:checked]:bg-muted"><input type="radio" name={`candidate-${request.id}`} value={value} checked={selection === value} onChange={() => setSelection(value)} className="size-4 accent-foreground" /><span className="min-w-0 flex-1"><span className="block font-medium [overflow-wrap:anywhere]">{item.driverName}</span><span className="block text-xs text-muted-foreground [overflow-wrap:anywhere]">{item.vehicleLabel}</span></span><span className="shrink-0 text-xs tabular-nums text-muted-foreground">{item.capacity} seats</span></label> })}</div>
             <ActionTrack><TrackButton tone="primary" disabled={command.busy || !command.ready || !selection} onClick={() => void offer()}>{command.busy ? 'Offering…' : 'Offer ride'}</TrackButton>{page.nextCursor && <TrackButton disabled={loading || command.busy} onClick={() => { setPage(null); setCursor(page.nextCursor) }}>More drivers</TrackButton>}<TrackButton tone="quiet" disabled={loading || command.busy} onClick={() => { setPage(null); setCursor(null); setRetry(value => value + 1) }}>First page</TrackButton></ActionTrack>
           </fieldset>

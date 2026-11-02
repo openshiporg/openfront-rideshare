@@ -1,4 +1,5 @@
 'use client'
+import { formatInZone } from '@/features/dashboard/lib/storeTime';
 
 import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
@@ -11,7 +12,7 @@ export function OperationalRefresh({ revision }: { revision: string }) {
   const [paused, setPaused] = useState(false)
   // Server (UTC) and browser time zones differ, so the stamp renders only after mount.
   const [stamp, setStamp] = useState('')
-  useEffect(() => { setStamp(new Date(revision).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', second: '2-digit' })) }, [revision])
+  useEffect(() => { setStamp(formatInZone(revision, undefined, "datetime")) }, [revision])
   function refresh() {
     const editing = document.querySelector('[role="dialog"], [data-unsaved="true"], [data-command-pending="true"]') || ['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName || '')
     setPaused(Boolean(editing))

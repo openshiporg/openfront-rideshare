@@ -1,3 +1,5 @@
+import { createElement, type ReactNode } from 'react'
+import { ViewerTime } from '@/features/dashboard/components/ViewerTime'
 import type { StatusTone } from '../components/StatusTitle'
 
 // One label and dot colour per stored status value, shared by the rider storefront and the platform.
@@ -64,8 +66,7 @@ export function tripStageIndex(status: string | null | undefined) {
   return TRIP_STAGES.indexOf(status as typeof TRIP_STAGES[number])
 }
 
-export function formatWhen(value: string | null | undefined, fallback = 'Time not recorded') {
+export function formatWhen(value: string | null | undefined, fallback = 'Time not recorded'): ReactNode {
   if (!value) return fallback
-  const date = new Date(value)
-  return Number.isFinite(date.getTime()) ? date.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : fallback
+  return createElement(ViewerTime, { value, style: 'datetime', fallback })
 }

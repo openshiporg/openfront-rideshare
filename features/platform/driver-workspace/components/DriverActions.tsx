@@ -1,4 +1,5 @@
 'use client'
+import { ViewerTime } from '@/features/dashboard/components/ViewerTime';
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -142,7 +143,7 @@ export function OfferCountdown({ expiresAt }: { expiresAt: string }) {
   const [now, setNow] = useState<number | null>(null)
   useEffect(() => { setNow(Date.now()); const timer = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(timer) }, [])
   const left = now === null ? null : Math.max(0, Math.round((Date.parse(expiresAt) - now) / 1000))
-  if (left === null || !Number.isFinite(left)) return <span className="tabular-nums">{new Date(expiresAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>
+  if (left === null || !Number.isFinite(left)) return <span className="tabular-nums"><ViewerTime value={expiresAt} style="datetime" /></span>
   return <span className={`tabular-nums ${left <= 15 ? 'text-red-600 dark:text-red-400' : ''}`} role="timer" aria-label={`${left} seconds left`}>{left ? `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}` : 'Expired'}</span>
 }
 
