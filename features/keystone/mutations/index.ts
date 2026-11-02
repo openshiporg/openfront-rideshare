@@ -5,7 +5,7 @@ import { hasAnyFleetScope } from '../access'
 import redirectToInit from './redirectToInit'
 import { dateTimeFieldResolvers } from '../domain/dateTimeFields'
 import { riderSignupsOpen } from '../domain/riderAccounts'
-import { marketplaceRideshareQuote, marketplaceRideshareServices, publicRideshareRequest, requestRide, resolveRideRequestIntent, marketplaceRideshareService, marketplaceRideshareServiceAreas } from './marketplaceRideshare'
+import { marketplaceRideshareQuote, marketplaceRideshareServices, publicRideshareRequest, requestRide, resolveRideRequestIntent, marketplaceRideshareService, marketplaceRideshareServiceAreas, marketplaceRidesharePopularPlaces } from './marketplaceRideshare'
 import { offerRideToDriver, publicRideshareTrip, respondToRideOffer, transitionTrip } from './rideLifecycle'
 import { cancelRide, cancelRideRequest, openSupportCase, recordTripLocation, reportSafetyIncident, sendTripMessage, submitTripReview, tripCancellationPreview, riderRequestCancellationPreview } from './tripOperations'
 import { initiateTripPayment, requestTripRefund } from './finance'
@@ -58,6 +58,7 @@ export const typeDefs = graphql`
     type Query {
       redirectToInit: Boolean
       marketplaceRideshareServices(query: String, location: String, limit: Int, after: String): [MarketplaceRideshareService!]!
+      marketplaceRidesharePopularPlaces(serviceId: ID!): [String!]!
       marketplaceRideshareService(id: ID!): MarketplaceRideshareService
       marketplaceRideshareServiceAreas(serviceId: ID!, after: ID): PublicServiceAreaPage!
       publicRideshareTrip(confirmationCode: String!, tripToken: String, requestId: ID, requestProof: String): PublicRideshareTrip
@@ -131,7 +132,7 @@ export function extendGraphqlSchema(baseSchema: GraphQLSchema) {
   return mergeSchemas({ schemas: [baseSchema], typeDefs, resolvers: {
     ...dateTimeFieldResolvers(typeDefs),
     Query: {
-      redirectToInit, marketplaceRideshareServices, marketplaceRideshareService, marketplaceRideshareServiceAreas, publicRideshareTrip, publicRideshareRequest, myDriverWorkspace, myRideshareTrips, riderRequestStatus, myRideshareRequests, operatorTripHandoff,
+      redirectToInit, marketplaceRideshareServices, marketplaceRideshareService, marketplaceRideshareServiceAreas, marketplaceRidesharePopularPlaces, publicRideshareTrip, publicRideshareRequest, myDriverWorkspace, myRideshareTrips, riderRequestStatus, myRideshareRequests, operatorTripHandoff,
       safetyQueueScope: (_root, _args, context) => hasAnyFleetScope(context, context.session, 'safety'),
       financeQueueScope: (_root, _args, context) => hasAnyFleetScope(context, context.session, 'finance'),
       rideshareCapabilities: async (_root, _args, context) => Object.fromEntries(await Promise.all((['operations', 'drivers', 'finance', 'safety', 'fleetAdmin'] as const).map(async capability => [capability, await hasAnyFleetScope(context, context.session, capability)]))),

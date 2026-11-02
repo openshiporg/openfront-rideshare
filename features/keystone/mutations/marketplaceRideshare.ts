@@ -9,6 +9,7 @@ import { requireFleetOperations, rideReadiness } from '../domain/operationalRead
 import { currentRiderId, requestOwnerWhere } from '../domain/requestAuthority'
 import { requireServiceReadiness } from '../domain/serviceReadiness'
 import { projectFleetBrand } from '../domain/fleetBrand'
+import { POPULAR_PLACE_WINDOW_DAYS, popularPlaces } from '../domain/popularPlaces'
 
 const cleanLabel = (value: string, name: string) => {
   const label = String(value || '').trim().replace(/\s+/g, ' ')
@@ -30,6 +31,18 @@ export async function marketplaceRideshareServiceAreas(_root: unknown, args: { s
   if (args.after && !await context.prisma.serviceArea.findFirst({ where: { ...where, id: args.after }, select: { id: true } })) throw new Error('Invalid service area page.')
   const rows = await context.prisma.serviceArea.findMany({ where: { ...where, ...(args.after ? { id: { gt: args.after } } : {}) }, orderBy: { id: 'asc' }, take: 25, select: { id: true, name: true, publicRegionLabel: true, countryCode: true } })
   return { items: rows.slice(0, 24), nextCursor: rows.length > 24 ? rows[23].id : null }
+}
+
+/** Places several riders of this service's fleet asked for recently; see domain/popularPlaces. */
+export async function marketplaceRidesharePopularPlaces(_root: unknown, args: { serviceId: string }, context: any) {
+  if (typeof args.serviceId !== 'string' || !args.serviceId || args.serviceId.length > 200) return []
+  const service = await context.prisma.rideService.findFirst({ where: { id: args.serviceId, status: 'active', fleet: { is: { status: 'active' } } }, select: { fleetId: true, serviceAreas: { where: { status: 'active' }, take: 24, select: { publicRegionLabel: true } } } })
+  if (!service?.fleetId) return []
+  const rows = await context.prisma.rideRequest.findMany({
+    where: { fleetId: service.fleetId, riderId: { not: null }, createdAt: { gte: new Date(Date.now() - POPULAR_PLACE_WINDOW_DAYS * 86_400_000) } },
+    orderBy: { createdAt: 'desc' }, take: 2000, select: { riderId: true, pickupLabel: true, dropoffLabel: true },
+  })
+  return popularPlaces(rows, { exclude: service.serviceAreas.map((area: any) => area.publicRegionLabel) })
 }
 
 export async function marketplaceRideshareServices(_root: unknown, args: { query?: string; location?: string; limit?: number; after?: string | null; serviceId?: string }, context: any) {

@@ -102,6 +102,16 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
   }, [])
 
   const selectedService = useMemo(() => services.find(service => service.id === serviceId), [services, serviceId])
+  // Signed out (or new riders): the fleet's popular places, which the server only lists once several riders used them.
+  const [popularPlaces, setPopularPlaces] = useState<string[]>([])
+  useEffect(() => {
+    if (!serviceId) return
+    const controller = new AbortController()
+    graphql<{ marketplaceRidesharePopularPlaces: string[] }>(`query PopularPlaces($id: ID!) { marketplaceRidesharePopularPlaces(serviceId: $id) }`, { id: serviceId }, controller.signal)
+      .then(data => setPopularPlaces(Array.isArray(data.marketplaceRidesharePopularPlaces) ? data.marketplaceRidesharePopularPlaces.filter(label => typeof label === 'string').slice(0, 3) : []))
+      .catch(() => setPopularPlaces([]))
+    return () => controller.abort()
+  }, [serviceId])
   // An empty pickup means the fleet's first public service area (shown as the field's hint).
   const defaultPickup = selectedService?.publicRegionLabels?.[0] || ''
   const currentQuoteInputs = (): QuoteInputSnapshot => ({ serviceId, pickupLabel: pickupLabel.trim() || defaultPickup, dropoffLabel, scheduledFor, passengerCount, wheelchairAccessible })
@@ -379,11 +389,11 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
   // Destinations, not the pickup again: recent places first, then the fleet's other service areas.
   const effectivePickup = (pickupLabel.trim() || defaultPickup).toLowerCase()
   const areaLabels = new Set(services.flatMap(service => service.publicRegionLabels))
-  const suggestions: { label: string; recent: boolean }[] = []
+  const suggestions: { label: string; recent: boolean; popular?: boolean }[] = []
   const seen = new Set([effectivePickup, dropoffLabel.trim().toLowerCase()])
-  for (const [label, recent] of [...recentPlaces.map(label => [label.trim(), true] as const), ...[...areaLabels].map(label => [label, false] as const)]) {
+  for (const [label, recent, popular] of [...recentPlaces.map(label => [label.trim(), true, false] as const), ...popularPlaces.map(label => [label, false, true] as const), ...[...areaLabels].map(label => [label, false, false] as const)]) {
     if (suggestions.length >= 3 || seen.has(label.toLowerCase())) continue
-    seen.add(label.toLowerCase()); suggestions.push({ label, recent })
+    seen.add(label.toLowerCase()); suggestions.push({ label, recent, popular })
   }
   // Pickup hint: the fleet's own first service area, so the empty field names a real place.
   const pickupHint = defaultPickup || 'Pickup area'
@@ -403,7 +413,7 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
       }}>
         <fieldset disabled={formLocked} className="min-w-0 disabled:opacity-70">
           <legend className="sr-only">Plan a ride</legend>
-          <label className="flex items-center gap-3 rounded-xl bg-[#f2f5f5] px-4 py-2.5 max-lg:hidden">
+          <label className="flex items-center gap-3 rounded-xl bg-[#f2f5f5] px-4 py-2 max-lg:hidden">
             <MapPin className="size-5 shrink-0 text-ink" aria-hidden="true" />
             <span className="min-w-0 flex-1">
               <span className="block text-xs text-muted-foreground">Pickup</span>
@@ -412,11 +422,11 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
             {pickupLabel && <button type="button" aria-label="Clear pickup" onClick={() => update(setPickupLabel, '')} className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-white hover:text-ink"><X className="size-4" aria-hidden="true" /></button>}
           </label>
 
-          <div className="relative mt-0 flex items-center gap-2.5 rounded-full bg-[#eef3f3] py-1.5 pl-4 pr-1.5 ring-1 ring-transparent focus-within:ring-2 focus-within:ring-tide lg:mt-4 lg:rounded-xl lg:bg-foam lg:py-2.5 lg:pl-4 lg:ring-tide/60">
+          <div className="relative mt-0 flex items-center gap-2.5 rounded-full bg-[#eef3f3] py-1.5 pl-4 pr-1.5 ring-1 ring-transparent focus-within:ring-2 focus-within:ring-tide lg:mt-3 lg:rounded-xl lg:bg-foam lg:py-1.5 lg:pl-4 lg:ring-tide/60">
             <MapPin className="size-5 shrink-0 fill-signal lg:size-6 text-signal [&>circle]:fill-white [&>circle]:stroke-white" aria-hidden="true" />
             <label htmlFor="dropoff" className="sr-only">Where to?</label>
-            <input id="dropoff" name="dropoff" autoComplete="off" placeholder="Where to?" value={dropoffLabel} onChange={change(setDropoffLabel)} required minLength={2} maxLength={120} className={`h-10 min-w-0 flex-1 bg-transparent font-semibold tracking-[-0.02em] text-ink outline-none placeholder:text-ink lg:h-12 ${dropoffLabel ? "text-lg lg:text-[1.375rem]" : "text-[1.4375rem] lg:text-[2.375rem]"}`} />
-            <button type="button" aria-label="See price" disabled={ctaDisabled || Boolean(visibleQuoteBinding)} onClick={() => void getQuote()} className="grid size-10 shrink-0 place-items-center rounded-full bg-signal text-white lg:size-12 transition-colors hover:bg-signal-deep disabled:opacity-60"><ArrowRight className="size-5 lg:size-6" aria-hidden="true" /></button>
+            <input id="dropoff" name="dropoff" autoComplete="off" placeholder="Where to?" value={dropoffLabel} onChange={change(setDropoffLabel)} required minLength={2} maxLength={120} className={`h-10 min-w-0 flex-1 bg-transparent font-semibold tracking-[-0.02em] text-ink outline-none placeholder:text-ink lg:h-11 ${dropoffLabel ? "text-lg lg:text-xl" : "text-[1.4375rem] lg:text-[2.125rem]"}`} />
+            <button type="button" aria-label="See price" disabled={ctaDisabled || Boolean(visibleQuoteBinding)} onClick={() => void getQuote()} className="grid size-10 shrink-0 place-items-center rounded-full bg-signal text-white lg:size-11 transition-colors hover:bg-signal-deep disabled:opacity-60"><ArrowRight className="size-5 lg:size-6" aria-hidden="true" /></button>
           </div>
 
           <label className="mt-1.5 flex items-center gap-3 border-b border-border px-2 py-2.5 lg:hidden">
@@ -430,17 +440,17 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
           {suggestions.length > 0 && <div className="mt-1 lg:mt-1 lg:rounded-xl lg:bg-white lg:shadow-[0_6px_20px_-12px_rgba(11,43,46,0.35)] lg:ring-1 lg:ring-ink/5">
             <p className="px-1 pb-0.5 pt-3 text-xs font-medium text-muted-foreground lg:sr-only">Suggestions</p>
             <ul aria-label="Suggestions" className="divide-y divide-border">
-              {suggestions.map(({ label, recent }) => <li key={label}><button type="button" onClick={() => update(setDropoffLabel, label)} className="flex w-full items-center gap-3 px-1.5 py-2.5 text-left transition-colors hover:bg-foam lg:rounded-xl lg:px-4">
+              {suggestions.map(({ label, recent, popular }) => <li key={label}><button type="button" onClick={() => update(setDropoffLabel, label)} className="flex w-full items-center gap-3 px-1.5 py-2.5 text-left transition-colors hover:bg-foam lg:rounded-xl lg:px-4">
                 <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-[#eef3f3] text-ink lg:size-7 lg:bg-transparent"><PlaceIcon label={label} className="size-4 lg:size-5" /></span>
-                <span className="min-w-0 flex-1"><span className="block text-base font-medium leading-snug text-ink lg:text-[0.9375rem] lg:font-semibold">{label}</span><span className="block text-[0.8125rem] text-muted-foreground">{recent ? 'Recent' : selectedService?.fleet.publicCity || 'Service area'}</span></span>
+                <span className="min-w-0 flex-1"><span className="block text-base font-medium leading-snug text-ink lg:text-[0.9375rem] lg:font-semibold">{label}</span><span className="block text-[0.8125rem] text-muted-foreground">{recent ? 'Recent' : popular ? `Popular${selectedService?.fleet.publicCity ? ` in ${selectedService.fleet.publicCity}` : ''}` : selectedService?.fleet.publicCity || 'Service area'}</span></span>
                 <ChevronRight className="size-5 shrink-0 text-muted-foreground lg:hidden" aria-hidden="true" />
               </button></li>)}
             </ul>
           </div>}
 
-          <section aria-labelledby="services-title" className="mt-3 lg:mt-7">
+          <section aria-labelledby="services-title" className="mt-3 lg:mt-5">
             <div className="flex items-center justify-between gap-3 px-1">
-              <h2 id="services-title" className="text-xs font-medium text-muted-foreground lg:text-[1.1875rem] lg:font-semibold lg:text-ink">Ride options</h2>
+              <h2 id="services-title" className="text-xs font-medium text-muted-foreground lg:text-lg lg:font-semibold lg:text-ink">Ride options</h2>
               {nextServiceCursor && <button type="button" disabled={servicesLoading} onClick={() => void moreServices()} className="text-sm font-medium text-ink underline underline-offset-4 hover:text-signal">View all</button>}
             </div>
             <ServiceList services={services} serviceId={serviceId} disabled={formLocked} onChange={change(setServiceId)} loading={servicesLoading} name="service" />
