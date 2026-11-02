@@ -3,12 +3,13 @@
 import { RequestCancellation } from '../components/RequestCancellation'
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { Accessibility, ArrowRight, ArrowUpRight, Building2, CalendarClock, ChevronDown, ChevronRight, MapPin, Minus, Plus, Search, Users, X } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, Building2, ChevronRight, History, MapPin, Search, Users, X } from 'lucide-react'
 import { VehicleArt } from '../components/VehicleArt'
+import { PickupTimePicker } from '../components/PickupTimePicker'
 import { StatusDot, StatusTitle } from '@/features/platform/components/StatusTitle'
 import { TRIP_STAGES, statusLabel, statusTone, tripStageIndex } from '@/features/platform/lib/statusTone'
 import { RiderShell } from '../components/RiderShell'
-import { RiderButton, RiderButtonLink, RiderPill, RiderTrack } from '../components/RiderPills'
+import { RiderButton, RiderButtonLink, RiderTrack } from '../components/RiderPills'
 import { formatMoney } from '@/features/lib/currency'
 import { isQuoteResponse } from '../domain/quoteResponse'
 import { normalizeStoreLogoColor } from '@/features/platform/settings/branding/store-logo'
@@ -89,11 +90,17 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
   const [error, setError] = useState('')
   const [statusError, setStatusError] = useState('')
   const [statusAsOf, setStatusAsOf] = useState('')
-  const [scheduleOpen, setScheduleOpen] = useState(false)
+  const [recentPlaces, setRecentPlaces] = useState<string[]>([])
+  // A signed-in rider's own recent drop-offs and pickups are the most useful suggestions.
+  useEffect(() => {
+    const controller = new AbortController()
+    graphql<{ myRideshareRequests: { items: { pickupLabel: string | null; dropoffLabel: string | null }[] } }>(`query Recent { myRideshareRequests { items { pickupLabel dropoffLabel } } }`, {}, controller.signal)
+      .then(data => setRecentPlaces(data.myRideshareRequests.items.flatMap(item => [item.dropoffLabel, item.pickupLabel]).filter((label): label is string => Boolean(label?.trim()))))
+      .catch(() => {})
+    return () => controller.abort()
+  }, [])
 
   const selectedService = useMemo(() => services.find(service => service.id === serviceId), [services, serviceId])
-  // A book-ahead service can't take a Now ride, so its pickup time opens straight away.
-  useEffect(() => { if (selectedService?.advanceBookingMinutes) setScheduleOpen(true) }, [selectedService?.id, selectedService?.advanceBookingMinutes])
   // An empty pickup means the fleet's first public service area (shown as the field's hint).
   const defaultPickup = selectedService?.publicRegionLabels?.[0] || ''
   const currentQuoteInputs = (): QuoteInputSnapshot => ({ serviceId, pickupLabel: pickupLabel.trim() || defaultPickup, dropoffLabel, scheduledFor, passengerCount, wheelchairAccessible })
@@ -213,6 +220,7 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
     if (requestLoading || requestInFlightRef.current || uncertainRequestRef.current || receipt) return
     if (!selectedService?.readiness?.bookingEnabled) { setError(selectedService?.readiness?.reason || 'Booking is unavailable.'); return }
     if ((pickupLabel.trim() || defaultPickup).length < 2 || dropoffLabel.trim().length < 2) { setError('Enter a pickup and a destination.'); return }
+    if (selectedService.advanceBookingMinutes && !scheduledFor) { setError('Choose a pickup time.'); return }
     const inputs = currentQuoteInputs()
     quoteRequestGeneration.current = advanceQuoteRequestGeneration(quoteRequestGeneration.current)
     const generation = quoteRequestGeneration.current
@@ -360,17 +368,25 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
   const change = (setter: (value: string) => void) => (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => update(setter, event.target.value)
   const maxPassengers = selectedService?.passengerCapacity || 50
   const passengers = Number(passengerCount) || 1
-  const scheduling = scheduleOpen || Boolean(scheduledFor)
   const terminal = Boolean(requestView && requestView.handoffState !== 'reassignment_pending' && (['cancelled', 'expired'].includes(requestView.status) || ['completed', 'no_show'].includes(requestView.trip?.status || '')))
   const formLocked = Boolean(receipt) || Boolean(uncertainRequest) || requestLoading || servicesLoading
   const quote = visibleQuoteBinding?.quote
+  const quoteFare = quote ? formatMoney(quote.fare.totalMinor, quote.fare.currencyCode) : ''
   const ctaDisabled = quoteLoading || requestLoading || (!uncertainRequest && (servicesLoading || services.length === 0 || !serviceId || !selectedService?.readiness?.bookingEnabled)) || Boolean(receipt) || requestInFlightRef.current || (Boolean(uncertainRequest) && !visibleQuoteBinding)
   const liveState = requestView?.trip?.status || requestView?.status
 
-  const suggestions = (selectedService?.publicRegionLabels || []).slice(0, 3)
+  // Destinations, not the pickup again: recent places first, then the fleet's other service areas.
+  const effectivePickup = (pickupLabel.trim() || defaultPickup).toLowerCase()
+  const areaLabels = new Set(services.flatMap(service => service.publicRegionLabels))
+  const suggestions: { label: string; recent: boolean }[] = []
+  const seen = new Set([effectivePickup, dropoffLabel.trim().toLowerCase()])
+  for (const [label, recent] of [...recentPlaces.map(label => [label.trim(), true] as const), ...[...areaLabels].map(label => [label, false] as const)]) {
+    if (suggestions.length >= 3 || seen.has(label.toLowerCase())) continue
+    seen.add(label.toLowerCase()); suggestions.push({ label, recent })
+  }
   // Pickup hint: the fleet's own first service area, so the empty field names a real place.
   const pickupHint = defaultPickup || 'Pickup area'
-  const requestLabel = quoteLoading || requestLoading ? 'Working…' : uncertainRequest ? 'Recover request' : visibleQuoteBinding ? `Request ${selectedService?.title || 'ride'}` : 'See price'
+  const requestLabel = quoteLoading || requestLoading ? 'Working…' : uncertainRequest ? 'Recover request' : visibleQuoteBinding && quoteFare ? `Confirm ${selectedService?.title || 'ride'} · ${quoteFare}` : selectedService && selectedService.startingFareMinor !== null ? `Request ${selectedService.title}` : 'See price'
 
   return <RiderShell fleet={selectedService?.fleet} map={{ variant: 'home', areas: selectedService?.publicRegionLabels, pickupLabel: pickupLabel || null }}>
     <div style={{ '--fleet-hue': normalizeStoreLogoColor(selectedService?.fleet.logoColor) } as CSSProperties} className="w-full lg:max-w-[28.75rem]">
@@ -413,9 +429,9 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
           {suggestions.length > 0 && <div className="mt-1 lg:mt-1 lg:rounded-xl lg:bg-white lg:shadow-[0_6px_20px_-12px_rgba(11,43,46,0.35)] lg:ring-1 lg:ring-ink/5">
             <p className="px-1 pb-0.5 pt-3 text-xs font-medium text-muted-foreground lg:sr-only">Suggestions</p>
             <ul aria-label="Suggestions" className="divide-y divide-border">
-              {suggestions.map(label => <li key={label}><button type="button" onClick={() => update(setDropoffLabel, label)} className="flex w-full items-center gap-3 px-1.5 py-2.5 text-left transition-colors hover:bg-foam lg:rounded-xl lg:px-4">
-                <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-[#eef3f3] text-ink lg:size-7 lg:bg-transparent"><Building2 className="size-4 lg:size-5" /></span>
-                <span className="min-w-0 flex-1"><span className="block text-[0.9375rem] font-medium leading-snug text-ink lg:font-semibold">{label}</span><span className="block text-xs text-muted-foreground lg:text-[0.8125rem]">{selectedService?.fleet.publicCity || 'Service area'}</span></span>
+              {suggestions.map(({ label, recent }) => <li key={label}><button type="button" onClick={() => update(setDropoffLabel, label)} className="flex w-full items-center gap-3 px-1.5 py-2.5 text-left transition-colors hover:bg-foam lg:rounded-xl lg:px-4">
+                <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-[#eef3f3] text-ink lg:size-7 lg:bg-transparent">{recent ? <History className="size-4 lg:size-5" /> : <Building2 className="size-4 lg:size-5" />}</span>
+                <span className="min-w-0 flex-1"><span className="block text-[0.9375rem] font-medium leading-snug text-ink lg:font-semibold">{label}</span><span className="block text-xs text-muted-foreground lg:text-[0.8125rem]">{recent ? 'Recent' : selectedService?.fleet.publicCity || 'Service area'}</span></span>
                 <ChevronRight className="size-5 shrink-0 text-muted-foreground lg:hidden" aria-hidden="true" />
               </button></li>)}
             </ul>
@@ -429,43 +445,12 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
             <ServiceList services={services} serviceId={serviceId} disabled={formLocked} onChange={change(setServiceId)} loading={servicesLoading} name="service" />
           </section>
 
-          {selectedService?.advanceBookingMinutes ? <label className="mt-3 flex min-h-12 items-center gap-3 rounded-xl bg-[#f2f5f5] px-4">
-            <CalendarClock className="size-4 shrink-0 text-tide" aria-hidden="true" />
-            <span className="shrink-0 text-sm font-medium text-ink">Pickup time</span>
-            <input id="schedule" name="schedule" type="datetime-local" required value={scheduledFor} onChange={change(setScheduledFor)} className="h-11 min-w-0 flex-1 bg-transparent text-right text-sm text-ink outline-none" />
-          </label> : null}
-
-          <details className="group mt-3 rounded-xl ring-1 ring-ink/10 open:pb-1">
-            <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 text-sm font-medium text-ink [&::-webkit-details-marker]:hidden">
-              <span className="inline-flex min-w-0 items-center gap-2"><CalendarClock className="size-4 shrink-0 text-tide" aria-hidden="true" /><span className="truncate">{scheduledFor ? new Date(scheduledFor).toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit' }) : scheduling ? 'Scheduled' : 'Now'} · {passengers} {passengers === 1 ? 'rider' : 'riders'}{wheelchairAccessible ? ' · Wheelchair' : ''}</span></span>
-              <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden="true" />
-            </summary>
-            <div className="space-y-3 border-t border-border px-4 pb-3 pt-3">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <span className="text-sm font-medium" id="when-label">When</span>
-                {!selectedService?.advanceBookingMinutes && <RiderTrack label="When">
-                  <RiderPill active={!scheduling} onClick={() => { if (locked()) return; setScheduleOpen(false); update(setScheduledFor, '') }}>Now</RiderPill>
-                  <RiderPill active={scheduling} onClick={() => { if (locked()) return; setScheduleOpen(true) }}><CalendarClock className="size-4" aria-hidden="true" />Schedule</RiderPill>
-                </RiderTrack>}
-                {selectedService?.advanceBookingMinutes ? <span className="text-sm text-muted-foreground">Book {formatLeadTime(selectedService.advanceBookingMinutes)} ahead</span> : null}
-              </div>
-              {scheduling && !selectedService?.advanceBookingMinutes && <label className="block"><span className="sr-only">Pickup time</span><input id="schedule-later" name="schedule" type="datetime-local" value={scheduledFor} onChange={change(setScheduledFor)} className="h-12 w-full min-w-0 rounded-xl bg-[#f2f5f5] px-4 text-base outline-none focus-visible:ring-2 focus-visible:ring-tide" /></label>}
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <label htmlFor="passengers" className="text-sm font-medium">Passengers</label>
-                <RiderTrack label="Passengers">
-                  <RiderButton size="sm" aria-label="Fewer passengers" disabled={passengers <= 1} onClick={() => update(setPassengerCount, String(Math.max(1, passengers - 1)))} className="size-9 px-0"><Minus className="size-4" aria-hidden="true" /></RiderButton>
-                  <input id="passengers" name="passengers" type="number" inputMode="numeric" min={1} max={maxPassengers} value={passengerCount} onChange={change(setPassengerCount)} required className="w-10 bg-transparent text-center text-base font-semibold tabular-nums outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none" />
-                  <RiderButton size="sm" aria-label="More passengers" disabled={passengers >= maxPassengers} onClick={() => update(setPassengerCount, String(Math.min(maxPassengers, passengers + 1)))} className="size-9 px-0"><Plus className="size-4" aria-hidden="true" /></RiderButton>
-                </RiderTrack>
-              </div>
-              <label className="flex min-h-11 cursor-pointer items-center justify-between gap-3 text-sm font-medium">
-                <span className="inline-flex items-center gap-2"><Accessibility className="size-4 text-muted-foreground" aria-hidden="true" />Wheelchair accessible</span>
-                <input type="checkbox" role="switch" checked={wheelchairAccessible} onChange={event => { if (locked()) return; invalidateQuote(); setWheelchairAccessible(event.target.checked) }} className="peer sr-only" />
-                <span aria-hidden="true" className="relative h-7 w-12 shrink-0 rounded-full bg-[#dfe6e6] transition-colors after:absolute after:left-1 after:top-1 after:size-5 after:rounded-full after:bg-white after:shadow after:transition-transform peer-checked:bg-signal peer-checked:after:translate-x-5 peer-focus-visible:ring-2 peer-focus-visible:ring-tide" />
-              </label>
-              {selectedService && <ServiceDetail service={selectedService} />}
-            </div>
-          </details>
+          <PickupTimePicker value={scheduledFor} onChange={value => { if (locked()) return; update(setScheduledFor, value) }}
+            advanceBookingMinutes={selectedService?.advanceBookingMinutes || 0} disabled={formLocked}
+            passengers={passengers} maxPassengers={maxPassengers} onPassengers={value => update(setPassengerCount, String(value))}
+            wheelchair={wheelchairAccessible} onWheelchair={value => { if (locked()) return; invalidateQuote(); setWheelchairAccessible(value) }}>
+            {selectedService && <ServiceDetail service={selectedService} />}
+          </PickupTimePicker>
         </fieldset>
 
         {quote && visibleQuoteBinding && <section aria-live="polite" aria-label="Price" className="relative mt-3 overflow-hidden rounded-xl bg-foam p-4 text-ink ring-1 ring-tide/40">
