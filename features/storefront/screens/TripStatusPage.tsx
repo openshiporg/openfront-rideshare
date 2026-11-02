@@ -124,7 +124,7 @@ export default function TripStatusPage({ confirmationCode, requestId }: { confir
               <RiderButton tone="raised" onClick={() => void share()} className="min-h-12"><Share2 className="size-4" aria-hidden="true" />{shared ? 'Link copied' : 'Share trip'}</RiderButton>
               <RiderButton tone="signal" onClick={() => setRetry(value => value + 1)} className="min-h-12"><RefreshCw className="size-4" aria-hidden="true" />Refresh</RiderButton>
             </div>
-            {trip.events.length > 0 && <ol className="space-y-3 border-t border-border pt-5" aria-label="Latest updates">{[...trip.events].reverse().map((event, index) => { const state = event.toStatus || event.eventType; return <li key={`${event.eventType}:${event.occurredAt}:${index}`} className="flex items-center gap-3 text-sm"><span aria-hidden="true" className={`size-2 shrink-0 rounded-full ${index === 0 ? 'bg-signal ring-4 ring-foam' : 'bg-tide/50'}`} /><span className="font-medium">{statusLabel(state)}</span><span className="ml-auto text-xs tabular-nums text-muted-foreground">{new Date(event.occurredAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span></li> })}</ol>}
+            {trip.events.length > 0 && <ol className="space-y-3 border-t border-border pt-5" aria-label="Latest updates">{[...trip.events].reverse().map((event, index) => { return <li key={`${event.eventType}:${event.occurredAt}:${index}`} className="flex items-center gap-3 text-sm"><span aria-hidden="true" className={`size-2 shrink-0 rounded-full ${index === 0 ? 'bg-signal ring-4 ring-foam' : 'bg-tide/50'}`} /><span className="font-medium">{riderEventLabel(event.eventType, event.toStatus)}</span><span className="ml-auto text-xs tabular-nums text-muted-foreground">{new Date(event.occurredAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span></li> })}</ol>}
             {trip.historyTruncated && <p className="text-xs text-muted-foreground">Showing the latest 100 updates</p>}
           </section>
           <TripCardPayment tripId={trip.id} status={trip.status} />
@@ -133,6 +133,17 @@ export default function TripStatusPage({ confirmationCode, requestId }: { confir
         </>}
     </div>
   </RiderShell>
+}
+
+const RIDER_EVENT_LABELS: Record<string, string> = {
+  'finance.refund_reserved': 'Refund issued',
+  'trip.review_submitted': 'Review sent',
+}
+
+/** Rider-facing timeline label: status changes use the shared status names, other events never show internal keys. */
+function riderEventLabel(eventType: string, toStatus: string | null) {
+  if (toStatus) return statusLabel(toStatus)
+  return RIDER_EVENT_LABELS[eventType] ?? 'Trip updated'
 }
 
 function eyebrowFor(status: string) {
