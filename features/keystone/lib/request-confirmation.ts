@@ -8,15 +8,19 @@
 export type RequestReceivedMail = { to: string; fleetName: string; requestNumber: string; name: string; whenLabel: string; pickup: string; dropoff: string; link: string };
 type Send = (mail: RequestReceivedMail) => Promise<{ sent: boolean; error?: string; messageId?: string }>;
 
+import { GraphQLError } from 'graphql'
+
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 /** The optional "Email for receipt": trimmed, lower-cased, validated. Empty means none. */
 export function normalizeReceiptEmail(value: unknown): string | null {
   if (value == null) return null
-  if (typeof value !== 'string') throw new Error('Enter a valid email address.')
+  // BAD_USER_INPUT so the rider sees this message instead of a masked server error.
+  const invalid = () => new GraphQLError('Enter a valid email address.', { extensions: { code: 'BAD_USER_INPUT' } })
+  if (typeof value !== 'string') throw invalid()
   const email = value.trim().toLowerCase()
   if (!email) return null
-  if (email.length > 254 || !EMAIL.test(email)) throw new Error('Enter a valid email address.')
+  if (email.length > 254 || !EMAIL.test(email)) throw invalid()
   return email
 }
 
