@@ -11,6 +11,7 @@ import { fenceHumanAuthority } from '../domain/authorityFence'
 import { commandBodyHash, requireCommandKey } from '../domain/commandBinding'
 import { authorizedRequestHeader, requestOwnerWhere } from '../domain/requestAuthority'
 import { requireFleetOperations } from '../domain/operationalReadiness'
+import { reviewedIso, sameReviewedVersion } from '../domain/reviewedVersion'
 
 const createReviewBodyHash = (body: string) => createHash('sha256').update(body).digest('hex')
 
@@ -103,7 +104,7 @@ export async function cancelRideRequest(_root: unknown, args: { requestId: strin
   }, { isolationLevel: 'Serializable' })
 }
 
-export async function cancelRide(_root: unknown, args: { tripId: string; tripToken?: string | null; reasonCode?: string | null; reason?: string | null; idempotencyKey: string; reassign?: boolean | null; expectedActorId: string; expectedAcceptedOfferId: string; expectedUpdatedAt: string; expectedFeeMinor: number; expectedCurrencyCode: string }, context: any) {
+export async function cancelRide(_root: unknown, args: { tripId: string; tripToken?: string | null; reasonCode?: string | null; reason?: string | null; idempotencyKey: string; reassign?: boolean | null; expectedActorId: string; expectedAcceptedOfferId: string; expectedUpdatedAt: string | Date; expectedFeeMinor: number; expectedCurrencyCode: string }, context: any) {
   if (typeof args.idempotencyKey !== 'string' || args.idempotencyKey.trim().length < 12 || args.idempotencyKey.length > 200) throw new Error('A stable idempotency key of 12–200 characters is required.')
   const initialAuthority = await authorizedTripHeader(context.prisma, context.session, args.tripId, 'participant')
   if (!initialAuthority) throw new Error('Trip not found.')
@@ -142,7 +143,7 @@ export async function cancelRide(_root: unknown, args: { tripId: string; tripTok
     if (!current) throw new Error('Trip not found.')
     const actorType = authority.assignedDriver ? 'driver' : authority.rider ? 'rider' : 'operator'
     if (args.reassign && (!authority.operator || actorType !== 'operator')) throw new Error('Only an authorized fleet operator may cancel and reassign this request.')
-    const commandBinding = { version: 2, purpose: 'trip_cancellation', actorType, ...authority.header, reviewed: { updatedAt: args.expectedUpdatedAt, feeMinor: args.expectedFeeMinor, currencyCode: args.expectedCurrencyCode } }
+    const commandBinding = { version: 2, purpose: 'trip_cancellation', actorType, ...authority.header, reviewed: { updatedAt: reviewedIso(args.expectedUpdatedAt), feeMinor: args.expectedFeeMinor, currencyCode: args.expectedCurrencyCode } }
 
     const replay = await tx.tripEvent.findUnique({ where: { idempotencyKey: args.idempotencyKey } })
     if (replay) {
@@ -154,7 +155,7 @@ export async function cancelRide(_root: unknown, args: { tripId: string; tripTok
     }
     if (!['driver_assigned', 'driver_en_route', 'driver_arrived'].includes(current.status || '') || !current.requestId || !current.acceptedOfferId) throw new Error('Trip can no longer be cancelled or reassigned.')
     const cancellationEconomics = requireAcceptedQuoteFee(current.bookingSnapshot, current.request?.quoteSnapshot, 'cancellationFeeMinor')
-    if (current.updatedAt.toISOString() !== args.expectedUpdatedAt || cancellationEconomics.feeMinor !== args.expectedFeeMinor || cancellationEconomics.currencyCode !== args.expectedCurrencyCode) throw new Error('Cancellation review changed. Reconciliation is required before another command.')
+    if (!sameReviewedVersion(current.updatedAt, args.expectedUpdatedAt) || cancellationEconomics.feeMinor !== args.expectedFeeMinor || cancellationEconomics.currencyCode !== args.expectedCurrencyCode) throw new Error('Cancellation review changed. Reconciliation is required before another command.')
     const releaseOffers = await tx.matchOffer.findMany({ where: { requestId: current.requestId, status: { in: ['offered', 'accepted'] } }, select: { id: true, driverId: true } })
     const actualOfferLockSet = releaseOffers.map((offer: { id: string; driverId: string | null }) => JSON.stringify([offer.id, offer.driverId])).sort()
     if (actualOfferLockSet.length !== expectedOfferLockSet.length || actualOfferLockSet.some((key: string, index: number) => key !== expectedOfferLockSet[index])) throw new Error('Affected offers changed concurrently; reload before retrying.')
