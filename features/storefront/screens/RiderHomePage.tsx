@@ -3,7 +3,7 @@
 import { RequestCancellation } from '../components/RequestCancellation'
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { ArrowRight, ArrowUpRight, Building2, ChevronRight, History, MapPin, Search, Users, X } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, ChevronRight, MapPin, Plane, Search, Ship, Users, X } from 'lucide-react'
 import { VehicleArt } from '../components/VehicleArt'
 import { PickupTimePicker } from '../components/PickupTimePicker'
 import { StatusDot, StatusTitle } from '@/features/platform/components/StatusTitle'
@@ -39,7 +39,7 @@ type Service = {
   readiness?: { bookingEnabled: boolean; mode: string; reason: string }
   startingFareMinor: number | null
   currencyCode: string
-  fleet: { name: string; publicCity: string | null; logoIcon?: string; logoColor?: string; heroImageUrl?: string | null }
+  fleet: { name: string; publicCity: string | null; logoIcon?: string; logoColor?: string }
 }
 type Quote = {
   quoteId: string
@@ -118,7 +118,7 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
 
   useEffect(() => {
     let active = true
-    graphql<{ marketplaceRideshareServices: Service[] }>(`query RiderServices { marketplaceRideshareServices(limit: 12) { id nextCursor areasTruncated title description photoUrl category passengerCapacity wheelchairAccessible advanceBookingMinutes publicRegionLabels readiness { bookingEnabled mode reason } startingFareMinor currencyCode fleet { name publicCity logoIcon logoColor heroImageUrl } } }`)
+    graphql<{ marketplaceRideshareServices: Service[] }>(`query RiderServices { marketplaceRideshareServices(limit: 12) { id nextCursor areasTruncated title description photoUrl category passengerCapacity wheelchairAccessible advanceBookingMinutes publicRegionLabels readiness { bookingEnabled mode reason } startingFareMinor currencyCode fleet { name publicCity logoIcon logoColor } } }`)
       .then(data => {
         if (!active) return
         const found = data.marketplaceRideshareServices || []
@@ -131,7 +131,7 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
       .catch(reason => { if (active) setError(reason instanceof Error ? reason.message : 'Rides are unavailable right now.') })
       .finally(() => { if (active) setServicesLoading(false) })
     if (initialServiceId) {
-      graphql<{ marketplaceRideshareService: Service | null }>(`query SelectedService($id: ID!) { marketplaceRideshareService(id: $id) { id title description photoUrl category passengerCapacity wheelchairAccessible advanceBookingMinutes publicRegionLabels areasTruncated startingFareMinor currencyCode readiness { bookingEnabled mode reason } fleet { name publicCity logoIcon logoColor heroImageUrl } } }`, { id: initialServiceId }).then(data => {
+      graphql<{ marketplaceRideshareService: Service | null }>(`query SelectedService($id: ID!) { marketplaceRideshareService(id: $id) { id title description photoUrl category passengerCapacity wheelchairAccessible advanceBookingMinutes publicRegionLabels areasTruncated startingFareMinor currencyCode readiness { bookingEnabled mode reason } fleet { name publicCity logoIcon logoColor } } }`, { id: initialServiceId }).then(data => {
         if (!active) return
         if (data.marketplaceRideshareService) setServices(current => [...current.filter(item => item.id !== initialServiceId), data.marketplaceRideshareService!])
         else setError('That ride is unavailable. Choose another.')
@@ -312,7 +312,7 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
     if (!nextServiceCursor || servicesLoading) return
     setServicesLoading(true)
     try {
-      const data = await graphql<{ marketplaceRideshareServices: Service[] }>(`query MoreServices($after: String!) { marketplaceRideshareServices(limit: 12, after: $after) { id nextCursor areasTruncated title description photoUrl category passengerCapacity wheelchairAccessible advanceBookingMinutes publicRegionLabels startingFareMinor currencyCode readiness { bookingEnabled mode reason } fleet { name publicCity logoIcon logoColor heroImageUrl } } }`, { after: nextServiceCursor })
+      const data = await graphql<{ marketplaceRideshareServices: Service[] }>(`query MoreServices($after: String!) { marketplaceRideshareServices(limit: 12, after: $after) { id nextCursor areasTruncated title description photoUrl category passengerCapacity wheelchairAccessible advanceBookingMinutes publicRegionLabels startingFareMinor currencyCode readiness { bookingEnabled mode reason } fleet { name publicCity logoIcon logoColor } } }`, { after: nextServiceCursor })
       const rows = data.marketplaceRideshareServices
       if (!Array.isArray(rows) || rows.length > 12) throw new Error()
       setServices(current => [...new Map([...current, ...rows].map(row => [row.id, row])).values()])
@@ -419,11 +419,11 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
             <button type="button" aria-label="See price" disabled={ctaDisabled || Boolean(visibleQuoteBinding)} onClick={() => void getQuote()} className="grid size-10 shrink-0 place-items-center rounded-full bg-signal text-white lg:size-12 transition-colors hover:bg-signal-deep disabled:opacity-60"><ArrowRight className="size-5 lg:size-6" aria-hidden="true" /></button>
           </div>
 
-          <label className="mt-1.5 flex items-center gap-3 border-b border-border px-2 py-2 lg:hidden">
+          <label className="mt-1.5 flex items-center gap-3 border-b border-border px-2 py-2.5 lg:hidden">
             <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-[#eef3f3]"><span className="size-3 rounded-full bg-ink" /></span>
             <span className="min-w-0 flex-1">
-              <span className="block text-xs text-muted-foreground">Pickup</span>
-              <input id="pickup-phone" name="pickup-phone" autoComplete="off" placeholder={pickupHint} value={pickupLabel} onChange={change(setPickupLabel)} maxLength={120} className="block w-full min-w-0 bg-transparent text-[0.9375rem] font-medium text-ink outline-none placeholder:text-ink/70" />
+              <input id="pickup-phone" name="pickup-phone" aria-label="Pickup" autoComplete="off" placeholder={pickupHint} value={pickupLabel} onChange={change(setPickupLabel)} maxLength={120} className="block w-full min-w-0 bg-transparent text-base font-medium text-ink outline-none placeholder:text-ink" />
+              <span className="block text-[0.8125rem] text-muted-foreground">Pickup{selectedService?.fleet.publicCity ? ` · ${selectedService.fleet.publicCity}` : ''}</span>
             </span>
           </label>
 
@@ -431,8 +431,8 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
             <p className="px-1 pb-0.5 pt-3 text-xs font-medium text-muted-foreground lg:sr-only">Suggestions</p>
             <ul aria-label="Suggestions" className="divide-y divide-border">
               {suggestions.map(({ label, recent }) => <li key={label}><button type="button" onClick={() => update(setDropoffLabel, label)} className="flex w-full items-center gap-3 px-1.5 py-2.5 text-left transition-colors hover:bg-foam lg:rounded-xl lg:px-4">
-                <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-[#eef3f3] text-ink lg:size-7 lg:bg-transparent">{recent ? <History className="size-4 lg:size-5" /> : <Building2 className="size-4 lg:size-5" />}</span>
-                <span className="min-w-0 flex-1"><span className="block text-[0.9375rem] font-medium leading-snug text-ink lg:font-semibold">{label}</span><span className="block text-xs text-muted-foreground lg:text-[0.8125rem]">{recent ? 'Recent' : selectedService?.fleet.publicCity || 'Service area'}</span></span>
+                <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-[#eef3f3] text-ink lg:size-7 lg:bg-transparent"><PlaceIcon label={label} className="size-4 lg:size-5" /></span>
+                <span className="min-w-0 flex-1"><span className="block text-base font-medium leading-snug text-ink lg:text-[0.9375rem] lg:font-semibold">{label}</span><span className="block text-[0.8125rem] text-muted-foreground">{recent ? 'Recent' : selectedService?.fleet.publicCity || 'Service area'}</span></span>
                 <ChevronRight className="size-5 shrink-0 text-muted-foreground lg:hidden" aria-hidden="true" />
               </button></li>)}
             </ul>
@@ -546,6 +546,13 @@ function formatDistance(meters: number) {
   return meters < 1000 ? `${Math.round(meters)} m` : `${(meters / 1000).toFixed(meters < 10_000 ? 1 : 0)} km`
 }
 
+/** Suggestion icon by place type, from the place's own name. */
+function PlaceIcon({ label, className }: { label: string; className?: string }) {
+  if (/\b(airport|airfield|terminal \d)/i.test(label)) return <Plane className={className} />
+  if (/\b(ferry|pier|wharf|harbou?r terminal|dock|marina)\b/i.test(label)) return <Ship className={className} />
+  return <MapPin className={className} />
+}
+
 function vehicleFor(service: Service, index: number): { kind: 'sedan' | 'suv' | 'van'; tone: 'light' | 'dark' } {
   if (service.wheelchairAccessible) return { kind: 'van', tone: 'light' }
   if (service.passengerCapacity > 4) return { kind: 'suv', tone: 'dark' }
@@ -560,16 +567,16 @@ function ServiceList({ services, serviceId, disabled, onChange, loading, name }:
     {services.map((service, index) => {
       const ready = service.readiness?.bookingEnabled === true
       const vehicle = vehicleFor(service, index)
-      return <label key={service.id} className="group flex min-h-[3.75rem] cursor-pointer items-center gap-2.5 rounded-xl px-1.5 py-2 transition-[box-shadow,background-color] has-[:checked]:bg-foam has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-tide has-[:disabled]:cursor-default sm:gap-4 lg:min-h-[5.6rem] lg:rounded-xl lg:bg-white lg:px-3 lg:shadow-[0_4px_16px_-12px_rgba(11,43,46,0.4)] lg:ring-1 lg:ring-ink/5 lg:has-[:checked]:ring-2 lg:has-[:checked]:ring-tide">
+      return <label key={service.id} className="group flex min-h-[4.25rem] cursor-pointer items-center gap-3 rounded-2xl px-2 py-2.5 transition-[box-shadow,background-color] has-[:checked]:bg-foam has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-tide has-[:disabled]:cursor-default sm:gap-4 lg:min-h-[5.6rem] lg:rounded-xl lg:bg-white lg:px-3 lg:shadow-[0_4px_16px_-12px_rgba(11,43,46,0.4)] lg:ring-1 lg:ring-ink/5 lg:has-[:checked]:ring-2 lg:has-[:checked]:ring-tide">
         <input type="radio" name={name} value={service.id} checked={serviceId === service.id} disabled={disabled} onChange={onChange} className="sr-only" />
         {service.photoUrl
-          ? <img src={service.photoUrl} alt="" loading="lazy" className="h-9 w-[4.25rem] shrink-0 object-contain mix-blend-multiply sm:h-12 sm:w-[6.5rem] lg:h-14 lg:w-[7rem]" />
-          : <VehicleArt kind={vehicle.kind} tone={vehicle.tone} className="h-9 w-[4.25rem] shrink-0 sm:h-12 sm:w-[6.5rem] lg:h-14 lg:w-[7rem]" />}
+          ? <img src={service.photoUrl} alt="" loading="lazy" className="h-10 w-[4.75rem] shrink-0 object-contain mix-blend-multiply sm:h-12 sm:w-[6.5rem] lg:h-14 lg:w-[7rem]" />
+          : <VehicleArt kind={vehicle.kind} tone={vehicle.tone} className="h-10 w-[4.75rem] shrink-0 sm:h-12 sm:w-[6.5rem] lg:h-14 lg:w-[7rem]" />}
         <span className="min-w-0 flex-1">
-          <span className="flex items-center gap-2"><span className="line-clamp-2 text-[0.9375rem] font-semibold leading-tight text-ink [overflow-wrap:anywhere] lg:text-base">{service.title}</span>{!ready && <StatusDot tone="amber" />}</span>
-          <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground lg:mt-1 lg:text-[0.8125rem]"><span className="inline-flex items-center gap-1"><Users className="size-3.5" aria-hidden="true" />{service.passengerCapacity}<span className="max-sm:hidden"> seats</span></span>{service.category && <><span aria-hidden="true" className="max-sm:hidden">·</span><span className="capitalize max-sm:hidden">{service.category.replaceAll('_', ' ')}</span></>}{multiFleet && <span className="truncate">· {service.fleet.name}</span>}</span>
+          <span className="flex items-center gap-2"><span className="line-clamp-2 text-base font-semibold leading-tight text-ink [overflow-wrap:anywhere]">{service.title}</span>{!ready && <StatusDot tone="amber" />}</span>
+          <span className="mt-1 flex flex-wrap items-center gap-x-1.5 text-[0.8125rem] text-muted-foreground"><span className="inline-flex items-center gap-1"><Users className="size-3.5 fill-current" aria-hidden="true" />{service.passengerCapacity}<span className="max-sm:hidden"> seats</span></span>{service.category && <><span aria-hidden="true" className="max-sm:hidden">·</span><span className="capitalize max-sm:hidden">{service.category.replaceAll('_', ' ')}</span></>}{multiFleet && <span className="truncate">· {service.fleet.name}</span>}</span>
         </span>
-        {service.startingFareMinor !== null && <span className="shrink-0 text-right"><span className="block whitespace-nowrap text-xs text-muted-foreground lg:text-[0.8125rem] lg:text-ink">{service.advanceBookingMinutes ? `Book ${shortLead(service.advanceBookingMinutes)} ahead` : 'from'}</span><span className="mt-0.5 block text-base font-semibold tabular-nums text-ink lg:mt-1 lg:text-[1.0625rem]">{formatMoney(service.startingFareMinor, service.currencyCode)}</span></span>}
+        {service.startingFareMinor !== null && <span className="shrink-0 text-right"><span className="block whitespace-nowrap text-xs text-muted-foreground lg:text-[0.8125rem] lg:text-ink">{service.advanceBookingMinutes ? `Book ${shortLead(service.advanceBookingMinutes)} ahead` : 'from'}</span><span className="mt-0.5 block text-[1.0625rem] font-semibold tabular-nums text-ink lg:mt-1">{formatMoney(service.startingFareMinor, service.currencyCode)}</span></span>}
       </label>
     })}
   </div>

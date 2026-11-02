@@ -62,7 +62,7 @@ export function HarborMap({ variant = 'home', city, areas = [], pickupLabel, dro
     </svg>
     {/* Labels are HTML so they keep a readable size however the map is cropped. */}
     {city && <MapLabel x={955} y={545} className="text-[1.125rem] font-semibold tracking-[0.08em] text-[#163a3e] max-sm:hidden">{city}</MapLabel>}
-    {labelAreas.map((label, index) => <MapLabel key={label} x={areaSpots[index][0]} y={areaSpots[index][1]} className="text-[0.6875rem] font-semibold tracking-[0.06em] text-[#5d6d70] max-lg:hidden">{label}</MapLabel>)}
+    {labelAreas.map((label, index) => <MapLabel key={label} x={areaSpots[index][0]} y={areaSpots[index][1]} className="text-xs font-semibold tracking-[0.06em] text-[#5d6d70] max-lg:hidden">{label}</MapLabel>)}
     {variant === 'route' && <MapChip x={1215} y={287} className="max-lg:hidden">Drop-off</MapChip>}
     {variant === 'route' && dropoff && <MapLabel x={1240} y={332} align="start" className="rounded-md bg-white/85 px-2 py-0.5 text-xs font-semibold text-[#163a3e] max-lg:hidden">{dropoff}</MapLabel>}
     {variant === 'home' && pickup && <MapChip x={1205} y={162} className="max-lg:hidden">{pickup}</MapChip>}
@@ -80,7 +80,7 @@ function MapLabel({ x, y, align = 'center', className, children }: { x: number; 
 }
 
 function MapChip({ x, y, className, children }: { x: number; y: number; className?: string; children: React.ReactNode }) {
-  return <span style={place(x, y)} className={`pointer-events-none absolute max-w-[12rem] -translate-x-1/2 -translate-y-1/2 truncate whitespace-nowrap rounded-full bg-[#0d3b3e] px-3 py-1 text-[0.6875rem] font-bold uppercase tracking-[0.06em] text-white ${className || ''}`}>{children}</span>
+  return <span style={place(x, y)} className={`pointer-events-none absolute max-w-[12rem] -translate-x-1/2 -translate-y-1/2 truncate whitespace-nowrap rounded-full bg-[#0d3b3e] px-3 py-1 text-xs font-bold uppercase tracking-[0.06em] text-white ${className || ''}`}>{children}</span>
 }
 
 

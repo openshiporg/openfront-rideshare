@@ -12,3 +12,17 @@ export function storeOwnMark(logoIcon: string | null | undefined): string {
   const svg = sanitizeStoreLogoSvg(raw)
   return svg && svg !== sanitizeStoreLogoSvg(DEFAULT_STORE_LOGO_ICON) ? svg : ''
 }
+
+/** The header mark: the fleet's own, else the platform mark, as E-commerce does. */
+export function storeLogoMark(logoIcon: string | null | undefined): string {
+  return storeOwnMark(logoIcon) || sanitizeStoreLogoSvg(DEFAULT_STORE_LOGO_ICON) || ''
+}
+
+/** A short header wordmark from the store name: its first word ("Harbor" for
+ * "Harbor Independent Mobility"); short leading words like "The" keep the next one. */
+export function storeWordmark(name: string | null | undefined): string {
+  const words = (name || '').trim().split(/\s+/).filter(Boolean)
+  if (!words.length) return 'Rideshare'
+  if (words.length > 1 && words[0].length <= 3) return `${words[0]} ${words[1]}`
+  return words[0]
+}
