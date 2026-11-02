@@ -9,7 +9,7 @@ function transport() {
   return createTransport({ host: process.env.SMTP_HOST, port, auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD } });
 }
 
-export async function sendRequestReceivedEmail(mail: RequestReceivedMail): Promise<{ sent: boolean; error?: string; messageId?: string }> {
+export async function sendRequestReceivedEmail(mail: RequestReceivedMail): Promise<{ sent: boolean; error?: string; messageId?: string; response?: string }> {
   try {
     const info = await transport().sendMail({
       to: mail.to,
@@ -23,7 +23,7 @@ export async function sendRequestReceivedEmail(mail: RequestReceivedMail): Promi
         <p><a href="${escapeHtml(mail.link)}">View your rides</a></p>
       </body>`,
     });
-    return { sent: true, messageId: typeof (info as any)?.messageId === "string" ? (info as any).messageId : undefined };
+    return { sent: true, messageId: typeof (info as any)?.messageId === "string" ? (info as any).messageId : undefined, response: typeof (info as any)?.response === "string" ? (info as any).response : undefined };
   } catch (error) {
     return { sent: false, error: error instanceof Error ? error.message : "send_failed" };
   }

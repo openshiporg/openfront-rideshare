@@ -11,7 +11,7 @@ function fake(rider: any = { email: 'a@b.co', name: 'Ann' }) {
     rideRequest: { findUnique: async () => request },
     notification: {
       create: async ({ data }: any) => { if (rows.has(data.idempotencyKey)) throw Object.assign(new Error('dup'), { code: 'P2002' }); const row = { id: `n${rows.size}`, ...data }; rows.set(data.idempotencyKey, row); return row },
-      update: async ({ where, data }: any) => { for (const row of rows.values()) if (row.id === where.id) { row.status = data.status; row.providerReference = data.providerReference }; return {} },
+      update: async ({ where, data }: any) => { for (const row of rows.values()) if (row.id === where.id) { row.status = data.status; row.providerReference = data.providerReference; row.payload = data.payload ?? row.payload }; return {} },
     },
   } }
 }
@@ -31,8 +31,9 @@ test('sends once on success and links the rider account', async () => {
 test('the provider message id is recorded with a sent status', async () => {
   configure(true)
   const { rows, prisma } = fake()
-  await deliverRequestReceived(prisma, 'r1', async () => ({ sent: true, messageId: '<abc@resend>' }))
+  await deliverRequestReceived(prisma, 'r1', async () => ({ sent: true, messageId: '<abc@resend>', response: '250 2.0.0 Ok: queued as abc123' }))
   assert.equal(rows.get(KEY).providerReference, '<abc@resend>')
+  assert.equal(rows.get(KEY).payload.smtpResponse, '250 2.0.0 Ok: queued as abc123')
 })
 
 test('a replay does not resend', async () => {

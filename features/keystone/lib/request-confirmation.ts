@@ -6,7 +6,7 @@
 // proof is never sent to a server or logged). The proof is passed in memory and never stored.
 
 export type RequestReceivedMail = { to: string; fleetName: string; requestNumber: string; name: string; whenLabel: string; pickup: string; dropoff: string; link: string };
-type Send = (mail: RequestReceivedMail) => Promise<{ sent: boolean; error?: string; messageId?: string }>;
+type Send = (mail: RequestReceivedMail) => Promise<{ sent: boolean; error?: string; messageId?: string; response?: string }>;
 
 import { GraphQLError } from 'graphql'
 
@@ -55,7 +55,7 @@ export async function deliverRequestReceived(prisma: any, requestId: string, sen
       if ((error as { code?: string })?.code === "P2002") return; // already claimed: replay or concurrent submit
       throw error;
     }
-    const mark = (status: string, error?: string, messageId?: string) => prisma.notification.update({ where: { id: row.id }, data: { status, ...(messageId ? { providerReference: messageId.slice(0, 200) } : {}), attemptCount: { increment: 1 }, ...(status === "sent" ? { sentAt: new Date() } : {}), ...(error ? { lastError: error.slice(0, 200) } : {}) } });
+    const mark = (status: string, error?: string, messageId?: string, response?: string) => prisma.notification.update({ where: { id: row.id }, data: { status, ...(messageId ? { providerReference: messageId.slice(0, 200) } : {}), ...(response ? { payload: { requestId: request.id, requestNumber: request.requestNumber, ...(extra.receiptEmail ? { receiptEmail: extra.receiptEmail } : {}), smtpResponse: response.slice(0, 300) } } : {}), attemptCount: { increment: 1 }, ...(status === "sent" ? { sentAt: new Date() } : {}), ...(error ? { lastError: error.slice(0, 200) } : {}) } });
     try {
       const email = extra.receiptEmail || request.rider?.email;
       if (!email) { await mark("skipped_no_recipient"); return; }
@@ -71,7 +71,7 @@ export async function deliverRequestReceived(prisma: any, requestId: string, sen
         pickup: request.pickupLabel, dropoff: request.dropoffLabel,
         link: receiptLink(request, extra),
       });
-      await (result.sent ? mark("sent", undefined, result.messageId) : mark("failed", result.error || "send_failed"));
+      await (result.sent ? mark("sent", undefined, result.messageId, result.response) : mark("failed", result.error || "send_failed"));
     } catch (error) {
       try { await mark("failed", error instanceof Error ? error.message : "send_failed"); } catch { /* the request is committed; bookkeeping must never surface */ }
     }
