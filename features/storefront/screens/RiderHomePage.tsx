@@ -94,7 +94,9 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
   const selectedService = useMemo(() => services.find(service => service.id === serviceId), [services, serviceId])
   // A book-ahead service can't take a Now ride, so its pickup time opens straight away.
   useEffect(() => { if (selectedService?.advanceBookingMinutes) setScheduleOpen(true) }, [selectedService?.id, selectedService?.advanceBookingMinutes])
-  const currentQuoteInputs = (): QuoteInputSnapshot => ({ serviceId, pickupLabel, dropoffLabel, scheduledFor, passengerCount, wheelchairAccessible })
+  // An empty pickup means the fleet's first public service area (shown as the field's hint).
+  const defaultPickup = selectedService?.publicRegionLabels?.[0] || ''
+  const currentQuoteInputs = (): QuoteInputSnapshot => ({ serviceId, pickupLabel: pickupLabel.trim() || defaultPickup, dropoffLabel, scheduledFor, passengerCount, wheelchairAccessible })
   const quoteInputs = currentQuoteInputs()
   const uncertainQuoteIsCurrent = Boolean(uncertainRequest
     && uncertainRequest === quoteBinding
@@ -210,7 +212,7 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
   async function getQuote() {
     if (requestLoading || requestInFlightRef.current || uncertainRequestRef.current || receipt) return
     if (!selectedService?.readiness?.bookingEnabled) { setError(selectedService?.readiness?.reason || 'Booking is unavailable.'); return }
-    if (pickupLabel.trim().length < 2 || dropoffLabel.trim().length < 2) { setError('Enter a pickup and a destination.'); return }
+    if ((pickupLabel.trim() || defaultPickup).length < 2 || dropoffLabel.trim().length < 2) { setError('Enter a pickup and a destination.'); return }
     const inputs = currentQuoteInputs()
     quoteRequestGeneration.current = advanceQuoteRequestGeneration(quoteRequestGeneration.current)
     const generation = quoteRequestGeneration.current
@@ -366,6 +368,8 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
   const liveState = requestView?.trip?.status || requestView?.status
 
   const suggestions = (selectedService?.publicRegionLabels || []).slice(0, 3)
+  // Pickup hint: the fleet's own first service area, so the empty field names a real place.
+  const pickupHint = defaultPickup || 'Pickup area'
   const requestLabel = quoteLoading || requestLoading ? 'Working…' : uncertainRequest ? 'Recover request' : visibleQuoteBinding ? `Request ${selectedService?.title || 'ride'}` : 'See price'
 
   return <RiderShell fleet={selectedService?.fleet} map={{ variant: 'home', areas: selectedService?.publicRegionLabels, pickupLabel: pickupLabel || null }}>
@@ -386,40 +390,40 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
             <MapPin className="size-5 shrink-0 text-ink" aria-hidden="true" />
             <span className="min-w-0 flex-1">
               <span className="block text-xs text-muted-foreground">Pickup</span>
-              <input id="pickup" name="pickup" autoComplete="off" placeholder="Pickup area" value={pickupLabel} onChange={change(setPickupLabel)} minLength={2} maxLength={120} className="block w-full min-w-0 bg-transparent text-[0.9375rem] font-medium text-ink outline-none placeholder:text-muted-foreground/80" />
+              <input id="pickup" name="pickup" autoComplete="off" placeholder={pickupHint} value={pickupLabel} onChange={change(setPickupLabel)} minLength={2} maxLength={120} className="block w-full min-w-0 bg-transparent text-[0.9375rem] font-medium text-ink outline-none placeholder:text-muted-foreground/80" />
             </span>
             {pickupLabel && <button type="button" aria-label="Clear pickup" onClick={() => update(setPickupLabel, '')} className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-white hover:text-ink"><X className="size-4" aria-hidden="true" /></button>}
           </label>
 
-          <div className="relative mt-0 flex items-center gap-3 rounded-full bg-[#eef3f3] py-2 pl-5 pr-2 ring-1 ring-transparent focus-within:ring-2 focus-within:ring-tide lg:mt-4 lg:rounded-xl lg:bg-foam lg:py-2.5 lg:pl-4 lg:ring-tide/60">
-            <MapPin className="size-6 shrink-0 fill-signal text-signal [&>circle]:fill-white [&>circle]:stroke-white" aria-hidden="true" />
+          <div className="relative mt-0 flex items-center gap-2.5 rounded-full bg-[#eef3f3] py-1.5 pl-4 pr-1.5 ring-1 ring-transparent focus-within:ring-2 focus-within:ring-tide lg:mt-4 lg:rounded-xl lg:bg-foam lg:py-2.5 lg:pl-4 lg:ring-tide/60">
+            <MapPin className="size-5 shrink-0 fill-signal lg:size-6 text-signal [&>circle]:fill-white [&>circle]:stroke-white" aria-hidden="true" />
             <label htmlFor="dropoff" className="sr-only">Where to?</label>
-            <input id="dropoff" name="dropoff" autoComplete="off" placeholder="Where to?" value={dropoffLabel} onChange={change(setDropoffLabel)} required minLength={2} maxLength={120} className={`h-11 min-w-0 flex-1 bg-transparent font-semibold tracking-[-0.02em] text-ink outline-none placeholder:text-ink lg:h-12 ${dropoffLabel ? "text-xl lg:text-[1.375rem]" : "text-[1.75rem] lg:text-[2.375rem]"}`} />
-            <button type="button" aria-label="See price" disabled={ctaDisabled || Boolean(visibleQuoteBinding)} onClick={() => void getQuote()} className="grid size-12 shrink-0 place-items-center rounded-full bg-signal text-white transition-colors hover:bg-signal-deep disabled:opacity-60"><ArrowRight className="size-6" aria-hidden="true" /></button>
+            <input id="dropoff" name="dropoff" autoComplete="off" placeholder="Where to?" value={dropoffLabel} onChange={change(setDropoffLabel)} required minLength={2} maxLength={120} className={`h-10 min-w-0 flex-1 bg-transparent font-semibold tracking-[-0.02em] text-ink outline-none placeholder:text-ink lg:h-12 ${dropoffLabel ? "text-lg lg:text-[1.375rem]" : "text-[1.4375rem] lg:text-[2.375rem]"}`} />
+            <button type="button" aria-label="See price" disabled={ctaDisabled || Boolean(visibleQuoteBinding)} onClick={() => void getQuote()} className="grid size-10 shrink-0 place-items-center rounded-full bg-signal text-white lg:size-12 transition-colors hover:bg-signal-deep disabled:opacity-60"><ArrowRight className="size-5 lg:size-6" aria-hidden="true" /></button>
           </div>
 
-          <label className="mt-2 flex items-center gap-4 border-b border-border px-3 py-3 lg:hidden">
-            <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-full bg-[#eef3f3]"><span className="size-3.5 rounded-full bg-ink" /></span>
+          <label className="mt-1.5 flex items-center gap-3 border-b border-border px-2 py-2 lg:hidden">
+            <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-[#eef3f3]"><span className="size-3 rounded-full bg-ink" /></span>
             <span className="min-w-0 flex-1">
-              <span className="block text-base font-medium text-ink">Pickup</span>
-              <input id="pickup-phone" name="pickup-phone" autoComplete="off" placeholder="Pickup area" value={pickupLabel} onChange={change(setPickupLabel)} maxLength={120} className="block w-full min-w-0 bg-transparent text-sm text-muted-foreground outline-none placeholder:text-muted-foreground" />
+              <span className="block text-xs text-muted-foreground">Pickup</span>
+              <input id="pickup-phone" name="pickup-phone" autoComplete="off" placeholder={pickupHint} value={pickupLabel} onChange={change(setPickupLabel)} maxLength={120} className="block w-full min-w-0 bg-transparent text-[0.9375rem] font-medium text-ink outline-none placeholder:text-ink/70" />
             </span>
           </label>
 
           {suggestions.length > 0 && <div className="mt-1 lg:mt-1 lg:rounded-xl lg:bg-white lg:shadow-[0_6px_20px_-12px_rgba(11,43,46,0.35)] lg:ring-1 lg:ring-ink/5">
-            <p className="px-1 pb-1 pt-4 text-sm font-medium text-muted-foreground lg:sr-only">Suggestions</p>
+            <p className="px-1 pb-0.5 pt-3 text-xs font-medium text-muted-foreground lg:sr-only">Suggestions</p>
             <ul aria-label="Suggestions" className="divide-y divide-border">
-              {suggestions.map(label => <li key={label}><button type="button" onClick={() => update(setDropoffLabel, label)} className="flex w-full items-center gap-4 px-2 py-3.5 text-left transition-colors hover:bg-foam lg:rounded-xl lg:px-4">
-                <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-full bg-[#eef3f3] text-ink lg:size-7 lg:bg-transparent"><Building2 className="size-5" /></span>
-                <span className="min-w-0 flex-1"><span className="block truncate text-base font-medium text-ink lg:text-[0.9375rem] lg:font-semibold">{label}</span><span className="block truncate text-sm text-muted-foreground lg:text-[0.8125rem]">{selectedService?.fleet.publicCity || 'Service area'}</span></span>
+              {suggestions.map(label => <li key={label}><button type="button" onClick={() => update(setDropoffLabel, label)} className="flex w-full items-center gap-3 px-1.5 py-2.5 text-left transition-colors hover:bg-foam lg:rounded-xl lg:px-4">
+                <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-[#eef3f3] text-ink lg:size-7 lg:bg-transparent"><Building2 className="size-4 lg:size-5" /></span>
+                <span className="min-w-0 flex-1"><span className="block text-[0.9375rem] font-medium leading-snug text-ink lg:font-semibold">{label}</span><span className="block text-xs text-muted-foreground lg:text-[0.8125rem]">{selectedService?.fleet.publicCity || 'Service area'}</span></span>
                 <ChevronRight className="size-5 shrink-0 text-muted-foreground lg:hidden" aria-hidden="true" />
               </button></li>)}
             </ul>
           </div>}
 
-          <section aria-labelledby="services-title" className="mt-5 lg:mt-7">
+          <section aria-labelledby="services-title" className="mt-3 lg:mt-7">
             <div className="flex items-center justify-between gap-3 px-1">
-              <h2 id="services-title" className="text-sm font-medium text-muted-foreground lg:text-[1.1875rem] lg:font-semibold lg:text-ink">Ride options</h2>
+              <h2 id="services-title" className="text-xs font-medium text-muted-foreground lg:text-[1.1875rem] lg:font-semibold lg:text-ink">Ride options</h2>
               {nextServiceCursor && <button type="button" disabled={servicesLoading} onClick={() => void moreServices()} className="text-sm font-medium text-ink underline underline-offset-4 hover:text-signal">View all</button>}
             </div>
             <ServiceList services={services} serviceId={serviceId} disabled={formLocked} onChange={change(setServiceId)} loading={servicesLoading} name="service" />
@@ -493,7 +497,7 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
         </div>
 
         <div className="sticky bottom-0 z-10 -mx-1 mt-4 space-y-2 rounded-t-2xl bg-white px-1 pb-3 pt-2 shadow-[0_-10px_16px_-12px_rgba(11,43,46,0.25)]">
-          <RiderButton type="submit" tone="signal" size="lg" disabled={ctaDisabled} className="min-h-14 w-full rounded-full lg:min-h-[3.3rem]">{requestLabel}</RiderButton>
+          <RiderButton type="submit" tone="signal" size="lg" disabled={ctaDisabled} className="min-h-12 w-full rounded-full text-base lg:min-h-[3.3rem]">{requestLabel}</RiderButton>
           {uncertainRequest && <RiderButton tone="raised" className="w-full" disabled={requestLoading} onClick={() => void resolveOriginalIntent()}>Check request outcome</RiderButton>}
         </div>
       </form>}
@@ -566,18 +570,18 @@ function ServiceList({ services, serviceId, disabled, onChange, loading, name }:
   if (loading && !services.length) return <div className="mt-3 space-y-2" aria-hidden="true">{[0, 1].map(index => <div key={index} className="h-[5.5rem] animate-pulse rounded-xl bg-lane motion-reduce:animate-none" />)}</div>
   // One fleet runs every ride here, and its name already sits in the header.
   const multiFleet = new Set(services.map(service => service.fleet.name)).size > 1
-  return <div className="mt-3 divide-y divide-border lg:divide-y-0 lg:space-y-1.5" role="radiogroup" aria-label="Ride">
+  return <div className="mt-1.5 divide-y divide-border lg:mt-3 lg:divide-y-0 lg:space-y-1.5" role="radiogroup" aria-label="Ride">
     {services.map((service, index) => {
       const ready = service.readiness?.bookingEnabled === true
       const vehicle = vehicleFor(service, index)
-      return <label key={service.id} className="group flex cursor-pointer items-center gap-3 rounded-2xl px-2 py-3 transition-[box-shadow,background-color] has-[:checked]:bg-foam has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-tide has-[:disabled]:cursor-default sm:gap-4 lg:min-h-[5.6rem] lg:rounded-xl lg:bg-white lg:px-3 lg:shadow-[0_4px_16px_-12px_rgba(11,43,46,0.4)] lg:ring-1 lg:ring-ink/5 lg:has-[:checked]:ring-2 lg:has-[:checked]:ring-tide">
+      return <label key={service.id} className="group flex min-h-[3.75rem] cursor-pointer items-center gap-2.5 rounded-xl px-1.5 py-2 transition-[box-shadow,background-color] has-[:checked]:bg-foam has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-tide has-[:disabled]:cursor-default sm:gap-4 lg:min-h-[5.6rem] lg:rounded-xl lg:bg-white lg:px-3 lg:shadow-[0_4px_16px_-12px_rgba(11,43,46,0.4)] lg:ring-1 lg:ring-ink/5 lg:has-[:checked]:ring-2 lg:has-[:checked]:ring-tide">
         <input type="radio" name={name} value={service.id} checked={serviceId === service.id} disabled={disabled} onChange={onChange} className="sr-only" />
-        <VehicleArt kind={vehicle.kind} tone={vehicle.tone} className="h-12 w-[5.5rem] shrink-0 sm:w-[6.5rem] lg:h-14 lg:w-[7rem]" />
+        <VehicleArt kind={vehicle.kind} tone={vehicle.tone} className="h-9 w-[4.25rem] shrink-0 sm:h-12 sm:w-[6.5rem] lg:h-14 lg:w-[7rem]" />
         <span className="min-w-0 flex-1">
-          <span className="flex items-center gap-2"><span className="truncate text-[1.0625rem] font-semibold text-ink lg:text-base">{service.title}</span>{!ready && <StatusDot tone="amber" />}</span>
-          <span className="mt-1 flex flex-wrap items-center gap-x-1.5 text-[0.8125rem] text-muted-foreground"><span className="inline-flex items-center gap-1"><Users className="size-3.5" aria-hidden="true" />{service.passengerCapacity}<span className="max-sm:hidden"> seats</span></span>{service.category && <><span aria-hidden="true" className="max-sm:hidden">·</span><span className="capitalize max-sm:hidden">{service.category.replaceAll('_', ' ')}</span></>}{multiFleet && <span className="truncate">· {service.fleet.name}</span>}</span>
+          <span className="flex items-center gap-2"><span className="line-clamp-2 text-[0.9375rem] font-semibold leading-tight text-ink [overflow-wrap:anywhere] lg:text-base">{service.title}</span>{!ready && <StatusDot tone="amber" />}</span>
+          <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground lg:mt-1 lg:text-[0.8125rem]"><span className="inline-flex items-center gap-1"><Users className="size-3.5" aria-hidden="true" />{service.passengerCapacity}<span className="max-sm:hidden"> seats</span></span>{service.category && <><span aria-hidden="true" className="max-sm:hidden">·</span><span className="capitalize max-sm:hidden">{service.category.replaceAll('_', ' ')}</span></>}{multiFleet && <span className="truncate">· {service.fleet.name}</span>}</span>
         </span>
-        {service.startingFareMinor !== null && <span className="shrink-0 text-right"><span className="block text-[0.8125rem] text-ink">{service.advanceBookingMinutes ? `${shortLead(service.advanceBookingMinutes)} ahead` : 'from'}</span><span className="mt-1 block text-[1.125rem] font-semibold tabular-nums text-ink lg:text-[1.0625rem]">{formatMoney(service.startingFareMinor, service.currencyCode)}</span></span>}
+        {service.startingFareMinor !== null && <span className="shrink-0 text-right"><span className="block whitespace-nowrap text-xs text-muted-foreground lg:text-[0.8125rem] lg:text-ink">{service.advanceBookingMinutes ? `Book ${shortLead(service.advanceBookingMinutes)} ahead` : 'from'}</span><span className="mt-0.5 block text-base font-semibold tabular-nums text-ink lg:mt-1 lg:text-[1.0625rem]">{formatMoney(service.startingFareMinor, service.currencyCode)}</span></span>}
       </label>
     })}
   </div>

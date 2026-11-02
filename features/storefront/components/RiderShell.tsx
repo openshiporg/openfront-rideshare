@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { MapPin, Navigation, UserRound } from 'lucide-react'
+import { History, MapPin, Navigation, UserRound } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { FleetBrand, type PublicFleetBrand } from './FleetBrand'
 import { HarborMap } from './HarborMap'
@@ -19,12 +19,12 @@ export function RiderShell({ fleet, children, className, map }: { fleet?: ShellF
   const pathname = usePathname()
   const onRides = pathname === '/account/rides'
   const header = <header className="relative z-40 border-b border-border/80 bg-white/95 backdrop-blur-md max-lg:border-none max-lg:bg-transparent max-lg:backdrop-blur-none">
-    <nav aria-label="Rider" className="flex h-16 items-center justify-between gap-3 px-4 sm:px-6 lg:h-[4.4rem] lg:px-10">
+    <nav aria-label="Rider" className="flex min-h-16 items-center justify-between gap-3 px-4 sm:px-6 lg:h-[4.4rem] lg:px-10">
       <div className="min-w-0 flex-1"><FleetBrand fleet={brand} /></div>
       <div className="flex shrink-0 items-center gap-2 sm:gap-3">
         {brand?.publicCity && <span className="hidden items-center gap-1.5 text-[0.9375rem] font-medium text-ink md:inline-flex"><MapPin className="size-4 text-signal" aria-hidden="true" />{brand.publicCity}</span>}
         {brand?.publicCity && <span aria-hidden="true" className="hidden h-6 w-px bg-border md:block" />}
-        <Link href="/account/rides" aria-current={onRides ? 'page' : undefined} className="inline-flex h-10 items-center whitespace-nowrap rounded-full bg-white/90 px-3.5 text-sm font-medium text-muted-foreground shadow-sm ring-1 ring-ink/10 transition-colors hover:text-foreground aria-[current=page]:text-signal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:shadow-none">My rides</Link>
+        <Link href="/account/rides" aria-current={onRides ? 'page' : undefined} className="inline-flex h-10 items-center whitespace-nowrap rounded-full bg-white/90 px-3.5 text-sm font-medium text-muted-foreground shadow-sm ring-1 ring-ink/10 transition-colors hover:text-foreground aria-[current=page]:text-signal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:shadow-none max-sm:w-10 max-sm:justify-center max-sm:px-0"><History className="size-[1.1rem] sm:hidden" aria-hidden="true" /><span className="max-sm:sr-only">My rides</span></Link>
         <Link href="/account" aria-label="Account" className="grid size-10 place-items-center rounded-full bg-white text-ink shadow-sm ring-1 ring-ink/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><UserRound className="size-[1.15rem]" aria-hidden="true" /></Link>
       </div>
     </nav>
@@ -32,7 +32,7 @@ export function RiderShell({ fleet, children, className, map }: { fleet?: ShellF
 
   if (map) return <div className="rs flex min-h-dvh flex-col bg-asphalt font-sans text-foreground [&_p]:break-words">
     <div className="relative flex min-h-dvh flex-col lg:h-dvh lg:min-h-[44rem]">
-      <HarborMap variant={map.variant} city={brand?.publicCity} areas={map.areas} pickupLabel={map.pickupLabel} dropoffLabel={map.dropoffLabel} className="absolute inset-x-0 top-0 h-[17rem] overflow-hidden sm:h-[22rem] lg:inset-0 lg:h-auto" />
+      <HarborMap variant={map.variant} city={brand?.publicCity} areas={map.areas} pickupLabel={map.pickupLabel} dropoffLabel={map.dropoffLabel} className="absolute inset-x-0 top-0 h-[17rem] overflow-hidden sm:h-[22rem] lg:bottom-0 lg:h-full" />
       <div className="relative max-lg:bg-[linear-gradient(to_bottom,rgba(255,255,255,0.92),rgba(255,255,255,0))]">{header}</div>
       <main className={cn('relative z-10 flex-1 max-lg:mt-[10.5rem] max-lg:rounded-t-[1.75rem] max-lg:bg-white max-lg:px-4 max-lg:pb-8 max-lg:pt-3 max-lg:shadow-[0_-12px_40px_-24px_rgba(11,43,46,0.5)] sm:max-lg:mt-[15rem] sm:max-lg:px-6 lg:overflow-y-auto lg:px-10 lg:pb-10 lg:pt-6', className)}>
         <span aria-hidden="true" className="mx-auto mb-4 block h-1.5 w-12 rounded-full bg-[#c9d3d4] lg:hidden" />

@@ -25,7 +25,7 @@ export function HarborMap({ variant = 'home', city, areas = [], pickupLabel, dro
   const pickup = pickupLabel?.trim()
   const dropoff = dropoffLabel?.trim()
   const route = 'M993,717 L983,636 L1006,632 L996,548 L1086,532 L1088,470 L1108,382 L1215,362 L1215,338'
-  return <div aria-hidden="true" className={className}>
+  return <div aria-hidden="true" className={`[container-type:size] ${className || ''}`}>
     <svg viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice" className="block size-full select-none">
       <defs>
         <linearGradient id={`${id}w`} x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#bfe3f2" /><stop offset="1" stopColor="#a6d6ec" /></linearGradient>
@@ -46,31 +46,43 @@ export function HarborMap({ variant = 'home', city, areas = [], pickupLabel, dro
       </g>
       <path d="M1450,560 L1600,420" stroke="#ffffff" strokeWidth="5" />
       <path d="M1450,560 L1600,420" stroke="#b8c6cc" strokeWidth="1.5" />
-      {city && <text x="955" y="560" textAnchor="middle" fill="#163a3e" fontSize="26" fontWeight="600" letterSpacing="2">{city}</text>}
-      {labelAreas.map((label, index) => <text key={label} x={areaSpots[index][0]} y={areaSpots[index][1]} textAnchor="middle" fill="#5d6d70" fontSize="13" fontWeight="600" letterSpacing="1.2">{truncate(label, 34)}</text>)}
       {variant === 'route' && <>
         <path d={route} fill="none" stroke="#ffffff" strokeWidth="9" strokeLinejoin="round" />
         <path d={route} fill="none" stroke="#0e5c5c" strokeWidth="5" strokeLinejoin="round" />
         <circle cx="993" cy="717" r="13" fill="#ffffff" /><circle cx="993" cy="717" r="8" fill="#0b4a4a" />
         <Pin x={1215} y={338} />
-        <Bubble x={1215} y={297} text="Drop-off" />
-        {dropoff && <text x="1215" y="400" textAnchor="middle" fill="#163a3e" fontSize="13" fontWeight="600">{truncate(dropoff, 30)}</text>}
       </>}
       {variant === 'home' && <>
         <circle cx="1050" cy="660" r="48" fill={`url(#${id}h)`} />
         <circle cx="1050" cy="660" r="10" fill="#ffffff" /><circle cx="1050" cy="660" r="7" fill="#2f6fe0" />
         {pickup && <>
           <Pin x={1205} y={212} />
-          <Bubble x={1205} y={172} text={truncate(pickup, 22).toUpperCase()} />
         </>}
       </>}
     </svg>
+    {/* Labels are HTML so they keep a readable size however the map is cropped. */}
+    {city && <MapLabel x={955} y={545} className="text-[1.125rem] font-semibold tracking-[0.08em] text-[#163a3e] max-sm:hidden">{city}</MapLabel>}
+    {labelAreas.map((label, index) => <MapLabel key={label} x={areaSpots[index][0]} y={areaSpots[index][1]} className="text-[0.6875rem] font-semibold tracking-[0.06em] text-[#5d6d70] max-lg:hidden">{label}</MapLabel>)}
+    {variant === 'route' && <MapChip x={1215} y={287} className="max-lg:hidden">Drop-off</MapChip>}
+    {variant === 'route' && dropoff && <MapLabel x={1240} y={332} align="start" className="rounded-md bg-white/85 px-2 py-0.5 text-xs font-semibold text-[#163a3e] max-lg:hidden">{dropoff}</MapLabel>}
+    {variant === 'home' && pickup && <MapChip x={1205} y={162} className="max-lg:hidden">{pickup}</MapChip>}
   </div>
 }
 
-function truncate(value: string, max: number) {
-  return value.length > max ? `${value.slice(0, max - 1)}…` : value
+// The SVG uses "xMidYMid slice", so a viewBox point maps to the box through the cover scale.
+// CSS can't read that scale, so position by the same rule: centre plus offset * max(w/1600, h/1000).
+function place(x: number, y: number) {
+  return { left: `calc(50% + (${x - 800}) * max(100cqw / 1600, 100cqh / 1000))`, top: `calc(50% + (${y - 500}) * max(100cqw / 1600, 100cqh / 1000))` }
 }
+
+function MapLabel({ x, y, align = 'center', className, children }: { x: number; y: number; align?: 'center' | 'start'; className?: string; children: React.ReactNode }) {
+  return <span style={place(x, y)} className={`pointer-events-none absolute max-w-[14rem] ${align === 'center' ? '-translate-x-1/2' : ''} -translate-y-1/2 truncate whitespace-nowrap ${className || ''}`}>{children}</span>
+}
+
+function MapChip({ x, y, className, children }: { x: number; y: number; className?: string; children: React.ReactNode }) {
+  return <span style={place(x, y)} className={`pointer-events-none absolute max-w-[12rem] -translate-x-1/2 -translate-y-1/2 truncate whitespace-nowrap rounded-full bg-[#0d3b3e] px-3 py-1 text-[0.6875rem] font-bold uppercase tracking-[0.06em] text-white ${className || ''}`}>{children}</span>
+}
+
 
 function Pin({ x, y }: { x: number; y: number }) {
   return <g transform={`translate(${x - 13},${y - 34})`}>
@@ -80,11 +92,3 @@ function Pin({ x, y }: { x: number; y: number }) {
   </g>
 }
 
-function Bubble({ x, y, text }: { x: number; y: number; text: string }) {
-  const width = Math.max(78, text.length * 9 + 34)
-  return <g transform={`translate(${x - width / 2},${y - 16})`}>
-    <rect width={width} height="28" rx="14" fill="#0d3b3e" />
-    <path d={`M${width / 2 - 6},27 L${width / 2},34 L${width / 2 + 6},27Z`} fill="#0d3b3e" />
-    <text x={width / 2} y="19" textAnchor="middle" fill="#ffffff" fontSize="13" fontWeight="700" letterSpacing="0.6">{text}</text>
-  </g>
-}
