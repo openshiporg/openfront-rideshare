@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Star } from 'lucide-react'
-import { StatusDot } from '@/features/platform/components/StatusTitle'
-import { statusLabel, statusTone } from '@/features/platform/lib/statusTone'
+import { statusLabel } from '@/features/platform/lib/statusTone'
 import { RiderButton, RiderPill, RiderTrack } from './RiderPills'
 import { formatMoney } from '@/features/lib/currency'
 import { storedReceipt } from '../domain/riderReceiptStorage'
@@ -55,13 +54,13 @@ export function RiderTripHistory({ requestId, tripId }: { requestId: string; tri
   const label = { events: 'Updates', payments: 'Payments', reviews: 'Reviews' } as const
   return <section className="space-y-4" aria-labelledby="trip-history-title">
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <h2 id="trip-history-title" className="font-display text-xl font-bold [font-stretch:115%]">History</h2>
+      <h2 id="trip-history-title" className="text-xl font-semibold tracking-tight">History</h2>
       <RiderTrack label="History type">{(['events', 'payments', 'reviews'] as const).map(value => <RiderPill key={value} active={kind === value} onClick={() => { setPage(null); setKind(value); setCursor(null) }}>{label[value]}</RiderPill>)}</RiderTrack>
     </div>
-    <div aria-live="polite">{loading ? <p role="status" className="text-sm text-muted-foreground">Loading…</p> : error || !page ? <p role="alert" className="text-sm text-[#ff8a7f]">History unavailable. Try again.</p> : !page.items.length ? <p className="rounded-[6px] border  border-border px-4 py-8 text-center text-sm text-muted-foreground">No {label[kind].toLowerCase()}</p> : <ol className="divide-y divide-border overflow-hidden rounded-[6px] border border-border bg-kerb">{page.items.map(row => <li key={row.id} className="min-w-0 break-words px-4 py-3 text-sm">
-      {kind === 'events' ? <div className="flex items-center gap-3"><StatusDot tone={statusTone(row.toStatus || row.eventType)} /><span className="font-medium">{statusLabel(row.toStatus || row.eventType || 'Update')}</span><span className="ml-auto text-xs tabular-nums text-muted-foreground">{dateLabel(row.occurredAt)}</span></div>
-        : kind === 'payments' ? <div className="flex items-center gap-3"><StatusDot tone={statusTone(row.status)} /><span className="min-w-0"><span className="block font-semibold tabular-nums">{formatMoney(row.amountMinor, row.currencyCode || '')}</span><span className="block text-xs text-muted-foreground">{statusLabel(row.status)}</span></span><span className="ml-auto text-xs tabular-nums text-muted-foreground">{dateLabel(row.createdAt)}</span></div>
-        : <div className="space-y-1.5"><div className="flex items-center gap-2">{row.rating === null ? <span className="text-xs text-muted-foreground">No rating</span> : <span className="inline-flex gap-0.5" aria-label={`${row.rating} out of 5`}>{[1, 2, 3, 4, 5].map(star => <Star key={star} aria-hidden="true" className={`size-4 ${star <= (row.rating || 0) ? 'fill-signal text-signal' : 'text-lane'}`} />)}</span>}<span className="ml-auto text-xs tabular-nums text-muted-foreground">{dateLabel(row.submittedAt)}</span></div>{row.body && <p className="whitespace-pre-wrap text-muted-foreground">{row.body}</p>}</div>}
+    <div aria-live="polite">{loading ? <p role="status" className="text-sm text-muted-foreground">Loading…</p> : error || !page ? <p role="alert" className="text-sm text-[#c2412d]">History unavailable. Try again.</p> : !page.items.length ? <p className="rounded-xl border  border-border px-4 py-8 text-center text-sm text-muted-foreground">No {label[kind].toLowerCase()}</p> : <ol className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-white">{page.items.map(row => <li key={row.id} className="min-w-0 break-words px-4 py-3 text-sm">
+      {kind === 'events' ? <div className="flex items-center gap-3"><span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-tide" /><span className="font-medium">{statusLabel(row.toStatus || row.eventType || 'Update')}</span><span className="ml-auto text-xs tabular-nums text-muted-foreground">{dateLabel(row.occurredAt)}</span></div>
+        : kind === 'payments' ? <div className="flex items-center gap-3"><span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-tide" /><span className="min-w-0"><span className="block font-semibold tabular-nums">{formatMoney(row.amountMinor, row.currencyCode || '')}</span><span className="block text-xs text-muted-foreground">{statusLabel(row.status)}</span></span><span className="ml-auto text-xs tabular-nums text-muted-foreground">{dateLabel(row.createdAt)}</span></div>
+        : <div className="space-y-1.5"><div className="flex items-center gap-2">{row.rating === null ? <span className="text-xs text-muted-foreground">No rating</span> : <span className="inline-flex gap-0.5" aria-label={`${row.rating} out of 5`}>{[1, 2, 3, 4, 5].map(star => <Star key={star} aria-hidden="true" className={`size-4 ${star <= (row.rating || 0) ? 'fill-amber-400 text-amber-400' : 'text-lane'}`} />)}</span>}<span className="ml-auto text-xs tabular-nums text-muted-foreground">{dateLabel(row.submittedAt)}</span></div>{row.body && <p className="whitespace-pre-wrap text-muted-foreground">{row.body}</p>}</div>}
     </li>)}</ol>}</div>
     {(cursor || page?.nextCursor || error) && <RiderTrack><RiderButton disabled={loading} onClick={() => { setPage(null); setCursor(null); setRefresh(value => value + 1) }}>{error ? 'Try again' : 'Latest'}</RiderButton>{page?.nextCursor && <RiderButton disabled={loading} onClick={() => { setPage(null); setCursor(page.nextCursor) }}>Older</RiderButton>}</RiderTrack>}
   </section>

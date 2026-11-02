@@ -53,14 +53,14 @@ export function TripCardPayment({ tripId, status }: { tripId: string; status: st
     setBusy(false)
   }
 
-  return <section aria-label="Fare payment" className="flex flex-wrap items-center justify-between gap-3 rounded-[6px] border border-border bg-kerb p-5">
+  return <section aria-label="Fare payment" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white p-5 shadow-[0_18px_50px_-22px_rgba(11,43,46,0.45)] ring-1 ring-ink/5">
     <div className="space-y-1">
       <p className="text-xs text-muted-foreground">Fare</p>
-      <p className="font-display text-2xl font-extrabold tabular-nums [font-stretch:115%]">{amount ?? '—'}</p>
-      {payment.status === 'captured' ? <p className="text-sm text-signal">Paid by card</p> : <p className="text-sm text-muted-foreground">Pay securely by card</p>}
+      <p className="text-[1.875rem] font-semibold tracking-tight tabular-nums text-ink">{amount ?? '—'}</p>
+      {payment.status === 'captured' ? <p className="text-sm text-tide">Paid by card</p> : <p className="text-sm text-muted-foreground">Pay securely by card</p>}
     </div>
     {payment.payable && payment.status !== 'captured' && <RiderTrack><RiderButton tone="signal" disabled={busy} onClick={() => void pay()}><CreditCard className="size-4" aria-hidden="true" />{busy ? 'Opening…' : 'Pay fare'}</RiderButton></RiderTrack>}
     {notice && <p role="status" className="w-full text-sm text-muted-foreground">{notice}</p>}
-    {error && <p role="alert" className="w-full text-sm text-[#ff8a7f]">{error}</p>}
+    {error && <p role="alert" className="w-full text-sm text-[#c2412d]">{error}</p>}
   </section>
 }

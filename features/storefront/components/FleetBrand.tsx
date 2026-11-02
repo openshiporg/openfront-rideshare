@@ -6,8 +6,8 @@ export type PublicFleetBrand = { fleetId?: string; name: string; logoIcon?: stri
 /** Only the server's minimal sanitized public DTO is used here. SVG images are
  * image documents, never injected active HTML. */
 export function FleetBrand({ fleet }: { fleet?: PublicFleetBrand | null }) {
-  return <Link href="/" className="flex min-w-0 max-w-full items-center gap-2.5 rounded-[4px] outline-none focus-visible:ring-2 focus-visible:ring-ring">
-    <img alt="" className="h-8 w-7 shrink-0 object-contain" src={`data:image/svg+xml,${encodeURIComponent(fleet?.logoIcon || DEFAULT_RIDER_MARK)}`} style={fleet?.logoIcon ? { filter: `hue-rotate(${normalizeStoreLogoColor(fleet.logoColor)}deg)` } : undefined} />
-    <span className="min-w-0 line-clamp-2 font-display text-[1.05rem] font-bold leading-[1.1] tracking-tight [font-stretch:118%] sm:truncate">{fleet?.name || 'Rideshare'}</span>
+  return <Link href="/" className="flex min-w-0 max-w-full items-center gap-2.5 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring">
+    <img alt="" className="h-9 w-9 shrink-0 object-contain lg:h-10 lg:w-10" src={`data:image/svg+xml,${encodeURIComponent(fleet?.logoIcon || DEFAULT_RIDER_MARK)}`} style={fleet?.logoIcon ? { filter: `hue-rotate(${normalizeStoreLogoColor(fleet.logoColor)}deg)` } : undefined} />
+    <span className="min-w-0 truncate text-[1.25rem] font-semibold leading-[1.1] tracking-[-0.02em] text-ink  lg:text-[1.75rem]">{fleet?.name || 'Rideshare'}</span>
   </Link>
 }

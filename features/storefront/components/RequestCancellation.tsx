@@ -78,10 +78,10 @@ export function RequestCancellation({ requestId, requestProof = null, status, on
   if (!pending && intent?.phase !== 'resolved' && !cancellable && !error) return null
   return <div className="space-y-2" data-command-pending={pending || busy ? 'true' : undefined}>
     {pending ? <RiderTrack><RiderButton tone="danger" disabled={!ready || busy} onClick={() => void send(true)}>Recover cancellation</RiderButton></RiderTrack> : intent?.phase === 'resolved' ? <p role="status" className="text-sm text-muted-foreground">Request cancelled</p> : cancellable && <RiderTrack><RiderButton tone="danger" disabled={!ready || busy} onClick={() => void review()}>Cancel request</RiderButton></RiderTrack>}
-    {error && !open && <p role="alert" className="text-sm text-[#ff8a7f]">{error}</p>}
-    <Dialog open={open} onOpenChange={value => { if (!busy) setOpen(value) }}><DialogContent className="rs dark rounded-[6px] border-border"><DialogHeader><DialogTitle className="font-display text-xl font-bold [font-stretch:115%]">Cancel this request?</DialogTitle><DialogDescription>{preview ? `Currently ${statusLabel(preview.status).toLowerCase()}` : busy ? 'Checking…' : 'A driver may already be assigned'}</DialogDescription></DialogHeader>
+    {error && !open && <p role="alert" className="text-sm text-[#c2412d]">{error}</p>}
+    <Dialog open={open} onOpenChange={value => { if (!busy) setOpen(value) }}><DialogContent className="rs rounded-xl border-border"><DialogHeader><DialogTitle className="font-display text-xl font-bold">Cancel this request?</DialogTitle><DialogDescription>{preview ? `Currently ${statusLabel(preview.status).toLowerCase()}` : busy ? 'Checking…' : 'A driver may already be assigned'}</DialogDescription></DialogHeader>
       <RiderTrack className="w-full justify-end"><RiderButton tone="quiet" disabled={busy} onClick={() => setOpen(false)}>{pending ? 'Close' : 'Keep request'}</RiderButton>{pending ? <RiderButton tone="danger" disabled={busy} onClick={() => void send(true)}>Recover cancellation</RiderButton> : <RiderButton tone="danger" disabled={!preview || busy} onClick={() => void send(false)}>Cancel request</RiderButton>}</RiderTrack>
-      {error && <p role="alert" className="text-sm text-[#ff8a7f]">{error}</p>}{pending && <p role="status" className="text-sm text-amber-300">Cancellation unconfirmed</p>}
+      {error && <p role="alert" className="text-sm text-[#c2412d]">{error}</p>}{pending && <p role="status" className="text-sm text-amber-700">Cancellation unconfirmed</p>}
     </DialogContent></Dialog>
   </div>
 }
