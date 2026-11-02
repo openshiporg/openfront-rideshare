@@ -117,7 +117,7 @@ export async function marketplaceRideshareQuote(_root: unknown, args: { serviceI
 
 export async function requestRide(_root: unknown, args: { quoteId: string; quoteProof: string; passengerCount?: number | null; accessibilityNeeds?: unknown; riderNotes?: string | null; preciseRouteEncryptedRef?: string | null }, context: any) {
   const prisma = context.prisma as PrismaClient
-  return prisma.$transaction(async tx => {
+  const placed = await prisma.$transaction(async tx => {
     const riderId = await currentRiderId(tx, context.session)
     const intent = requestIntent(args, riderId)
     await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${args.quoteId}, 0))::text IS NOT NULL`
@@ -168,6 +168,14 @@ export async function requestRide(_root: unknown, args: { quoteId: string; quote
     await tx.rideQuote.update({ where: { id: quote.id }, data: { status: 'accepted', request: { connect: { id: request.id } } } })
     return { requestId: request.id, requestNumber, status: request.status, requestProof: receiptProof.token, replayed: false }
   }, { isolationLevel: 'Serializable' })
+  // After the commit, never inside it. Lazy import keeps the mail path out of the keystone import graph.
+  if ((placed as { replayed?: boolean }).replayed === false) {
+    try {
+      const { deliverRequestReceived } = await import('../lib/request-confirmation')
+      await deliverRequestReceived(prisma, (placed as { requestId: string }).requestId)
+    } catch { /* the request is committed; the confirmation email must never fail it */ }
+  }
+  return placed
 }
 
 export async function publicRideshareRequest(_root: unknown, args: { requestId: string; requestProof: string }, context: any) {
