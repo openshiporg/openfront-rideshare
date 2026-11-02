@@ -55,7 +55,7 @@ type Quote = {
   estimateDisclosure: string
   fare: { currencyCode: string; totalMinor: number }
 }
-import { parsePendingRequest, parseRiderReceipt, pendingRequestStorageKey, persistPendingRequest, receiptStorageKey, riderStatusHref, archiveReceipt } from '../domain/riderReceiptStorage'
+import { parsePendingRequest, parseRiderReceipt, receiptFromFragment, pendingRequestStorageKey, persistPendingRequest, receiptStorageKey, riderStatusHref, archiveReceipt } from '../domain/riderReceiptStorage'
 
 type BoundQuote = QuoteBinding<Quote>
 type Receipt = { requestId: string; requestNumber: string; requestProof: string; status: string }
@@ -77,6 +77,7 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
   const [dropoffLabel, setDropoffLabel] = useState('')
   const [scheduledFor, setScheduledFor] = useState('')
   const [passengerCount, setPassengerCount] = useState('1')
+  const [receiptEmail, setReceiptEmail] = useState('')
   const [wheelchairAccessible, setWheelchairAccessible] = useState(false)
   const quoteRequestGeneration = useRef(0)
   const requestInFlightRef = useRef(false)
@@ -148,6 +149,12 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
       }).catch(() => { if (active) setError('That ride could not be loaded.') })
     }
     try {
+      // An emailed guest receipt link carries the receipt in the URL fragment (never sent to a server).
+      const emailed = receiptFromFragment(window.location.hash)
+      if (emailed) {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search)
+        if (!sessionStorage.getItem(receiptStorageKey)) sessionStorage.setItem(receiptStorageKey, JSON.stringify(emailed))
+      }
       const saved = parseRiderReceipt(sessionStorage.getItem(receiptStorageKey))
       if (saved) setReceipt(saved)
       else {
@@ -286,11 +293,12 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
     setRequestLoading(true)
     setError('')
     try {
-      const data = await graphql<{ requestRide: Receipt }>(`mutation Request($quoteId: ID!, $proof: String!, $passengers: Int!, $needs: JSON!) { requestRide(quoteId: $quoteId, quoteProof: $proof, passengerCount: $passengers, accessibilityNeeds: $needs) { requestId requestNumber status requestProof replayed } }`, {
+      const data = await graphql<{ requestRide: Receipt }>(`mutation Request($quoteId: ID!, $proof: String!, $passengers: Int!, $needs: JSON!, $email: String) { requestRide(quoteId: $quoteId, quoteProof: $proof, passengerCount: $passengers, accessibilityNeeds: $needs, receiptEmail: $email) { requestId requestNumber status requestProof replayed } }`, {
         quoteId: binding.quote.quoteId,
         proof: binding.quote.quoteProof,
         passengers: Number(binding.inputs.passengerCount),
         needs: { wheelchairAccessible: binding.inputs.wheelchairAccessible },
+        email: receiptEmail.trim() || null,
       })
       const confirmed = parseRiderReceipt(JSON.stringify(data.requestRide))
       if (!confirmed) throw new Error('Incomplete receipt.')
@@ -462,6 +470,10 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
             wheelchair={wheelchairAccessible} onWheelchair={value => { if (locked()) return; invalidateQuote(); setWheelchairAccessible(value) }}>
             {selectedService && <ServiceDetail service={selectedService} />}
           </PickupTimePicker>
+          <label className="mt-3 block px-1">
+            <span className="block text-sm font-medium text-ink">Email for receipt</span>
+            <input name="receiptEmail" type="email" autoComplete="email" maxLength={254} value={receiptEmail} onChange={event => setReceiptEmail(event.target.value)} className="mt-1 block h-11 w-full min-w-0 rounded-xl bg-[#f2f5f5] px-4 text-base text-ink outline-none focus:ring-2 focus:ring-tide" />
+          </label>
         </fieldset>
 
         {quote && visibleQuoteBinding && <section aria-live="polite" aria-label="Price" className="relative mt-3 overflow-hidden rounded-xl bg-foam p-4 text-ink ring-1 ring-tide/40">

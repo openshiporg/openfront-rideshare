@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { deliverRequestReceived } from '../features/keystone/lib/request-confirmation'
+import { deliverRequestReceived, normalizeReceiptEmail } from '../features/keystone/lib/request-confirmation'
 
 const SMTP = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASSWORD', 'SMTP_STORE_LINK']
 const configure = (on: boolean) => { for (const key of SMTP) { if (on) process.env[key] = key === 'SMTP_STORE_LINK' ? 'https://ride.test' : 'x'; else delete process.env[key] } }
@@ -65,4 +65,41 @@ test('a guest request without an email is recorded, not mailed', async () => {
 
 test('bookkeeping failure never throws', async () => {
   await deliverRequestReceived({ rideRequest: { findUnique: async () => { throw new Error('db down') } } }, 'r1')
+})
+
+test('a guest with an Email for receipt is mailed, with the guest receipt link in a URL fragment', async () => {
+  configure(true)
+  const { rows, prisma } = fake(null)
+  const sent: any[] = []
+  await deliverRequestReceived(prisma, 'r1', async mail => { sent.push(mail); return { sent: true } }, { receiptEmail: 'guest@resend.dev', requestProof: 'abc.def' })
+  assert.equal(sent.length, 1)
+  assert.equal(sent[0].to, 'guest@resend.dev')
+  assert.equal(sent[0].link, 'https://ride.test/#receipt=r=r1&n=RIDE-1&p=abc.def')
+  assert.equal(rows.get(KEY).status, 'sent')
+})
+
+test('a guest email without a proof falls back to a non sign-in page only for signed-in riders', async () => {
+  configure(true)
+  const { prisma } = fake()
+  const sent: any[] = []
+  await deliverRequestReceived(prisma, 'r1', async mail => { sent.push(mail); return { sent: true } }, {})
+  assert.equal(sent[0].link, 'https://ride.test/account/rides')
+})
+
+test('the receipt email is validated and normalised server-side', () => {
+  assert.equal(normalizeReceiptEmail('  Guest@Resend.DEV '), 'guest@resend.dev')
+  assert.equal(normalizeReceiptEmail(''), null)
+  assert.equal(normalizeReceiptEmail(null), null)
+  assert.throws(() => normalizeReceiptEmail('nope'), /valid email/)
+  assert.throws(() => normalizeReceiptEmail('a@b'), /valid email/)
+  assert.throws(() => normalizeReceiptEmail(7), /valid email/)
+})
+
+import { receiptFromFragment } from '../features/storefront/domain/riderReceiptStorage'
+test('the emailed receipt fragment parses, and anything malformed is ignored', () => {
+  assert.deepEqual(receiptFromFragment('#receipt=r=r1&n=RIDE-1&p=abc.def'), { requestId: 'r1', requestNumber: 'RIDE-1', requestProof: 'abc.def', status: 'requested' })
+  assert.equal(receiptFromFragment(''), null)
+  assert.equal(receiptFromFragment('#other=1'), null)
+  assert.equal(receiptFromFragment('#receipt=r=r1&n=RIDE-1'), null)
+  assert.equal(receiptFromFragment('#receipt=r=r1&n=RIDE-1&p=no-dot'), null)
 })

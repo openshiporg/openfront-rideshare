@@ -57,3 +57,13 @@ export function storedReceipt(storage: Pick<Storage, 'getItem'>, requestId?: str
   const archived = parseRiderReceipt(storage.getItem(archivedReceiptKey(requestId)))
   return archived?.requestId === requestId ? archived : null
 }
+
+/** The receipt carried by an emailed guest link: `#receipt=r=<requestId>&n=<number>&p=<proof>`. Null when absent or malformed. */
+export function receiptFromFragment(hash: string): RiderReceipt | null {
+  if (!hash.startsWith('#receipt=')) return null
+  const params = new URLSearchParams(hash.slice('#receipt='.length))
+  const requestId = params.get('r'), requestNumber = params.get('n'), requestProof = params.get('p')
+  if (!requestId || !requestNumber || !requestProof || [requestId, requestNumber, requestProof].some(value => value.length > 4096)) return null
+  if (!/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(requestProof)) return null
+  return { requestId, requestNumber, requestProof, status: 'requested' }
+}

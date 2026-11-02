@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { Prisma, PrismaClient } from '@prisma/client'
 import { calculateFare } from '../domain/fare'
 import { createOwnershipProof, createRecoverableRequestProof, verifyOwnershipProof } from '../domain/ownershipProof'
+import { normalizeReceiptEmail } from '../lib/request-confirmation'
 import { receiptBinding, recoverRequestReceipt, requestIntent, requestIntentHash } from '../domain/requestReceipt'
 import { riderRequestStatus } from './riderReceipts'
 import { estimateRoute } from '../../integrations/mapping/manual'
@@ -115,8 +116,10 @@ export async function marketplaceRideshareQuote(_root: unknown, args: { serviceI
   })
 }
 
-export async function requestRide(_root: unknown, args: { quoteId: string; quoteProof: string; passengerCount?: number | null; accessibilityNeeds?: unknown; riderNotes?: string | null; preciseRouteEncryptedRef?: string | null }, context: any) {
+export async function requestRide(_root: unknown, args: { quoteId: string; quoteProof: string; passengerCount?: number | null; accessibilityNeeds?: unknown; riderNotes?: string | null; preciseRouteEncryptedRef?: string | null; receiptEmail?: string | null }, context: any) {
   const prisma = context.prisma as PrismaClient
+  // Optional "Email for receipt": validated up front so a bad address never reaches the request. Not part of the request intent.
+  const receiptEmail = normalizeReceiptEmail(args.receiptEmail)
   const placed = await prisma.$transaction(async tx => {
     const riderId = await currentRiderId(tx, context.session)
     const intent = requestIntent(args, riderId)
@@ -172,7 +175,7 @@ export async function requestRide(_root: unknown, args: { quoteId: string; quote
   if ((placed as { replayed?: boolean }).replayed === false) {
     try {
       const { deliverRequestReceived } = await import('../lib/request-confirmation')
-      await deliverRequestReceived(prisma, (placed as { requestId: string }).requestId)
+      await deliverRequestReceived(prisma, (placed as { requestId: string }).requestId, undefined, { receiptEmail, requestProof: (placed as { requestProof?: string }).requestProof })
     } catch { /* the request is committed; the confirmation email must never fail it */ }
   }
   return placed
