@@ -4,6 +4,13 @@ export type FareRuleSnapshot = {
   cancellationFeeMinor?: number; noShowFeeMinor?: number; version?: number
 }
 
+// Keystone's resolvedData carries every field key, with undefined for fields not in this write.
+// Spreading it over the stored item would erase stored values, so only defined keys override.
+export function fareRuleForValidation(item: Record<string, unknown> | undefined, resolvedData: Record<string, unknown>) {
+  const changed = Object.fromEntries(Object.entries(resolvedData).filter(([, value]) => value !== undefined))
+  return { ...(item ?? {}), ...changed } as FareRuleSnapshot
+}
+
 export function validateFareRule(rule: FareRuleSnapshot) {
   currencyDigits(rule.currencyCode)
   for (const key of ['baseFareMinor', 'perDistanceUnitMinor', 'perMinuteMinor', 'bookingFeeMinor', 'minimumFareMinor', 'cancellationFeeMinor', 'noShowFeeMinor'] as const) {

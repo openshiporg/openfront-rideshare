@@ -4,7 +4,7 @@ import { checkbox, image, integer, json, relationship, select, text, timestamp }
 import { fleetScopedAccess, lockedOperationalAccess, operatorAccess, permissions } from '../access'
 import { trackingFields } from './trackingFields'
 import { labels } from './labels'
-import { validateFareRule } from '../domain/fare'
+import { fareRuleForValidation, validateFareRule } from '../domain/fare'
 
 export const ServiceArea = list({
   ui: { hideCreate: true, hideDelete: true },
@@ -56,7 +56,7 @@ export const FareRule = list({
   ui: { hideCreate: true, hideDelete: true },
   access: fleetScopedAccess('fleetAdmin'),
   hooks: { validateInput: ({ resolvedData, item, addValidationError }) => {
-    try { validateFareRule({ ...item, ...resolvedData } as Parameters<typeof validateFareRule>[0]) }
+    try { validateFareRule(fareRuleForValidation(item as Record<string, unknown> | undefined, resolvedData as Record<string, unknown>)) }
     catch { addValidationError('Check the fare currency, version, multiplier and non-negative minor-unit amounts.') }
   } },
   fields: {
