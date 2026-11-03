@@ -5,14 +5,12 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import { 
-  getIntrospectionQuery, 
-  buildClientSchema, 
-  GraphQLSchema,
   isNonNullType,
   isListType,
   isInputObjectType,
 } from 'graphql';
 import { getBaseUrl } from '@/features/dashboard/lib/getBaseUrl';
+import { keystoneContext } from '@/features/keystone/context';
 
 // Get simple type name for display
 function getSimpleTypeName(type: any): string {
@@ -45,31 +43,6 @@ async function executeGraphQL(query: string, graphqlEndpoint: string, cookie: st
   return result;
 }
 
-// Get GraphQL schema from introspection
-async function getGraphQLSchema(graphqlEndpoint: string, cookie: string): Promise<GraphQLSchema> {
-  const response = await fetch(graphqlEndpoint, {
-    method: 'POST',
-    redirect: 'error',
-    signal: AbortSignal.timeout(10_000),
-    headers: { 
-      'Content-Type': 'application/json',
-      'Cookie': cookie,
-    },
-    body: JSON.stringify({ query: getIntrospectionQuery() }),
-  });
-  
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-  }
-  
-  const result = await response.json();
-  if (result.errors) {
-    throw new Error('Schema discovery is unavailable.');
-  }
-  
-  return buildClientSchema(result.data);
-}
-
 export async function POST(request: Request, { params }: { params: Promise<{ transport: string }> }) {
   // Track if any CRUD operations occurred during this request
   let dataHasChanged = false;
@@ -84,8 +57,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
     // Extract cookie from request
     const cookie = request.headers.get('cookie') || ''
   
-    // Get the GraphQL schema
-    const schema = await getGraphQLSchema(graphqlEndpoint, cookie);
+    // The served schema, read in-process. An HTTP introspection query is deeper than the
+    // /api/graphql query-shape guard allows, so fetching it returned 400 and every call failed (500).
+    const schema = keystoneContext.graphql.schema;
     
     // Parse the JSON-RPC request
     const body = await request.json();
