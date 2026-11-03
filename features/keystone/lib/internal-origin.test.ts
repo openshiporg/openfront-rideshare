@@ -160,3 +160,32 @@ test('browser never signs: the dashboard target falls back to the public endpoin
     delete (globalThis as any).window
   }
 })
+
+test('two visitors get two different signed identities through the server target (no frozen client)', async () => {
+  const { getServerGraphQLTarget } = await import('../../dashboard/lib/getBaseUrl')
+  const h = (o: Record<string, string>) => ({ get: (n: string) => o[n] ?? null })
+  const prev = { port: process.env.PORT, secret: process.env.SESSION_SECRET, fetch: globalThis.fetch }
+  const seen: Array<Record<string, string>> = []
+  process.env.PORT = '4555'
+  process.env.SESSION_SECRET = SECRET
+  globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
+    seen.push(Object.fromEntries(new Headers(init?.headers).entries()))
+    return new Response('{}')
+  }) as typeof fetch
+  try {
+    const a = await getServerGraphQLTarget(h({ 'x-real-ip': '203.0.113.7' }))
+    const b = await getServerGraphQLTarget(h({ 'x-real-ip': '203.0.113.8' }))
+    assert.equal(a.endpoint, 'http://127.0.0.1:4555/api/graphql')
+    await a.fetch!(a.endpoint)
+    await b.fetch!(b.endpoint)
+    await a.fetch!(a.endpoint)
+    assert.equal(seen.length, 3)
+    assert.notEqual(seen[0]['x-openfront-client-identity'], seen[1]['x-openfront-client-identity'])
+    assert.equal(seen[0]['x-openfront-client-identity'], seen[2]['x-openfront-client-identity'])
+    assert.ok(seen[1]['x-openfront-client-signature'])
+  } finally {
+    globalThis.fetch = prev.fetch
+    if (prev.port === undefined) delete process.env.PORT; else process.env.PORT = prev.port
+    if (prev.secret === undefined) delete process.env.SESSION_SECRET; else process.env.SESSION_SECRET = prev.secret
+  }
+})
