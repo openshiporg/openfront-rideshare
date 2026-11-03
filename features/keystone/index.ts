@@ -4,6 +4,7 @@ import { config } from '@keystone-6/core'
 import { statelessSessions } from '@keystone-6/core/session'
 import 'dotenv/config'
 import { models } from './models'
+import { withCreateAwareUi } from './ui-create-access'
 import { extendGraphqlSchema } from './mutations'
 import { sendPasswordResetEmail } from './lib/mail'
 import { permissionNames, permissions } from './access'
@@ -39,7 +40,7 @@ const storage = {
 }
 
 export default withAuth(config({
-  db: { provider: 'postgresql', url: databaseURL }, lists: models, session,
+  db: { provider: 'postgresql', url: databaseURL }, lists: withCreateAwareUi(models), session,
   graphql: { extendGraphqlSchema }, storage,
   ui: { isAccessAllowed: context => permissions.canAccessDashboard({ context, session: context.session }) },
 }))
