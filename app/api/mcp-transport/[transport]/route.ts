@@ -11,6 +11,7 @@ import {
 } from 'graphql';
 import { getBaseUrl, getServerGraphQLTarget } from '@/features/dashboard/lib/getBaseUrl';
 import { keystoneContext } from '@/features/keystone/context';
+import { requireMcpSession } from '@/features/keystone/mcpGate';
 
 // Get simple type name for display
 function getSimpleTypeName(type: any): string {
@@ -62,8 +63,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
     // /api/graphql query-shape guard allows, so fetching it returned 400 and every call failed (500).
     const schema = keystoneContext.graphql.schema;
     
-    // Parse the JSON-RPC request
+    // Parse the JSON-RPC request, then refuse anonymous callers before any handshake, tool list or data.
     const body = await request.json();
+    const refused = await requireMcpSession(request, body);
+    if (refused) return refused;
     
     // Handle the request based on method
     if (body.method === 'initialize') {
