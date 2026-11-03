@@ -11,7 +11,8 @@
     "test": "tsx --test tests/*.test.ts",
     "audit": "tsx scripts/audit.ts",
     "migrate:gen": "keystone build --no-ui && tsx features/keystone/view-order/generate-view-order.ts && keystone prisma migrate dev",
-    "migrate": "prisma migrate deploy"
+    "migrate": "prisma migrate deploy",
+    "test:internal-origin": "node --import tsx --test features/keystone/lib/internal-origin.test.ts"
   },
   "dependencies": {
     "@ai-sdk/mcp": "^1.0.13",
