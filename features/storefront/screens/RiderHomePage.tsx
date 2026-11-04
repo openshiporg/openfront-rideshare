@@ -440,7 +440,8 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
     if (!terminal) return
     try { archiveReceipt(sessionStorage, receipt); sessionStorage.removeItem(receiptStorageKey) }
     catch { setError('This ride could not be archived. Keep this tab open.'); return }
-    setReceipt(null); setRequestView(null); setQuoteBinding(null); setPickupLabel(''); setDropoffLabel(''); setPickupPoint(null); setDropoffPoint(null); setScheduledFor(''); setStatusAsOf(''); setStatusError(''); setError('')
+    // Keep the addresses so the rider can rebook the same trip in one tap; the time and quote start over.
+    setReceipt(null); setRequestView(null); setQuoteBinding(null); setScheduledFor(''); setStatusAsOf(''); setStatusError(''); setError(''); setSnap('half')
     quoteRequestGeneration.current = advanceQuoteRequestGeneration(quoteRequestGeneration.current)
   }
 
@@ -703,7 +704,8 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
 
   function receiptPanel() {
     if (!receipt) return null
-    const title = requestView ? (requestView.trip ? statusLabel(liveState) : terminal ? statusLabel(liveState) : 'Finding your driver') : statusError ? 'Status unavailable' : 'Checking…'
+    const cancelled = requestView?.status === 'cancelled' && !requestView.trip
+    const title = requestView ? (requestView.trip ? statusLabel(liveState) : cancelled ? 'Ride cancelled' : terminal ? statusLabel(liveState) : 'Finding your driver') : statusError ? 'Status unavailable' : 'Checking…'
     return <section aria-live="polite" aria-labelledby="receipt-title" className="space-y-5 pt-2 lg:p-2">
       <div className="space-y-1.5">
         <p className="text-[0.9375rem] text-ink">{requestView?.trip ? 'Your ride is on the way' : 'Your request'}</p>
@@ -718,12 +720,13 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
         </div>
         {requestView.handoffState === 'reassignment_pending' && <p className="text-sm text-amber-700">Driver cancelled. Finding another driver.</p>}
       </div> : requestView && !terminal && <div className="flex items-center gap-3 rounded-xl bg-foam p-4"><span className="relative grid size-10 shrink-0 place-items-center rounded-full bg-white"><Search className="size-4 text-signal" aria-hidden="true" /><span className="absolute inset-0 animate-ping rounded-full bg-tide/20 motion-reduce:animate-none" /></span><p className="text-sm font-medium">Matching you with a driver</p></div>}
+      {cancelled && <p className="text-[0.9375rem] text-ink">No fee charged. No driver had been assigned.</p>}
       {requestView?.handoffState === 'unavailable' && <p className="text-sm text-amber-700">Assignment details unavailable. The operator needs to reconcile this request.</p>}
       {statusError && <p role="status" className="text-sm text-amber-700">{statusError}</p>}
       {error && <p role="alert" className="text-sm text-[#c2412d]">{error}</p>}
-      {requestView && <RequestCancellation requestId={receipt.requestId} requestProof={receipt.requestProof} status={requestView.status} onAcknowledged={() => { setRequestView(null); setStatusAsOf(''); setStatusError('Cancellation received. Updating status…') }} />}
+      {requestView && !cancelled && <RequestCancellation requestId={receipt.requestId} requestProof={receipt.requestProof} status={requestView.status} onAcknowledged={() => { setRequestView(view => view ? { ...view, status: 'cancelled' } : view); setStatusAsOf(new Date().toLocaleTimeString()); setStatusError('') }} />}
       <RiderTrack className="w-full">
-        {terminal && <RiderButton tone="signal" className="min-h-12 flex-1" onClick={beginAnotherRide}>New ride</RiderButton>}
+        {terminal && <RiderButton tone="signal" className="min-h-12 flex-1" onClick={beginAnotherRide}>{cancelled ? 'Book another ride' : 'New ride'}</RiderButton>}
         <RiderButtonLink href="/account/rides" tone={terminal ? 'quiet' : 'raised'} className="min-h-12 flex-1">My rides</RiderButtonLink>
       </RiderTrack>
     </section>

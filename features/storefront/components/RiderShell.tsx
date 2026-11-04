@@ -44,7 +44,7 @@ export function RiderShell({ fleet, children, className, map }: { fleet?: ShellF
   const onRides = pathname === '/account/rides'
   const header = <header className="relative z-40 border-b border-border/80 bg-white/95 backdrop-blur-md max-lg:border-none max-lg:bg-transparent max-lg:backdrop-blur-none">
     <nav aria-label="Rider" className="flex min-h-16 items-center justify-between gap-3 px-4 sm:px-6 lg:h-[4.4rem] lg:px-10">
-      <div className="pointer-events-auto min-w-0 flex-1"><FleetBrand fleet={brand} /></div>
+      <div className="pointer-events-none min-w-0 flex-1"><div className="pointer-events-auto inline-flex max-w-full items-center max-lg:rounded-full max-lg:bg-white/95 max-lg:py-1.5 max-lg:pl-2.5 max-lg:pr-4 max-lg:shadow-[0_6px_20px_-8px_rgba(11,43,46,0.35)] max-lg:ring-1 max-lg:ring-ink/5"><FleetBrand fleet={brand} /></div></div>
       {map && <PhoneMenu ridesCurrent={onRides} />}
       <div className={cn('pointer-events-auto flex shrink-0 items-center gap-2 sm:gap-3', map && 'max-lg:hidden')}>
         {city && <span className="hidden items-center gap-1.5 text-[0.9375rem] font-medium text-ink md:inline-flex"><MapPin className="size-4 text-signal" aria-hidden="true" />{city}</span>}

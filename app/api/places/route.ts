@@ -10,6 +10,10 @@ export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams
   const point = (name: string) => { const raw = params.get(name); return raw ? validPoint(raw.split(',')) : null }
   try {
+    // Warm-up when a place field opens: one cached lookup, so the server and its Photon connection are ready
+    // before the rider's first search (repeat warms in the cache window cost Photon nothing).
+    const warm = point('warm')
+    if (warm) { await reversePlace([Math.round(warm[0] * 100) / 100, Math.round(warm[1] * 100) / 100]).catch(() => null); return new NextResponse(null, { status: 204, headers: { 'Cache-Control': 'no-store' } }) }
     const at = point('at')
     if (at) {
       const place = await reversePlace(at)
