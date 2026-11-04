@@ -16,7 +16,7 @@ const timeLabel = (date: Date) => date.toLocaleTimeString([], { hour: 'numeric',
 /** One row for "when, and for whom": reads "Now · 1 rider" (or the chosen time) and opens a
  * popover with day chips, 15-minute slots, passengers and wheelchair need. Book-ahead
  * services have no "Now"; their first slot already honours the lead time. */
-export function PickupTimePicker({ value, onChange, advanceBookingMinutes, passengers, maxPassengers, onPassengers, wheelchair, onWheelchair, disabled, children }: {
+export function PickupTimePicker({ value, onChange, advanceBookingMinutes, passengers, maxPassengers, onPassengers, wheelchair, onWheelchair, disabled, children, open: openProp, onOpenChange, needed }: {
   value: string
   onChange: (value: string) => void
   advanceBookingMinutes: number
@@ -27,8 +27,14 @@ export function PickupTimePicker({ value, onChange, advanceBookingMinutes, passe
   onWheelchair: (value: boolean) => void
   disabled?: boolean
   children?: React.ReactNode
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  /** The ride can't be requested until a time is chosen: the row asks for it. */
+  needed?: boolean
 }) {
-  const [open, setOpen] = useState(false)
+  const [ownOpen, setOwnOpen] = useState(false)
+  const open = openProp ?? ownOpen
+  const setOpen = (next: boolean) => { setOwnOpen(next); onOpenChange?.(next) }
   const [now, setNow] = useState<Date | null>(null)
   useEffect(() => { setNow(new Date()) }, [open])
   const bookAhead = advanceBookingMinutes > 0
@@ -49,9 +55,9 @@ export function PickupTimePicker({ value, onChange, advanceBookingMinutes, passe
 
   return <Popover open={open} onOpenChange={setOpen}>
     <PopoverTrigger asChild disabled={disabled}>
-      <button type="button" className="mt-3 flex min-h-12 w-full items-center gap-3 rounded-xl bg-[#f2f5f5] px-4 text-left text-sm text-ink outline-none transition-colors hover:bg-foam focus-visible:ring-2 focus-visible:ring-tide disabled:opacity-60">
+      <button type="button" className={`mt-3 flex min-h-12 w-full items-center gap-3 rounded-xl px-4 text-left text-sm text-ink outline-none transition-colors focus-visible:ring-2 focus-visible:ring-tide disabled:opacity-60 ${needed ? 'bg-foam ring-2 ring-tide' : 'bg-[#f2f5f5] hover:bg-foam'}`}>
         <CalendarClock className="size-4 shrink-0 text-tide" aria-hidden="true" />
-        <span className="min-w-0 flex-1"><span className="font-medium">Pickup time</span> <span className={bookAhead && !selected ? 'text-[#b4541f]' : 'text-ink'}>· {when}</span><span className="text-muted-foreground"> · {who}</span></span>
+        <span className="min-w-0 flex-1"><span className="font-medium">{needed ? 'Pick a pickup time' : 'Pickup time'}</span> {!needed && <span className="text-ink">· {when}</span>}<span className="text-muted-foreground"> · {who}</span>{needed && <span className="block text-xs text-muted-foreground">Book {advanceBookingMinutes % 60 ? `${advanceBookingMinutes} min` : `${advanceBookingMinutes / 60} hr`} ahead for this ride</span>}</span>
         <ChevronDown className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
       </button>
     </PopoverTrigger>

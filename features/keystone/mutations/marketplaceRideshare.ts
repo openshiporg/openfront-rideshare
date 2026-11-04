@@ -85,6 +85,29 @@ export async function marketplaceRideshareServices(_root: unknown, args: { query
   })
 }
 
+/**
+ * What each active ride would cost for the rider's route, before they pick one: the same route and the
+ * same active fare rule a quote uses (so the list price is the quoted price), but nothing is stored and
+ * nothing is held. Read-only; the quote remains the binding price.
+ */
+export async function marketplaceRideshareEstimates(_root: unknown, args: { pickupPoint: unknown; dropoffPoint: unknown }, context: any) {
+  const from = validPoint(args.pickupPoint)
+  const to = validPoint(args.dropoffPoint)
+  if (!from || !to) throw new Error('Pickup or destination location is invalid.')
+  const route = await quoteRoute('Pickup', 'Destination', from, to)
+  const services = await context.sudo().query.RideService.findMany({
+    where: { status: { equals: 'active' }, fleet: { status: { equals: 'active' } }, serviceAreas: { some: { status: { equals: 'active' } } } },
+    take: 24, orderBy: [{ name: 'asc' }, { id: 'asc' }],
+    query: 'id fareRules(where: { status: { equals: "active" } }, take: 1, orderBy: { version: desc }) { currencyCode baseFareMinor perDistanceUnitMinor distanceUnit perMinuteMinor bookingFeeMinor minimumFareMinor maximumMultiplierBasisPoints cancellationFeeMinor noShowFeeMinor }',
+  })
+  const options = services.flatMap((service: any) => {
+    const rule = service.fareRules?.[0]
+    if (!rule) return []
+    try { const fare = calculateFare(rule, route.distanceMeters, route.durationSeconds); return [{ serviceId: service.id, totalMinor: fare.totalMinor, currencyCode: fare.currencyCode, cancellationFeeMinor: rule.cancellationFeeMinor ?? 0, noShowFeeMinor: rule.noShowFeeMinor ?? 0 }] } catch { return [] }
+  })
+  return { distanceMeters: route.distanceMeters, durationSeconds: route.durationSeconds, provider: route.evidence.provider, options }
+}
+
 /** Distance and time from the rider's chosen map points when both are given (the driving route), else the label estimate. */
 async function quoteRoute(pickupLabel: string, dropoffLabel: string, pickupPoint: unknown, dropoffPoint: unknown) {
   const from = pickupPoint == null ? null : validPoint(pickupPoint)

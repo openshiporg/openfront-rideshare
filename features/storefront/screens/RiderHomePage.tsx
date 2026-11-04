@@ -2,15 +2,15 @@
 
 import { RequestCancellation } from '../components/RequestCancellation'
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { ArrowRight, ArrowUpRight, ChevronRight, MapPin, Search, Users, X } from 'lucide-react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { ArrowDownUp, ArrowRight, ArrowUpRight, ChevronRight, Clock3, Crosshair, History, LoaderCircle, MapPin, Navigation, Search, Users, X } from 'lucide-react'
 import { VehicleArt } from '../components/VehicleArt'
 import { PickupTimePicker } from '../components/PickupTimePicker'
 import { StatusDot, StatusTitle } from '@/features/platform/components/StatusTitle'
 import { TRIP_STAGES, statusLabel, statusTone, tripStageIndex } from '@/features/platform/lib/statusTone'
 import { RiderShell } from '../components/RiderShell'
 import { fetchRoute, placePoint, type LngLat, type RoutePath } from '../components/RideMap'
-import { PlaceField, PlaceKindIcon, type PlaceSuggestion } from '../components/PlaceField'
+import { PlaceField, PlaceKindIcon, type PlaceSuggestion, type QuickRow } from '../components/PlaceField'
 import type { SheetSnap } from '../components/MapSheet'
 import { RiderButton, RiderButtonLink, RiderTrack } from '../components/RiderPills'
 import { formatMoney } from '@/features/lib/currency'
@@ -61,6 +61,8 @@ type Quote = {
 import { parsePendingRequest, parseRiderReceipt, receiptFromFragment, pendingRequestStorageKey, persistPendingRequest, receiptStorageKey, riderStatusHref, archiveReceipt } from '../domain/riderReceiptStorage'
 
 type BoundQuote = QuoteBinding<Quote>
+type Estimate = { serviceId: string; totalMinor: number; currencyCode: string; cancellationFeeMinor: number; noShowFeeMinor: number }
+type Estimates = { key: string; distanceMeters: number; durationSeconds: number; options: Map<string, Estimate> }
 type Receipt = { requestId: string; requestNumber: string; requestProof: string; status: string }
 type RequestView = { requestNumber: string; status: string; handoffState: string; trip: null | { confirmationCode: string; status: string; scheduledFor: string | null } }
 
@@ -86,6 +88,7 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
   const requestInFlightRef = useRef(false)
   const uncertainRequestRef = useRef<BoundQuote | null>(null)
   const [quoteBinding, setQuoteBinding] = useState<BoundQuote | null>(null)
+  useLayoutEffect(() => { quoteBindingRef.current = quoteBinding }, [quoteBinding])
   const [uncertainRequest, setUncertainRequest] = useState<BoundQuote | null>(null)
   const [quoteExpired, setQuoteExpired] = useState(false)
   const [quoteLoading, setQuoteLoading] = useState(false)
@@ -109,6 +112,15 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
   const [pickupPoint, setPickupPoint] = useState<LngLat | null>(null)
   const [dropoffPoint, setDropoffPoint] = useState<LngLat | null>(null)
   const [routePath, setRoutePath] = useState<RoutePath | null>(null)
+  // What each ride costs for this route (the same fare rules a quote uses), shown in the list.
+  const [estimates, setEstimates] = useState<Estimates | null>(null)
+  // Move-the-map mode: which place the centre pin sets, and what's under it now.
+  const [pinMode, setPinMode] = useState<null | 'pickup' | 'dropoff'>(null)
+  const [pinSpot, setPinSpot] = useState<{ point: LngLat; label: string; loading: boolean } | null>(null)
+  const [timeOpen, setTimeOpen] = useState(false)
+  const [emailOpen, setEmailOpen] = useState(false)
+  const [locatingPickup, setLocatingPickup] = useState(false)
+  const quoteBindingRef = useRef<BoundQuote | null>(null)
   const labelsRef = useRef({ pickup: '', dropoff: '' })
   useEffect(() => { labelsRef.current = { pickup: pickupLabel, dropoff: dropoffLabel } }, [pickupLabel, dropoffLabel])
   // A signed-in rider's own recent drop-offs and pickups are the most useful suggestions.
@@ -150,6 +162,20 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
     void fetchRoute(mapPickupPoint, dropoffPoint, controller.signal).then(path => { if (!controller.signal.aborted) setRoutePath(path) })
     return () => controller.abort()
   }, [mapPickupPoint?.[0], mapPickupPoint?.[1], dropoffPoint?.[0], dropoffPoint?.[1]]) // eslint-disable-line react-hooks/exhaustive-deps
+  const estimateKey = mapPickupPoint && dropoffPoint ? `${mapPickupPoint.join(',')};${dropoffPoint.join(',')}` : ''
+  useEffect(() => {
+    if (!estimateKey || !mapPickupPoint || !dropoffPoint) { setEstimates(null); return }
+    const controller = new AbortController()
+    graphql<{ marketplaceRideshareEstimates: { distanceMeters: number; durationSeconds: number; options: Estimate[] } }>(`query Estimates($from: JSON!, $to: JSON!) { marketplaceRideshareEstimates(pickupPoint: $from, dropoffPoint: $to) { distanceMeters durationSeconds options { serviceId totalMinor currencyCode cancellationFeeMinor noShowFeeMinor } } }`, { from: mapPickupPoint, to: dropoffPoint }, controller.signal)
+      .then(data => {
+        const result = data.marketplaceRideshareEstimates
+        if (controller.signal.aborted || !result || !Array.isArray(result.options)) return
+        setEstimates({ key: estimateKey, distanceMeters: result.distanceMeters, durationSeconds: result.durationSeconds, options: new Map(result.options.map(option => [option.serviceId, option])) })
+      })
+      .catch(() => { if (!controller.signal.aborted) setEstimates(null) })
+    return () => controller.abort()
+  }, [estimateKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  const liveEstimates = estimates?.key === estimateKey ? estimates : null
   const receiptRequestId = receipt?.requestId
   const receiptRequestProof = receipt?.requestProof
 
@@ -161,8 +187,8 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
         const found = data.marketplaceRideshareServices || []
         setServices(found)
         setNextServiceCursor(found.at(-1)?.nextCursor || null)
-        // Default to an everyday ride: bookable now, not an accessible-only or book-ahead service.
-        const everyday = found.find(service => service.readiness?.bookingEnabled && !service.wheelchairAccessible && !service.advanceBookingMinutes) || found.find(service => service.readiness?.bookingEnabled) || found[0]
+        // Default to an everyday ride: bookable, soonest to book, not accessible-only, then the lowest fare.
+        const everyday = [...found].filter(service => service.readiness?.bookingEnabled).sort((a, b) => Number(a.wheelchairAccessible) - Number(b.wheelchairAccessible) || a.advanceBookingMinutes - b.advanceBookingMinutes || (a.startingFareMinor ?? Infinity) - (b.startingFareMinor ?? Infinity))[0] || found[0]
         setServiceId(current => current || everyday?.id || '')
       })
       .catch(reason => { if (active) setError(reason instanceof Error ? reason.message : 'Rides are unavailable right now.') })
@@ -260,11 +286,11 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
     setError('')
   }
 
-  async function getQuote() {
-    if (requestLoading || requestInFlightRef.current || uncertainRequestRef.current || receipt) return
-    if (!selectedService?.readiness?.bookingEnabled) { setError(selectedService?.readiness?.reason || 'Booking is unavailable.'); return }
-    if ((pickupLabel.trim() || defaultPickup).length < 2 || dropoffLabel.trim().length < 2) { setError('Enter a pickup and a destination.'); return }
-    if (selectedService.advanceBookingMinutes && !scheduledFor) { setError('Choose a pickup time.'); return }
+  async function getQuote(): Promise<BoundQuote | null> {
+    if (requestLoading || requestInFlightRef.current || uncertainRequestRef.current || receipt) return null
+    if (!selectedService?.readiness?.bookingEnabled) { setError(selectedService?.readiness?.reason || 'Booking is unavailable.'); return null }
+    if ((pickupLabel.trim() || defaultPickup).length < 2 || dropoffLabel.trim().length < 2) { setError('Enter a pickup and a destination.'); return null }
+    if (selectedService.advanceBookingMinutes && !scheduledFor) { setTimeOpen(true); return null }
     const inputs = currentQuoteInputs()
     quoteRequestGeneration.current = advanceQuoteRequestGeneration(quoteRequestGeneration.current)
     const generation = quoteRequestGeneration.current
@@ -279,7 +305,7 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
         pickupPoint ?? (pickupLabel.trim() ? placePoint(pickupLabel.trim(), cityPoint).catch(() => null) : cityPoint),
         dropoffPoint ?? placePoint(inputs.dropoffLabel.trim(), cityPoint).catch(() => null),
       ])
-      if (!isCurrentQuoteRequest(generation, quoteRequestGeneration.current)) return
+      if (!isCurrentQuoteRequest(generation, quoteRequestGeneration.current)) return null
       if (from && pickupLabel.trim() && !pickupPoint) setPickupPoint(from)
       if (to && !dropoffPoint) setDropoffPoint(to)
       const data = await graphql<{ marketplaceRideshareQuote: Quote }>(`mutation Quote($serviceId: ID!, $pickup: String!, $dropoff: String!, $pickupPoint: JSON, $dropoffPoint: JSON, $scheduled: DateTime, $passengers: Int, $wheelchair: Boolean) { marketplaceRideshareQuote(serviceId: $serviceId, pickupLabel: $pickup, dropoffLabel: $dropoff, pickupPoint: $pickupPoint, dropoffPoint: $dropoffPoint, scheduledFor: $scheduled, passengerCount: $passengers, wheelchairAccessible: $wheelchair) { quoteId quoteProof expiresAt pickupLabel dropoffLabel scheduledFor estimatedDistanceMeters estimatedDurationSeconds cancellationFeeMinor noShowFeeMinor estimateDisclosure fare { currencyCode totalMinor } } }`, {
@@ -287,18 +313,21 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
         pickupPoint: from && to ? from : null, dropoffPoint: from && to ? to : null,
         scheduled, passengers: Number(inputs.passengerCount), wheelchair: inputs.wheelchairAccessible,
       })
-      if (!isCurrentQuoteRequest(generation, quoteRequestGeneration.current)) return
+      if (!isCurrentQuoteRequest(generation, quoteRequestGeneration.current)) return null
       const acceptedQuote = data.marketplaceRideshareQuote
       if (!isQuoteResponse(acceptedQuote) || !isQuoteUnexpired(acceptedQuote.expiresAt)) {
         setQuoteExpired(true)
         setError('Price unavailable. Try again.')
-        return
+        return null
       }
-      setQuoteBinding({ quote: acceptedQuote, inputs, generation })
-      setSnap('half')
+      const binding = { quote: acceptedQuote, inputs, generation }
+      quoteBindingRef.current = binding
+      setQuoteBinding(binding)
+      return binding
     } catch (reason) {
-      if (!isCurrentQuoteRequest(generation, quoteRequestGeneration.current)) return
+      if (!isCurrentQuoteRequest(generation, quoteRequestGeneration.current)) return null
       setError(reason instanceof Error ? reason.message : 'Price unavailable.')
+      return null
     } finally {
       if (isCurrentQuoteRequest(generation, quoteRequestGeneration.current)) setQuoteLoading(false)
     }
@@ -308,10 +337,10 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
     if (requestLoading || requestInFlightRef.current || receipt || (uncertainRequestRef.current && uncertainRequestRef.current !== binding)) return
     const currentInputs = currentQuoteInputs()
     const retryingUncertainRequest = uncertainRequestRef.current === binding
-      && binding === quoteBinding
+      && binding === quoteBindingRef.current
       && isCurrentQuoteRequest(binding.generation, quoteRequestGeneration.current)
       && quoteInputsMatch(binding.inputs, currentInputs)
-    if (binding !== quoteBinding || (!retryingUncertainRequest && getUsableQuoteBinding(binding, currentInputs, quoteRequestGeneration.current) !== binding)) {
+    if (binding !== quoteBindingRef.current || (!retryingUncertainRequest && getUsableQuoteBinding(binding, currentInputs, quoteRequestGeneration.current) !== binding)) {
       invalidateQuote()
       setQuoteExpired(true)
       setError('Your trip changed or the price expired. Get a new price.')
@@ -428,18 +457,72 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
   const pickPickup = (place: PlaceSuggestion) => { if (locked()) return; update(setPickupLabel, place.label); setPickupPoint(place.point); setSnap('half') }
   const pickDropoff = (place: PlaceSuggestion) => { if (locked()) return; update(setDropoffLabel, place.label); setDropoffPoint(place.point); setSnap('half') }
   /** A saved or popular place, by name: pinned once its point is found near the fleet's city. */
-  const chooseDropoff = (label: string) => {
+  const choosePlace = (field: 'pickup' | 'dropoff', label: string) => {
     if (locked()) return
-    update(setDropoffLabel, label); setDropoffPoint(null); setSnap('half')
-    void placePoint(label, cityPoint).then(point => { if (point && labelsRef.current.dropoff === label) setDropoffPoint(point) }).catch(() => {})
+    if (field === 'pickup') { update(setPickupLabel, label); setPickupPoint(null) } else { update(setDropoffLabel, label); setDropoffPoint(null) }
+    setSnap('half')
+    void placePoint(label, cityPoint).then(point => { if (point && labelsRef.current[field] === label) (field === 'pickup' ? setPickupPoint : setDropoffPoint)(point) }).catch(() => {})
+  }
+  const chooseDropoff = (label: string) => choosePlace('dropoff', label)
+  /** The named place at a point (or a plain "Pinned location" when nothing is named there). */
+  const placeAt = async (point: LngLat) => {
+    const response = await fetch(`/api/places?at=${point.join(',')}`).catch(() => null)
+    const place = response?.ok ? (await response.json().catch(() => null))?.places?.[0] as PlaceSuggestion | undefined : undefined
+    return place?.label || 'Pinned location'
+  }
+  /** A pin dragged on the map, or set with the centre pin: that spot, named. */
+  const movePlace = async (field: 'pickup' | 'dropoff', point: LngLat, known?: string) => {
+    if (locked() || receipt) return
+    // The pin and route move at once; the street name follows when the lookup answers.
+    const placeholder = known || 'Pinned location'
+    if (field === 'pickup') { update(setPickupLabel, placeholder); setPickupPoint(point) } else { update(setDropoffLabel, placeholder); setDropoffPoint(point) }
+    if (known) return
+    const label = await placeAt(point)
+    if (locked() || labelsRef.current[field] !== placeholder) return
+    if (field === 'pickup') update(setPickupLabel, label); else update(setDropoffLabel, label)
   }
   /** Use my location: the pickup becomes the nearest named place at the rider's position. */
   const locatePickup = async (point: LngLat) => {
     if (locked() || receipt) return
-    const response = await fetch(`/api/places?at=${point.join(',')}`).catch(() => null)
-    const place = response?.ok ? (await response.json())?.places?.[0] as PlaceSuggestion | undefined : undefined
+    const label = await placeAt(point)
     if (locked()) return
-    update(setPickupLabel, place?.label || 'Current location'); setPickupPoint(point)
+    update(setPickupLabel, label === 'Pinned location' ? 'Current location' : label); setPickupPoint(point)
+  }
+  const useCurrentLocation = () => {
+    if (!('geolocation' in navigator)) { setError('Location unavailable on this device.'); return }
+    setLocatingPickup(true)
+    navigator.geolocation.getCurrentPosition(position => {
+      setLocatingPickup(false); setSnap('half')
+      void locatePickup([Math.round(position.coords.longitude * 1e5) / 1e5, Math.round(position.coords.latitude * 1e5) / 1e5])
+    }, failure => {
+      setLocatingPickup(false)
+      setError(failure.code === failure.PERMISSION_DENIED ? 'Location blocked. Allow it in your browser settings, or set the pickup on the map.' : 'Location unavailable. Set the pickup on the map.')
+    }, { enableHighAccuracy: true, timeout: 10_000, maximumAge: 60_000 })
+  }
+  // Centre-pin mode: the spot under the pin, named once the map stops.
+  const pinLookup = useRef(0)
+  const startPin = (field: 'pickup' | 'dropoff') => {
+    if (locked() || receipt) return
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+    setPinSpot(null); setPinMode(field); setSnap('peek')
+  }
+  const pinCentre = (point: LngLat) => {
+    const lookup = ++pinLookup.current
+    setPinSpot({ point, label: '', loading: true })
+    void placeAt(point).then(label => { if (pinLookup.current === lookup) setPinSpot({ point, label, loading: false }) })
+  }
+  const confirmPin = () => {
+    if (!pinMode || !pinSpot) return
+    void movePlace(pinMode, pinSpot.point, pinSpot.loading ? undefined : pinSpot.label)
+    setPinMode(null); setPinSpot(null); setSnap('half')
+  }
+  const swapPlaces = () => {
+    if (locked() || receipt) return
+    const nextPickup = dropoffLabel; const nextPickupPoint = dropoffPoint
+    const nextDropoff = pickupLabel.trim() || defaultPickup; const nextDropoffPoint = pickupPoint ?? (pickupLabel.trim() ? null : cityPoint)
+    invalidateQuote()
+    setPickupLabel(nextPickup); setPickupPoint(nextPickupPoint); setDropoffLabel(nextDropoff); setDropoffPoint(nextDropoffPoint)
+    if (!nextDropoffPoint && nextDropoff) void placePoint(nextDropoff, cityPoint).then(point => { if (point && labelsRef.current.dropoff === nextDropoff) setDropoffPoint(point) }).catch(() => {})
   }
   const maxPassengers = selectedService?.passengerCapacity || 50
   const passengers = Number(passengerCount) || 1
@@ -449,137 +532,174 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
   const quoteFare = quote ? formatMoney(quote.fare.totalMinor, quote.fare.currencyCode) : ''
   const ctaDisabled = quoteLoading || requestLoading || (!uncertainRequest && (servicesLoading || services.length === 0 || !serviceId || !selectedService?.readiness?.bookingEnabled)) || Boolean(receipt) || requestInFlightRef.current || (Boolean(uncertainRequest) && !visibleQuoteBinding)
   const liveState = requestView?.trip?.status || requestView?.status
+  const estimate = selectedService ? liveEstimates?.options.get(selectedService.id) : undefined
+  const estimateFare = estimate ? formatMoney(estimate.totalMinor, estimate.currencyCode) : ''
+  const needsTime = Boolean(selectedService?.advanceBookingMinutes) && !scheduledFor
+  const routeKnown = Boolean(dropoffPoint && mapPickupPoint)
+  const tripMinutes = liveEstimates ? formatDuration(liveEstimates.durationSeconds) : routePath ? formatDuration(routePath.durationSeconds) : ''
+  const pickupWhen = scheduledFor ? whenLabel(new Date(scheduledFor)) : ''
 
-  // Destinations, not the pickup again: recent places first, then the fleet's other service areas.
+  // Places to offer: recent first, then the fleet's popular places, then its other service areas.
   const effectivePickup = (pickupLabel.trim() || defaultPickup).toLowerCase()
   const areaLabels = new Set(services.flatMap(service => service.publicRegionLabels))
-  const suggestions: { label: string; recent: boolean; popular?: boolean }[] = []
-  const seen = new Set([effectivePickup, dropoffLabel.trim().toLowerCase()])
-  for (const [label, recent, popular] of [...recentPlaces.map(label => [label.trim(), true, false] as const), ...popularPlaces.map(label => [label, false, true] as const), ...[...areaLabels].map(label => [label, false, false] as const)]) {
-    if (suggestions.length >= 3 || seen.has(label.toLowerCase())) continue
-    seen.add(label.toLowerCase()); suggestions.push({ label, recent, popular })
+  const known: { label: string; kind: 'recent' | 'popular' | 'area' }[] = []
+  for (const [label, kind] of [...recentPlaces.map(label => [label.trim(), 'recent'] as const), ...popularPlaces.map(label => [label, 'popular'] as const), ...[...areaLabels].map(label => [label, 'area'] as const)]) {
+    if (!label || known.some(item => item.label.toLowerCase() === label.toLowerCase())) continue
+    known.push({ label, kind })
   }
+  const knownDetail = (kind: 'recent' | 'popular' | 'area') => kind === 'recent' ? 'Recent' : kind === 'popular' ? `Popular${selectedService?.fleet.publicCity ? ` in ${selectedService.fleet.publicCity}` : ''}` : selectedService?.fleet.publicCity || 'Service area'
+  const suggestions = known.filter(item => ![effectivePickup, dropoffLabel.trim().toLowerCase()].includes(item.label.toLowerCase())).slice(0, 3)
+  const placeRows = (field: 'pickup' | 'dropoff'): QuickRow[] => known.slice(0, 8).map(item => ({ key: `${field}:${item.label}`, title: item.label.split(',')[0], detail: knownDetail(item.kind), match: item.label, icon: item.kind === 'recent' ? <History className="size-4" /> : <PlaceKindIcon label={item.label} className="size-4" />, onSelect: () => choosePlace(field, item.label) }))
+  const pickupQuick: QuickRow[] = [
+    { key: 'here', title: locatingPickup ? 'Finding you…' : 'Current location', detail: 'Use where you are now', icon: locatingPickup ? <LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" /> : <Navigation className="size-4 fill-current text-signal" />, onSelect: useCurrentLocation },
+    { key: 'pin', title: 'Set pickup on map', detail: 'Move the map under the pin', icon: <Crosshair className="size-4 text-signal" />, onSelect: () => startPin('pickup') },
+    ...placeRows('pickup'),
+  ]
+  const dropoffQuick: QuickRow[] = [...placeRows('dropoff'), { key: 'pin', title: 'Set destination on map', detail: 'Move the map under the pin', icon: <Crosshair className="size-4 text-signal" />, onSelect: () => startPin('dropoff') }]
   // Pickup hint: the fleet's own first service area, so the empty field names a real place.
   const pickupHint = defaultPickup || 'Pickup area'
-  const requestLabel = quoteLoading || requestLoading ? 'Working…' : uncertainRequest ? 'Recover request' : visibleQuoteBinding && quoteFare ? `Confirm ${selectedService?.title || 'ride'} · ${quoteFare}` : selectedService && selectedService.startingFareMinor !== null ? `Request ${selectedService.title}` : 'See price'
+  const busyLabel = requestLoading ? 'Requesting…' : quoteLoading ? 'Getting your price…' : ''
+  const requestLabel = busyLabel || (uncertainRequest ? 'Recover request'
+    : visibleQuoteBinding && quoteFare ? `Confirm ${selectedService?.title || 'ride'} · ${quoteFare}`
+    : !dropoffLabel.trim() ? 'Choose a destination'
+    : needsTime ? 'Choose pickup time'
+    : `Request ${selectedService?.title || 'ride'}${estimateFare ? ` · ${estimateFare}` : ''}`)
+
+  /** The one button: finds the destination, asks for a time, prices and requests in one tap. */
+  async function primaryAction() {
+    if (uncertainRequest) { if (visibleQuoteBinding) void requestRide(visibleQuoteBinding); return }
+    if (!dropoffLabel.trim()) { document.getElementById('dropoff')?.focus(); return }
+    if (!dropoffPoint) { chooseDropoff(dropoffLabel.trim()); return }
+    if (visibleQuoteBinding) { void requestRide(visibleQuoteBinding); return }
+    if (needsTime) { setTimeOpen(true); return }
+    const shown = estimate?.totalMinor
+    const binding = await getQuote()
+    // The price on the button is the price requested; if the fleet's quote differs, the rider confirms it.
+    if (binding && shown !== undefined && binding.quote.fare.totalMinor === shown) await requestRide(binding)
+    else if (binding) setError('')
+  }
 
   const fieldFocus = () => { if (window.innerWidth < 1024) setSnap('full') }
+  const movable = !formLocked && !pinMode
   return <RiderShell fleet={selectedService?.fleet} map={{
-    pickup: { label: pickupLabel || defaultPickup, point: mapPickupPoint },
-    dropoff: { label: dropoffLabel, point: dropoffPoint },
+    pickup: { label: pickupLabel || defaultPickup, point: mapPickupPoint, approximate: !pickupPoint, note: dropoffPoint ? (pickupWhen || (selectedService && !selectedService.advanceBookingMinutes ? 'Now' : null)) : null, onMove: movable ? point => void movePlace('pickup', point) : undefined },
+    dropoff: { label: dropoffLabel, point: dropoffPoint, note: tripMinutes ? [tripMinutes, quoteFare || estimateFare].filter(Boolean).join(' · ') : null, onMove: movable ? point => void movePlace('dropoff', point) : undefined },
     route: routePath?.coordinates || null,
     snap, onSnap: setSnap, onLocate: point => void locatePickup(point), onCityCentre: setCityPoint,
-    sheetLabel: receipt ? 'Your ride' : 'Plan a ride',
+    sheetLabel: receipt ? 'Your ride' : pinMode ? (pinMode === 'pickup' ? 'Set pickup' : 'Set destination') : 'Plan a ride',
+    pinMode: pinMode ? { kind: pinMode, onCentre: pinCentre } : null,
+    searching: Boolean(receipt && requestView && !requestView.trip && !terminal),
+    halfRatio: routeKnown && !receipt ? 0.64 : 0.56,
   }}>
     <div style={{ '--fleet-hue': normalizeStoreLogoColor(selectedService?.fleet.logoColor) } as CSSProperties} className="w-full">
       <h1 className="sr-only">{receipt ? 'Your ride' : 'Where to?'}</h1>
-      {receipt ? receiptPanel() : <form className="relative" onSubmit={event => {
-        event.preventDefault()
-        if (uncertainRequest) {
-          if (visibleQuoteBinding) void requestRide(visibleQuoteBinding)
-          return
-        }
-        if (visibleQuoteBinding) void requestRide(visibleQuoteBinding)
-        else void getQuote()
-      }}>
+      {receipt ? receiptPanel() : pinMode ? pinPanel() : <form className="relative" onSubmit={event => { event.preventDefault(); void primaryAction() }}>
         <fieldset disabled={formLocked} className="min-w-0 disabled:opacity-70">
           <legend className="sr-only">Plan a ride</legend>
           <div className="flex items-center gap-3 rounded-xl bg-[#f2f5f5] px-4 py-2 max-lg:hidden">
-            <MapPin className="size-5 shrink-0 text-ink" aria-hidden="true" />
+            <span aria-hidden="true" className="grid size-5 shrink-0 place-items-center"><span className="size-3 rounded-full bg-ink ring-[3px] ring-white" /></span>
             <div className="min-w-0 flex-1">
               <span aria-hidden="true" className="block text-xs text-muted-foreground">Pickup</span>
-              {isDesktop && <PlaceField id="pickup" label="Pickup" placeholder={pickupHint} value={pickupLabel} onChange={typePickup} onPick={pickPickup} near={cityPoint} disabled={formLocked}
-                inputClassName="block w-full min-w-0 bg-transparent text-[0.9375rem] font-medium text-ink outline-none placeholder:text-muted-foreground/80">
+              {isDesktop && <PlaceField id="pickup" label="Pickup" placeholder={pickupHint} value={pickupLabel} onChange={typePickup} onPick={pickPickup} near={cityPoint} disabled={formLocked} quick={pickupQuick}
+                inputClassName="block w-full min-w-0 bg-transparent text-[0.9375rem] font-medium text-ink outline-none placeholder:text-ink">
                 {pickupLabel && <button type="button" aria-label="Clear pickup" onClick={() => typePickup('')} className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-white hover:text-ink"><X className="size-4" aria-hidden="true" /></button>}
               </PlaceField>}
             </div>
+            {dropoffLabel.trim() && <button type="button" aria-label="Swap pickup and destination" onClick={swapPlaces} className="grid size-9 shrink-0 place-items-center rounded-full bg-white text-ink ring-1 ring-ink/10 hover:bg-foam"><ArrowDownUp className="size-4" aria-hidden="true" /></button>}
           </div>
 
           <div className="relative mt-0 rounded-full bg-[#eef3f3] py-1.5 pl-4 pr-1.5 ring-1 ring-transparent focus-within:ring-2 focus-within:ring-tide lg:mt-3 lg:rounded-xl lg:bg-foam lg:py-1.5 lg:pl-4 lg:ring-tide/60">
-            <PlaceField id="dropoff" label="Where to?" placeholder="Where to?" value={dropoffLabel} onChange={typeDropoff} onPick={pickDropoff} near={pickupPoint || cityPoint} onFocus={fieldFocus} required disabled={formLocked}
+            <PlaceField id="dropoff" label="Where to?" placeholder="Where to?" value={dropoffLabel} onChange={typeDropoff} onPick={pickDropoff} near={pickupPoint || cityPoint} onFocus={fieldFocus} required disabled={formLocked} quick={dropoffQuick}
               leading={<MapPin className="size-5 shrink-0 fill-signal text-signal lg:size-6 [&>circle]:fill-white [&>circle]:stroke-white" aria-hidden="true" />}
               inputClassName={`h-10 min-w-0 flex-1 bg-transparent font-semibold tracking-[-0.02em] text-ink outline-none placeholder:text-ink lg:h-11 ${dropoffLabel ? "text-lg lg:text-xl" : "text-[1.4375rem] lg:text-[2.125rem]"}`}>
-              <button type="button" aria-label="See price" disabled={ctaDisabled || Boolean(visibleQuoteBinding)} onClick={() => void getQuote()} className="grid size-10 shrink-0 place-items-center rounded-full bg-signal text-white lg:size-11 transition-colors hover:bg-signal-deep disabled:opacity-60"><ArrowRight className="size-5 lg:size-6" aria-hidden="true" /></button>
+              {dropoffLabel && <button type="button" aria-label="Clear destination" onClick={() => typeDropoff('')} className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-white hover:text-ink"><X className="size-4" aria-hidden="true" /></button>}
+              {!dropoffPoint && <button type="button" aria-label="Find destination" disabled={!dropoffLabel.trim() || formLocked} onClick={() => chooseDropoff(dropoffLabel.trim())} className="grid size-10 shrink-0 place-items-center rounded-full bg-signal text-white lg:size-11 transition-colors hover:bg-signal-deep disabled:opacity-60"><ArrowRight className="size-5 lg:size-6" aria-hidden="true" /></button>}
             </PlaceField>
           </div>
 
-          {!isDesktop && <div className="mt-1.5 flex items-center gap-3 border-b border-border px-2 py-2.5 lg:hidden">
+          {!isDesktop && <div className="mt-1.5 flex items-center gap-3 border-b border-border px-2 py-2 lg:hidden">
             <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-[#eef3f3]"><span className="size-3 rounded-full bg-ink" /></span>
             <div className="min-w-0 flex-1">
-              <PlaceField id="pickup-phone" label="Pickup" placeholder={pickupHint} value={pickupLabel} onChange={typePickup} onPick={pickPickup} near={cityPoint} onFocus={fieldFocus} disabled={formLocked}
+              <PlaceField id="pickup-phone" label="Pickup" placeholder={pickupHint} value={pickupLabel} onChange={typePickup} onPick={pickPickup} near={cityPoint} onFocus={fieldFocus} disabled={formLocked} quick={pickupQuick}
                 inputClassName="block w-full min-w-0 bg-transparent text-base font-medium text-ink outline-none placeholder:text-ink">
                 {pickupLabel && <button type="button" aria-label="Clear pickup" onClick={() => typePickup('')} className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-foam hover:text-ink"><X className="size-4" aria-hidden="true" /></button>}
               </PlaceField>
-              <span className="block text-[0.8125rem] text-muted-foreground">Pickup{selectedService?.fleet.publicCity ? ` · ${selectedService.fleet.publicCity}` : ''}</span>
+              <span className="block text-[0.8125rem] text-muted-foreground">Pickup{pickupPoint ? ' · drag the pin to adjust' : selectedService?.fleet.publicCity ? ` · ${selectedService.fleet.publicCity}` : ''}</span>
             </div>
+            {dropoffLabel.trim() && <button type="button" aria-label="Swap pickup and destination" onClick={swapPlaces} className="grid size-10 shrink-0 place-items-center rounded-full bg-[#eef3f3] text-ink hover:bg-foam"><ArrowDownUp className="size-4" aria-hidden="true" /></button>}
           </div>}
 
-          {suggestions.length > 0 && <div className="mt-1 lg:mt-1 lg:rounded-xl lg:bg-white lg:shadow-[0_6px_20px_-12px_rgba(11,43,46,0.35)] lg:ring-1 lg:ring-ink/5">
+          {!routeKnown && <div className="mt-1 lg:mt-1 lg:rounded-xl lg:bg-white lg:shadow-[0_6px_20px_-12px_rgba(11,43,46,0.35)] lg:ring-1 lg:ring-ink/5">
             <p className="px-1 pb-0.5 pt-3 text-xs font-medium text-muted-foreground lg:sr-only">Suggestions</p>
             <ul aria-label="Suggestions" className="divide-y divide-border">
-              {suggestions.map(({ label, recent, popular }) => <li key={label}><button type="button" onClick={() => chooseDropoff(label)} className="flex w-full items-center gap-3 px-1.5 py-2.5 text-left transition-colors hover:bg-foam lg:rounded-xl lg:px-4">
-                <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-[#eef3f3] text-ink lg:size-7 lg:bg-transparent"><PlaceKindIcon label={label} className="size-4 lg:size-5" /></span>
-                <span className="min-w-0 flex-1"><span className="block text-base font-medium leading-snug text-ink lg:text-[0.9375rem] lg:font-semibold">{label}</span><span className="block text-[0.8125rem] text-muted-foreground">{recent ? 'Recent' : popular ? `Popular${selectedService?.fleet.publicCity ? ` in ${selectedService.fleet.publicCity}` : ''}` : selectedService?.fleet.publicCity || 'Service area'}</span></span>
+              {suggestions.map(({ label, kind }) => <li key={label}><button type="button" onClick={() => chooseDropoff(label)} className="flex w-full items-center gap-3 px-1.5 py-2.5 text-left transition-colors hover:bg-foam lg:rounded-xl lg:px-4">
+                <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-[#eef3f3] text-ink lg:size-7 lg:bg-transparent">{kind === 'recent' ? <History className="size-4 lg:size-5" /> : <PlaceKindIcon label={label} className="size-4 lg:size-5" />}</span>
+                <span className="min-w-0 flex-1"><span className="block truncate text-base font-medium leading-snug text-ink lg:text-[0.9375rem] lg:font-semibold">{label}</span><span className="block text-[0.8125rem] text-muted-foreground">{knownDetail(kind)}</span></span>
                 <ChevronRight className="size-5 shrink-0 text-muted-foreground lg:hidden" aria-hidden="true" />
               </button></li>)}
+              <li><button type="button" onClick={() => startPin('dropoff')} className="flex w-full items-center gap-3 px-1.5 py-2.5 text-left transition-colors hover:bg-foam lg:rounded-xl lg:px-4">
+                <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-[#eef3f3] text-signal lg:size-7 lg:bg-transparent"><Crosshair className="size-4 lg:size-5" /></span>
+                <span className="min-w-0 flex-1"><span className="block text-base font-medium leading-snug text-ink lg:text-[0.9375rem] lg:font-semibold">Set destination on map</span><span className="block text-[0.8125rem] text-muted-foreground">Move the map under the pin</span></span>
+              </button></li>
             </ul>
           </div>}
 
           <section aria-labelledby="services-title" className="mt-3 lg:mt-5">
             <div className="flex items-center justify-between gap-3 px-1">
-              <h2 id="services-title" className="text-xs font-medium text-muted-foreground lg:text-lg lg:font-semibold lg:text-ink">Ride options</h2>
+              <h2 id="services-title" className="text-xs font-medium text-muted-foreground lg:text-lg lg:font-semibold lg:text-ink">{routeKnown ? `Choose a ride${tripMinutes ? ` · ${tripMinutes} trip` : ''}${liveEstimates ? ` · ${formatDistance(liveEstimates.distanceMeters)}` : ''}` : 'Ride options'}</h2>
               {nextServiceCursor && <button type="button" disabled={servicesLoading} onClick={() => void moreServices()} className="text-sm font-medium text-ink underline underline-offset-4 hover:text-signal">View all</button>}
             </div>
-            <ServiceList services={services} serviceId={serviceId} disabled={formLocked} onChange={change(setServiceId)} loading={servicesLoading} name="service" />
+            <ServiceList services={services} serviceId={serviceId} disabled={formLocked} onChange={event => { change(setServiceId)(event); if (routeKnown && snap === 'peek') setSnap('half') }} loading={servicesLoading} name="service" estimates={liveEstimates?.options || null} pricing={routeKnown && !liveEstimates} scheduledFor={scheduledFor} durationSeconds={liveEstimates?.durationSeconds ?? null} />
           </section>
 
-          <PickupTimePicker value={scheduledFor} onChange={value => { if (locked()) return; update(setScheduledFor, value) }}
-            advanceBookingMinutes={selectedService?.advanceBookingMinutes || 0} disabled={formLocked}
-            passengers={passengers} maxPassengers={maxPassengers} onPassengers={value => update(setPassengerCount, String(value))}
-            wheelchair={wheelchairAccessible} onWheelchair={value => { if (locked()) return; invalidateQuote(); setWheelchairAccessible(value) }}>
-            {selectedService && <ServiceDetail service={selectedService} />}
-          </PickupTimePicker>
-          <label className="mt-3 block px-1">
-            <span className="block text-sm font-medium text-ink">Email for receipt</span>
-            <input name="receiptEmail" type="email" autoComplete="email" maxLength={254} value={receiptEmail} onChange={event => setReceiptEmail(event.target.value)} className="mt-1 block h-11 w-full min-w-0 rounded-xl bg-[#f2f5f5] px-4 text-base text-ink outline-none focus:ring-2 focus:ring-tide" />
-          </label>
+          <div className="mt-3 px-1">
+            {emailOpen || receiptEmail ? <label className="block">
+              <span className="block text-sm font-medium text-ink">Email for receipt</span>
+              <input name="receiptEmail" type="email" autoComplete="email" maxLength={254} value={receiptEmail} onChange={event => setReceiptEmail(event.target.value)} className="mt-1 block h-11 w-full min-w-0 rounded-xl bg-[#f2f5f5] px-4 text-base text-ink outline-none focus:ring-2 focus:ring-tide" />
+            </label> : <button type="button" onClick={() => setEmailOpen(true)} className="text-sm font-medium text-ink underline underline-offset-4 hover:text-signal">Email me a receipt</button>}
+          </div>
         </fieldset>
 
-        {quote && visibleQuoteBinding && <section aria-live="polite" aria-label="Price" className="relative mt-3 overflow-hidden rounded-xl bg-foam p-4 text-ink ring-1 ring-tide/40">
-          <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-muted-foreground">{selectedService?.title || 'Ride'}</p>
-              <p className="mt-0.5 text-[2rem] font-semibold leading-tight tracking-tight tabular-nums text-signal">{formatMoney(quote.fare.totalMinor, quote.fare.currencyCode)}</p>
-            </div>
-            <p className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-semibold tabular-nums text-signal ring-1 ring-tide/30"><QuoteCountdown expiresAt={quote.expiresAt} /></p>
-          </div>
-          <dl className="mt-3 grid grid-cols-3 gap-2 border-t border-tide/20 pt-3 text-xs">
-            <div><dt className="text-muted-foreground">Time</dt><dd className="font-semibold tabular-nums">{formatDuration(quote.estimatedDurationSeconds)}</dd></div>
-            <div><dt className="text-muted-foreground">Distance</dt><dd className="font-semibold tabular-nums">{formatDistance(quote.estimatedDistanceMeters)}</dd></div>
-            <div><dt className="text-muted-foreground">Riders</dt><dd className="font-semibold tabular-nums">{visibleQuoteBinding.inputs.passengerCount}{visibleQuoteBinding.inputs.wheelchairAccessible ? ' · ♿' : ''}</dd></div>
-          </dl>
-          {quote.scheduledFor && <p className="mt-2 text-xs font-medium">Pickup {new Date(quote.scheduledFor).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</p>}
-          <p className="mt-2 text-xs text-muted-foreground">Cancellation {formatMoney(quote.cancellationFeeMinor, quote.fare.currencyCode)} · No-show {formatMoney(quote.noShowFeeMinor, quote.fare.currencyCode)}</p>
-          <p className="mt-1 text-xs leading-4 text-muted-foreground">{quote.estimateDisclosure}</p>
-        </section>}
-
         <div className="mt-3 space-y-2 empty:hidden" aria-live="polite">
-          {quoteExpired && !uncertainRequest && <p role="status" className="text-sm text-amber-700">Price expired. Get a new price.</p>}
+          {quoteExpired && !uncertainRequest && <p role="status" className="text-sm text-amber-700">Price expired. Request again for a new price.</p>}
           {uncertainRequest && <p role="status" className="flex items-start gap-2 text-sm text-amber-700"><StatusDot tone="amber" pulse className="mt-1.5" />Request unconfirmed. Recover it before booking again.</p>}
           {servicesLoading && <p className="text-sm text-muted-foreground" role="status">Loading rides…</p>}
           {!servicesLoading && !services.length && <p className="text-sm text-amber-700" role="status">No rides available right now</p>}
           {selectedService?.readiness && !selectedService.readiness.bookingEnabled && <p role="status" className="text-sm text-amber-700">{selectedService.readiness.reason}</p>}
           {statusError && <p role="status" className="text-sm text-amber-700">{statusError}</p>}
-          {error && <p role="alert" className="text-sm text-[#c2412d]">{error}</p>}
         </div>
 
-        <div className="sticky bottom-0 z-10 -mx-1 mt-4 space-y-2 rounded-t-2xl bg-white px-1 pb-3 pt-2 shadow-[0_-10px_16px_-12px_rgba(11,43,46,0.25)] max-lg:group-data-[snap=peek]/sheet:hidden">
-          <RiderButton type="submit" tone="signal" size="lg" disabled={ctaDisabled} className="min-h-12 w-full rounded-full text-base lg:min-h-[3.3rem]">{requestLabel}</RiderButton>
+        <div className="sticky bottom-0 z-10 -mx-1 mt-3 space-y-2 rounded-t-2xl bg-white px-1 pb-3 pt-2 shadow-[0_-10px_16px_-12px_rgba(11,43,46,0.25)] max-lg:group-data-[snap=peek]/sheet:hidden">
+          <PickupTimePicker value={scheduledFor} onChange={value => { if (locked()) return; update(setScheduledFor, value) }} open={timeOpen} onOpenChange={setTimeOpen} needed={needsTime && Boolean(dropoffLabel.trim())}
+            advanceBookingMinutes={selectedService?.advanceBookingMinutes || 0} disabled={formLocked}
+            passengers={passengers} maxPassengers={maxPassengers} onPassengers={value => update(setPassengerCount, String(value))}
+            wheelchair={wheelchairAccessible} onWheelchair={value => { if (locked()) return; invalidateQuote(); setWheelchairAccessible(value) }}>
+            {selectedService && <ServiceDetail service={selectedService} />}
+          </PickupTimePicker>
+          {quote && visibleQuoteBinding && <p aria-live="polite" aria-label="Price" className="flex flex-wrap items-center gap-x-2 px-1 text-[0.8125rem] text-ink"><span className="font-semibold">{estimate && estimate.totalMinor !== quote.fare.totalMinor ? `Price updated to ${quoteFare}` : `Price ${quoteFare}`}</span><span className="text-muted-foreground">·</span><span className="tabular-nums text-muted-foreground"><QuoteCountdown expiresAt={quote.expiresAt} /></span>{quote.scheduledFor && <><span className="text-muted-foreground">·</span><span className="text-muted-foreground">Pickup {whenLabel(new Date(quote.scheduledFor))}</span></>}</p>}
+          {error && <p role="alert" className="px-1 text-sm text-[#c2412d]">{error}</p>}
+          <RiderButton type="submit" tone="signal" size="lg" disabled={ctaDisabled} className="min-h-12 w-full rounded-full text-base lg:min-h-[3.3rem]">{busyLabel && <LoaderCircle className="size-5 animate-spin motion-reduce:animate-none" aria-hidden="true" />}{requestLabel}</RiderButton>
+          {(quote || estimate) && <p title={quote ? quote.estimateDisclosure : 'Estimated from the driving route. The fleet confirms the final fare.'} className="truncate px-1 text-center text-xs text-muted-foreground">Estimated fare · Cancellation {formatMoney((quote || estimate)!.cancellationFeeMinor, quote?.fare.currencyCode || estimate!.currencyCode)} · No-show {formatMoney((quote || estimate)!.noShowFeeMinor, quote?.fare.currencyCode || estimate!.currencyCode)}</p>}
           {uncertainRequest && <RiderButton tone="raised" className="w-full" disabled={requestLoading} onClick={() => void resolveOriginalIntent()}>Check request outcome</RiderButton>}
         </div>
       </form>}
     </div>
   </RiderShell>
+
+  function pinPanel() {
+    const field = pinMode === 'pickup' ? 'pickup' : 'destination'
+    return <section aria-live="polite" aria-labelledby="pin-title" className="space-y-3 pt-1 lg:p-2">
+      <div className="flex items-start gap-3">
+        <span aria-hidden="true" className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-full bg-foam text-signal"><Crosshair className="size-4" /></span>
+        <div className="min-w-0 flex-1">
+          <h2 id="pin-title" className="text-xs font-medium text-muted-foreground">Move the map to set your {field}</h2>
+          <p className="truncate text-base font-semibold text-ink">{!pinSpot || pinSpot.loading ? 'Finding the address…' : pinSpot.label}</p>
+        </div>
+        <button type="button" aria-label="Cancel" onClick={() => { setPinMode(null); setPinSpot(null); setSnap('half') }} className="grid size-9 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-foam hover:text-ink"><X className="size-5" aria-hidden="true" /></button>
+      </div>
+      <RiderButton tone="signal" size="lg" disabled={!pinSpot} onClick={confirmPin} className="min-h-12 w-full rounded-full text-base">Confirm {field}</RiderButton>
+    </section>
+  }
 
   function receiptPanel() {
     if (!receipt) return null
@@ -623,6 +743,15 @@ function formatDuration(seconds: number) {
   return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} h ${minutes % 60} min`
 }
 
+/** "Today, 10:45", "Tomorrow, 9:00", "Fri 7, 18:30". */
+function whenLabel(date: Date) {
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const day = new Date(date); day.setHours(0, 0, 0, 0)
+  const diff = Math.round((day.getTime() - today.getTime()) / 86_400_000)
+  const time = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  return `${diff === 0 ? 'Today' : diff === 1 ? 'Tomorrow' : date.toLocaleDateString([], { weekday: 'short', day: 'numeric' })}, ${time}`
+}
+
 function formatLeadTime(minutes: number) {
   if (minutes < 60 || minutes % 60) return `${minutes} minutes`
   const hours = minutes / 60
@@ -643,7 +772,7 @@ function vehicleFor(service: Service, index: number): { kind: 'sedan' | 'suv' | 
   return { kind: 'sedan', tone: index % 2 ? 'dark' : 'light' }
 }
 
-function ServiceList({ services, serviceId, disabled, onChange, loading, name }: { services: Service[]; serviceId: string; disabled: boolean; onChange: (event: React.ChangeEvent<HTMLInputElement>) => void; loading: boolean; name: string }) {
+function ServiceList({ services, serviceId, disabled, onChange, loading, name, estimates, pricing, scheduledFor, durationSeconds }: { services: Service[]; serviceId: string; disabled: boolean; onChange: (event: React.ChangeEvent<HTMLInputElement>) => void; loading: boolean; name: string; estimates: Map<string, Estimate> | null; pricing: boolean; scheduledFor: string; durationSeconds: number | null }) {
   if (loading && !services.length) return <div className="mt-3 space-y-2" aria-hidden="true">{[0, 1].map(index => <div key={index} className="h-[5.5rem] animate-pulse rounded-xl bg-lane motion-reduce:animate-none" />)}</div>
   // One fleet runs every ride here, and its name already sits in the header.
   const multiFleet = new Set(services.map(service => service.fleet.name)).size > 1
@@ -651,7 +780,7 @@ function ServiceList({ services, serviceId, disabled, onChange, loading, name }:
     {services.map((service, index) => {
       const ready = service.readiness?.bookingEnabled === true
       const vehicle = vehicleFor(service, index)
-      return <label key={service.id} className="group flex min-h-[4.25rem] cursor-pointer items-center gap-3 rounded-2xl px-2 py-2.5 transition-[box-shadow,background-color] has-[:checked]:bg-foam has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-tide has-[:disabled]:cursor-default sm:gap-4 lg:min-h-[5.6rem] lg:rounded-xl lg:bg-white lg:px-3 lg:shadow-[0_4px_16px_-12px_rgba(11,43,46,0.4)] lg:ring-1 lg:ring-ink/5 lg:has-[:checked]:ring-2 lg:has-[:checked]:ring-tide">
+      return <label key={service.id} className="group flex min-h-[3.75rem] cursor-pointer items-center gap-3 rounded-2xl px-2 py-2 transition-[box-shadow,background-color] has-[:checked]:bg-foam has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-tide has-[:disabled]:cursor-default sm:gap-4 lg:min-h-[5.6rem] lg:rounded-xl lg:bg-white lg:px-3 lg:shadow-[0_4px_16px_-12px_rgba(11,43,46,0.4)] lg:ring-1 lg:ring-ink/5 lg:has-[:checked]:ring-2 lg:has-[:checked]:ring-tide">
         <input type="radio" name={name} value={service.id} checked={serviceId === service.id} disabled={disabled} onChange={onChange} className="sr-only" />
         {service.photoUrl
           ? <img src={service.photoUrl} alt="" loading="lazy" className="h-10 w-[4.75rem] shrink-0 object-contain mix-blend-multiply sm:h-12 sm:w-[6.5rem] lg:h-14 lg:w-[7rem]" />
@@ -660,7 +789,16 @@ function ServiceList({ services, serviceId, disabled, onChange, loading, name }:
           <span className="flex items-center gap-2"><span className="line-clamp-2 text-base font-semibold leading-tight text-ink [overflow-wrap:anywhere]">{service.title}</span>{!ready && <StatusDot tone="amber" />}</span>
           <span className="mt-1 flex flex-wrap items-center gap-x-1.5 text-[0.8125rem] text-muted-foreground"><span className="inline-flex items-center gap-1"><Users className="size-3.5 fill-current" aria-hidden="true" />{service.passengerCapacity}<span className="max-sm:hidden"> seats</span></span>{service.category && <><span aria-hidden="true" className="max-sm:hidden">·</span><span className="capitalize max-sm:hidden">{service.category.replaceAll('_', ' ')}</span></>}{multiFleet && <span className="truncate">· {service.fleet.name}</span>}</span>
         </span>
-        {service.startingFareMinor !== null && <span className="shrink-0 text-right"><span className="block whitespace-nowrap text-xs text-muted-foreground lg:text-[0.8125rem] lg:text-ink">{service.advanceBookingMinutes ? `Book ${shortLead(service.advanceBookingMinutes)} ahead` : 'from'}</span><span className="mt-0.5 block text-[1.0625rem] font-semibold tabular-nums text-ink lg:mt-1">{formatMoney(service.startingFareMinor, service.currencyCode)}</span></span>}
+        {(() => {
+          const price = estimates?.get(service.id)
+          // The trip's own price once the route is known; the minimum fare before.
+          if (price) {
+            const arrive = durationSeconds !== null && (!service.advanceBookingMinutes || scheduledFor) ? new Date((scheduledFor ? new Date(scheduledFor).getTime() : Date.now()) + durationSeconds * 1000) : null
+            return <span className="shrink-0 text-right"><span className="block text-[1.0625rem] font-semibold tabular-nums text-ink">{formatMoney(price.totalMinor, price.currencyCode)}</span><span className="mt-0.5 block whitespace-nowrap text-xs text-muted-foreground lg:text-[0.8125rem]">{arrive ? `Drop-off ${arrive.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : service.advanceBookingMinutes ? `Book ${shortLead(service.advanceBookingMinutes)} ahead` : 'Now'}</span></span>
+          }
+          if (pricing) return <span aria-label="Pricing" className="h-5 w-14 shrink-0 animate-pulse rounded-md bg-lane motion-reduce:animate-none" />
+          return service.startingFareMinor !== null && <span className="shrink-0 text-right"><span className="block whitespace-nowrap text-xs text-muted-foreground lg:text-[0.8125rem] lg:text-ink">{service.advanceBookingMinutes ? `Book ${shortLead(service.advanceBookingMinutes)} ahead` : 'from'}</span><span className="mt-0.5 block text-[1.0625rem] font-semibold tabular-nums text-ink lg:mt-1">{formatMoney(service.startingFareMinor, service.currencyCode)}</span></span>
+        })()}
       </label>
     })}
   </div>

@@ -5,7 +5,7 @@ import { hasAnyFleetScope } from '../access'
 import redirectToInit from './redirectToInit'
 import { dateTimeFieldResolvers } from '../domain/dateTimeFields'
 import { riderSignupsOpen } from '../domain/riderAccounts'
-import { marketplaceRideshareQuote, marketplaceRideshareServices, publicRideshareRequest, requestRide, resolveRideRequestIntent, marketplaceRideshareService, marketplaceRideshareServiceAreas, marketplaceRidesharePopularPlaces } from './marketplaceRideshare'
+import { marketplaceRideshareQuote, marketplaceRideshareServices, publicRideshareRequest, requestRide, resolveRideRequestIntent, marketplaceRideshareService, marketplaceRideshareServiceAreas, marketplaceRidesharePopularPlaces, marketplaceRideshareEstimates } from './marketplaceRideshare'
 import { offerRideToDriver, publicRideshareTrip, respondToRideOffer, transitionTrip } from './rideLifecycle'
 import { cancelRide, cancelRideRequest, openSupportCase, recordTripLocation, reportSafetyIncident, sendTripMessage, submitTripReview, tripCancellationPreview, riderRequestCancellationPreview } from './tripOperations'
 import { initiateTripPayment, requestTripRefund } from './finance'
@@ -32,6 +32,8 @@ export const typeDefs = graphql`
     type MarketplaceRideshareService { nextCursor: String, areasTruncated: Boolean!, id: ID!, title: String!, description: String, photoUrl: String, category: String!, passengerCapacity: Int!, wheelchairAccessible: Boolean!, advanceBookingMinutes: Int!, publicRegionLabels: [String!]!, fleet: MarketplaceFleet!, startingFareMinor: Int, currencyCode: String!, extension: RideshareExtension!, readiness: RideReadiness! }
     type FareBreakdown { currencyCode: String!, baseFareMinor: Int!, distanceMinor: Int!, durationMinor: Int!, bookingFeeMinor: Int!, multiplierBasisPoints: Int!, subtotalMinor: Int!, totalMinor: Int! }
     type MarketplaceRideQuote { quoteId: ID!, quoteProof: String!, expiresAt: DateTime!, pickupLabel: String!, dropoffLabel: String!, scheduledFor: DateTime, estimatedDistanceMeters: Int!, estimatedDurationSeconds: Int!, cancellationFeeMinor: Int!, noShowFeeMinor: Int!, fare: FareBreakdown!, estimateDisclosure: String!, sourceCheckoutPath: String! }
+    type RideEstimateOption { serviceId: ID!, totalMinor: Int!, currencyCode: String!, cancellationFeeMinor: Int!, noShowFeeMinor: Int! }
+    type RideEstimates { distanceMeters: Int!, durationSeconds: Int!, provider: String!, options: [RideEstimateOption!]! }
     type RideRequestReceipt { requestId: ID!, requestNumber: String!, status: String!, requestProof: String!, replayed: Boolean! }
     type RideIntentResolution { kind: String!, quoteId: ID!, receipt: RideRequestReceipt }
     type RideRequestCancellation { requestId: ID!, status: String!, replayed: Boolean!, alreadyCancelled: Boolean! }
@@ -59,6 +61,7 @@ export const typeDefs = graphql`
       redirectToInit: Boolean
       marketplaceRideshareServices(query: String, location: String, limit: Int, after: String): [MarketplaceRideshareService!]!
       marketplaceRidesharePopularPlaces(serviceId: ID!): [String!]!
+      marketplaceRideshareEstimates(pickupPoint: JSON!, dropoffPoint: JSON!): RideEstimates!
       marketplaceRideshareService(id: ID!): MarketplaceRideshareService
       marketplaceRideshareServiceAreas(serviceId: ID!, after: ID): PublicServiceAreaPage!
       publicRideshareTrip(confirmationCode: String!, tripToken: String, requestId: ID, requestProof: String): PublicRideshareTrip
@@ -132,7 +135,7 @@ export function extendGraphqlSchema(baseSchema: GraphQLSchema) {
   return mergeSchemas({ schemas: [baseSchema], typeDefs, resolvers: {
     ...dateTimeFieldResolvers(typeDefs),
     Query: {
-      redirectToInit, marketplaceRideshareServices, marketplaceRideshareService, marketplaceRideshareServiceAreas, marketplaceRidesharePopularPlaces, publicRideshareTrip, publicRideshareRequest, myDriverWorkspace, myRideshareTrips, riderRequestStatus, myRideshareRequests, operatorTripHandoff,
+      redirectToInit, marketplaceRideshareServices, marketplaceRideshareService, marketplaceRideshareServiceAreas, marketplaceRidesharePopularPlaces, marketplaceRideshareEstimates, publicRideshareTrip, publicRideshareRequest, myDriverWorkspace, myRideshareTrips, riderRequestStatus, myRideshareRequests, operatorTripHandoff,
       safetyQueueScope: (_root, _args, context) => hasAnyFleetScope(context, context.session, 'safety'),
       financeQueueScope: (_root, _args, context) => hasAnyFleetScope(context, context.session, 'finance'),
       rideshareCapabilities: async (_root, _args, context) => Object.fromEntries(await Promise.all((['operations', 'drivers', 'finance', 'safety', 'fleetAdmin'] as const).map(async capability => [capability, await hasAnyFleetScope(context, context.session, capability)]))),

@@ -183,9 +183,32 @@
   color: #3d5256;
 }
 .ride-map .maplibregl-ctrl-attrib a { color: #3d5256; }
+.ride-map .maplibregl-ctrl-top-right { top: calc(var(--map-inset-top, 0px) + 0.5rem); right: 0.75rem; }
+@media (max-width: 1023px) { .ride-map .maplibregl-ctrl-top-right { display: none; } }
+.ride-map .maplibregl-ctrl-group { border-radius: 0.875rem; box-shadow: 0 6px 20px -8px rgba(11, 43, 46, 0.45); overflow: hidden; }
+.ride-map .maplibregl-ctrl-group button { width: 40px; height: 40px; }
+/* Until the tiles arrive: the map's own land tint with a soft street grid, never a white page. */
+.ride-map-loading { background-color: #e9eeeb; background-image: linear-gradient(rgba(255,255,255,0.75) 2px, transparent 2px), linear-gradient(90deg, rgba(255,255,255,0.75) 2px, transparent 2px); background-size: 72px 72px; }
 .ride-map-user { width: 44px; height: 44px; border-radius: 9999px; background: radial-gradient(circle, rgba(47, 111, 224, 0.22), rgba(47, 111, 224, 0) 70%); display: grid; place-items: center; }
 .ride-map-user > span { width: 16px; height: 16px; border-radius: 9999px; background: #2f6fe0; box-shadow: 0 0 0 3px #fff, 0 2px 6px rgba(11, 43, 46, 0.35); }
-.ride-map-pickup { width: 26px; height: 26px; border-radius: 9999px; background: #fff; display: grid; place-items: center; box-shadow: 0 2px 8px rgba(11, 43, 46, 0.35); }
-.ride-map-pickup > span { width: 12px; height: 12px; border-radius: 9999px; background: #0b4a4a; }
-.ride-map-dropoff { display: flex; flex-direction: column; align-items: center; gap: 4px; filter: drop-shadow(0 3px 5px rgba(11, 43, 46, 0.3)); }
-.ride-map-dropoff > b { max-width: 12rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-radius: 9999px; background: #0d3b3e; padding: 4px 12px; font: 700 12px/1.3 var(--font-sans, system-ui); letter-spacing: 0.04em; text-transform: uppercase; color: #fff; }
+.ride-map-dot { position: relative; width: 26px; height: 26px; border-radius: 9999px; background: #fff; display: grid; place-items: center; box-shadow: 0 2px 8px rgba(11, 43, 46, 0.35); }
+.ride-map-dot > span { width: 12px; height: 12px; border-radius: 9999px; background: #0b4a4a; }
+.ride-map-pickup { position: relative; width: 26px; height: 26px; }
+.ride-map-pickup.is-movable, .ride-map-dropoff.is-movable { cursor: grab; }
+.ride-map-pickup.is-pulsing .ride-map-dot::before { content: ''; position: absolute; inset: -18px; border-radius: 9999px; background: rgba(47, 127, 120, 0.28); animation: ride-map-ping 1.6s cubic-bezier(0, 0, 0.2, 1) infinite; }
+@keyframes ride-map-ping { 0% { transform: scale(0.4); opacity: 1; } 100% { transform: scale(1.6); opacity: 0; } }
+.ride-map-dropoff { position: relative; display: block; width: 30px; height: 39px; filter: drop-shadow(0 3px 5px rgba(11, 43, 46, 0.3)); }
+.ride-map-dropoff > svg { display: block; }
+/* Bubbles sit above their pin and never change its anchor. */
+.ride-map-pickup > b, .ride-map-dropoff > b { position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; max-width: 13rem; border-radius: 0.75rem; padding: 5px 11px; white-space: nowrap; font: 600 12px/1.3 var(--font-sans, system-ui); box-shadow: 0 6px 16px -6px rgba(11, 43, 46, 0.45); pointer-events: none; }
+.ride-map-pickup > b { background: #fff; color: #0d2e31; }
+.ride-map-dropoff > b { background: #0d3b3e; color: #fff; }
+.ride-map-pickup > b > span, .ride-map-dropoff > b > span { max-width: 12rem; overflow: hidden; text-overflow: ellipsis; }
+.ride-map-pickup > b > i, .ride-map-dropoff > b > i { font-style: normal; font-weight: 500; font-size: 12px; opacity: 0.85; font-variant-numeric: tabular-nums; }
+/* Centre-pin mode: the pin's tip stands on the map's open middle; it lifts while the map moves. */
+.ride-map-centre-pin { width: 0; height: 0; }
+.ride-map-centre-pin > .ride-map-dot { position: absolute; left: -13px; top: -13px; transition: transform 160ms ease-out; }
+.ride-map-centre-pin > .ride-map-drop { position: absolute; left: -15px; top: -39px; transition: transform 160ms ease-out; filter: drop-shadow(0 3px 5px rgba(11, 43, 46, 0.3)); }
+.ride-map-centre-pin.is-lifted > .ride-map-dot, .ride-map-centre-pin.is-lifted > .ride-map-drop { transform: translateY(-12px); }
+.ride-map-centre-shadow { position: absolute; left: -5px; top: -2px; width: 10px; height: 4px; border-radius: 9999px; background: rgba(11, 43, 46, 0.35); }
+@media (prefers-reduced-motion: reduce) { .ride-map-pickup.is-pulsing .ride-map-dot::before { animation: none; opacity: 0.5; } .ride-map-centre-pin > * { transition: none; } }

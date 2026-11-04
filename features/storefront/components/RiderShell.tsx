@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation'
 import { History, LoaderCircle, MapPin, Menu, Navigation, UserRound, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { FleetBrand, type PublicFleetBrand } from './FleetBrand'
-import { RideMap, type LngLat, type MapPlace } from './RideMap'
+import { RideMap, type LngLat, type MapPinMode, type MapPlace } from './RideMap'
 import { MapSheet, type SheetSnap } from './MapSheet'
 
 type ShellFleet = PublicFleetBrand & { publicCity?: string | null }
@@ -22,9 +22,16 @@ export type ShellMap = {
   onLocate?: (point: LngLat) => void
   onCityCentre?: (point: LngLat | null) => void
   sheetLabel?: string
+  /** Move-the-map-to-set-a-place mode. */
+  pinMode?: MapPinMode | null
+  /** A request is out and the fleet is finding a driver. */
+  searching?: boolean
+  halfRatio?: number
 }
 
 const DESKTOP = '(min-width: 1024px)'
+/** A phone on its side: too short for a bottom sheet, so the panel sits beside the map. */
+const SIDEWAYS = '(max-width: 1023px) and (orientation: landscape) and (max-height: 540px)'
 
 /** Storefront frame: brand, the rider's city, ride history and account, and the staff entrance.
  * With `map`, the page is a live city map with the rider's panel over it (a draggable sheet on
@@ -38,6 +45,7 @@ export function RiderShell({ fleet, children, className, map }: { fleet?: ShellF
   const header = <header className="relative z-40 border-b border-border/80 bg-white/95 backdrop-blur-md max-lg:border-none max-lg:bg-transparent max-lg:backdrop-blur-none">
     <nav aria-label="Rider" className="flex min-h-16 items-center justify-between gap-3 px-4 sm:px-6 lg:h-[4.4rem] lg:px-10">
       <div className="pointer-events-auto min-w-0 flex-1"><FleetBrand fleet={brand} /></div>
+      {map && <PhoneMenu ridesCurrent={onRides} />}
       <div className={cn('pointer-events-auto flex shrink-0 items-center gap-2 sm:gap-3', map && 'max-lg:hidden')}>
         {city && <span className="hidden items-center gap-1.5 text-[0.9375rem] font-medium text-ink md:inline-flex"><MapPin className="size-4 text-signal" aria-hidden="true" />{city}</span>}
         {city && <span aria-hidden="true" className="hidden h-6 w-px bg-border md:block" />}
@@ -58,6 +66,7 @@ export function RiderShell({ fleet, children, className, map }: { fleet?: ShellF
 
 function MapFrame({ map, city, header, brand, ridesCurrent, className, children }: { map: ShellMap; city: string | null; header: React.ReactNode; brand: ShellFleet | null; ridesCurrent: boolean; className?: string; children: React.ReactNode }) {
   const [desktop, setDesktop] = useState(false)
+  const [sideways, setSideways] = useState(false)
   const [sheetHeight, setSheetHeight] = useState(0)
   const [panelWidth, setPanelWidth] = useState(460)
   const [user, setUser] = useState<LngLat | null>(null)
@@ -65,10 +74,11 @@ function MapFrame({ map, city, header, brand, ridesCurrent, className, children 
   const [locateError, setLocateError] = useState('')
   useEffect(() => {
     const query = window.matchMedia(DESKTOP)
-    const update = () => { setDesktop(query.matches); setPanelWidth(Math.min(460, window.innerWidth - 80)) }
+    const side = window.matchMedia(SIDEWAYS)
+    const update = () => { setDesktop(query.matches); setSideways(side.matches); setPanelWidth(side.matches ? Math.min(384, Math.round(window.innerWidth * 0.5)) : Math.min(460, window.innerWidth - 80)) }
     update()
-    query.addEventListener('change', update); window.addEventListener('resize', update)
-    return () => { query.removeEventListener('change', update); window.removeEventListener('resize', update) }
+    query.addEventListener('change', update); side.addEventListener('change', update); window.addEventListener('resize', update)
+    return () => { query.removeEventListener('change', update); side.removeEventListener('change', update); window.removeEventListener('resize', update) }
   }, [])
   useEffect(() => { if (!locateError) return; const timer = window.setTimeout(() => setLocateError(''), 4000); return () => window.clearTimeout(timer) }, [locateError])
 
@@ -84,20 +94,20 @@ function MapFrame({ map, city, header, brand, ridesCurrent, className, children 
     }, { enableHighAccuracy: true, timeout: 10_000, maximumAge: 60_000 })
   }
 
-  const insets = desktop ? { top: 70, right: 24, bottom: 24, left: panelWidth + 40 } : { top: 72, right: 16, bottom: sheetHeight, left: 16 }
+  const insets = desktop ? { top: 70, right: 24, bottom: 24, left: panelWidth + 40 } : sideways ? { top: 64, right: 16, bottom: 16, left: panelWidth + 16 } : { top: 72, right: 16, bottom: sheetHeight, left: 16 }
+  const floating = desktop || sideways
   return <div className="rs relative h-dvh overflow-hidden bg-[#dceef5] font-sans text-foreground [&_p]:break-words">
-    <RideMap city={city} pickup={map.pickup} dropoff={map.dropoff} route={map.route} user={user} insets={insets} follow={desktop || map.snap !== 'full'} onCentre={map.onCityCentre} className="absolute inset-0 lg:top-[4.4rem]" />
+    <RideMap city={city} pickup={map.pickup} dropoff={map.dropoff} route={map.route} user={user} insets={insets} follow={floating || map.snap !== 'full'} onCentre={map.onCityCentre} pinMode={map.pinMode} searching={map.searching} className="absolute inset-0 lg:top-[4.4rem]" />
     <div className="pointer-events-none absolute inset-x-0 top-0 z-40 max-lg:bg-[linear-gradient(to_bottom,rgba(255,255,255,0.9),rgba(255,255,255,0))] lg:pointer-events-auto">{header}</div>
-    <PhoneMenu ridesCurrent={ridesCurrent} />
     <button type="button" onClick={locate} aria-label="Use my location" aria-busy={locating}
-      style={desktop ? undefined : { bottom: `calc(${sheetHeight}px + 2rem)` }}
-      className={cn('absolute right-4 z-30 grid size-12 place-items-center rounded-full bg-white text-signal shadow-[0_6px_20px_-8px_rgba(11,43,46,0.45)] transition-[bottom] duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none lg:bottom-10 lg:right-10 lg:size-14', map.snap === 'full' && 'max-lg:hidden')}>
+      style={desktop ? undefined : { bottom: sideways ? '1rem' : `calc(${sheetHeight}px + 2rem)` }}
+      className={cn('absolute right-4 z-30 grid size-12 place-items-center rounded-full bg-white text-signal shadow-[0_6px_20px_-8px_rgba(11,43,46,0.45)] transition-[bottom] duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none lg:bottom-10 lg:right-10 lg:size-14', map.snap === 'full' && !sideways && 'max-lg:hidden')}>
       {locating ? <LoaderCircle className="size-5 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <Navigation className="size-5 fill-current" aria-hidden="true" />}
     </button>
-    {locateError && <p role="alert" style={desktop ? undefined : { bottom: `calc(${sheetHeight}px + 5.75rem)` }} className="absolute right-4 z-30 max-w-[16rem] rounded-xl bg-white px-3 py-2 text-sm font-medium text-ink shadow-[0_6px_20px_-8px_rgba(11,43,46,0.45)] lg:bottom-28 lg:right-10">{locateError}</p>}
+    {locateError && <p role="alert" style={desktop ? undefined : { bottom: sideways ? '4.75rem' : `calc(${sheetHeight}px + 5.75rem)` }} className="absolute right-4 z-30 max-w-[16rem] rounded-xl bg-white px-3 py-2 text-sm font-medium text-ink shadow-[0_6px_20px_-8px_rgba(11,43,46,0.45)] lg:bottom-28 lg:right-10">{locateError}</p>}
     {map.corner && <div className="pointer-events-none absolute bottom-10 z-20 hidden lg:block" style={{ left: panelWidth + 64 }}>{map.corner}</div>}
     <main className={cn('pointer-events-none absolute inset-0 z-30', className)}>
-      <MapSheet snap={map.snap} onSnap={map.onSnap} onHeight={setSheetHeight} label={map.sheetLabel || 'Ride'}>
+      <MapSheet snap={map.snap} onSnap={map.onSnap} onHeight={setSheetHeight} label={map.sheetLabel || 'Ride'} side={sideways ? panelWidth : 0} halfRatio={map.halfRatio}>
         {children}
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-border pb-2 pt-4 text-xs text-muted-foreground">
           <FleetBrand fleet={brand} size="sm" />
@@ -127,9 +137,9 @@ function PhoneMenu({ ridesCurrent }: { ridesCurrent: boolean }) {
     return () => window.removeEventListener('keydown', close)
   }, [open])
   const item = 'flex min-h-11 items-center gap-3 rounded-xl px-3 text-[0.9375rem] font-medium text-ink hover:bg-foam focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
-  return <div className="absolute left-4 top-[4.25rem] z-50 lg:hidden">
+  return <div className="pointer-events-auto relative z-50 shrink-0 lg:hidden">
     <button type="button" aria-label={open ? 'Close menu' : 'Menu'} aria-expanded={open} aria-controls="rider-menu" onClick={() => setOpen(value => !value)} className="grid size-12 place-items-center rounded-full bg-white text-ink shadow-[0_6px_20px_-8px_rgba(11,43,46,0.45)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{open ? <X className="size-5" aria-hidden="true" /> : <Menu className="size-5" aria-hidden="true" />}</button>
-    {open && <nav id="rider-menu" aria-label="Menu" className="mt-2 w-56 rounded-2xl bg-white p-1.5 shadow-[0_18px_50px_-18px_rgba(11,43,46,0.5)] ring-1 ring-ink/5">
+    {open && <nav id="rider-menu" aria-label="Menu" className="absolute right-0 top-full mt-2 w-56 rounded-2xl bg-white p-1.5 shadow-[0_18px_50px_-18px_rgba(11,43,46,0.5)] ring-1 ring-ink/5">
       <Link href="/account/rides" aria-current={ridesCurrent ? 'page' : undefined} className={item} onClick={() => setOpen(false)}><History className="size-[1.1rem] text-signal" aria-hidden="true" />My rides</Link>
       <Link href="/account" className={item} onClick={() => setOpen(false)}><UserRound className="size-[1.1rem] text-signal" aria-hidden="true" />Account</Link>
     </nav>}

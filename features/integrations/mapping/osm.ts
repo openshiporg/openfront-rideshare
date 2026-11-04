@@ -48,8 +48,11 @@ function gate(intervalMs: number, maxWaitMs: number) {
 
 const placeCache = cache<Place[]>(500, 10 * 60_000)
 const routeCache = cache<RoutedPath>(500, 30 * 60_000)
-const photonGate = gate(400, 1_200)
+const photonGate = gate(350, 2_500)
 const osrmGate = gate(1_000, 2_500)
+
+/** Too many searches queued for the open service right now; the rider's next keystroke asks again. */
+export class PlacesBusy extends Error {}
 
 export function validPoint(value: unknown): LngLat | null {
   const pair = Array.isArray(value) ? value : value && typeof value === 'object' ? [(value as any).lon ?? (value as any).lng, (value as any).lat] : null
@@ -78,7 +81,7 @@ async function photon(path: string, params: URLSearchParams) {
   const key = `${path}?${params}`
   const cached = placeCache.get(key)
   if (cached) return cached
-  if (!(await photonGate())) return []
+  if (!(await photonGate())) throw new PlacesBusy()
   try {
     const response = await fetch(`${photonBase()}${path}?${params}`, { headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' }, signal: AbortSignal.timeout(5_000) })
     if (!response.ok) return []
@@ -90,7 +93,7 @@ async function photon(path: string, params: URLSearchParams) {
     })
     placeCache.set(key, places)
     return places
-  } catch { return [] }
+  } catch { return [] as Place[] }
 }
 
 /** Places matching what the rider typed, nearest to `near` first; `within` (degrees) keeps results around it. */

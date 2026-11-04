@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { reversePlace, searchPlaces, validPoint } from '@/features/integrations/mapping/osm'
+import { PlacesBusy, reversePlace, searchPlaces, validPoint } from '@/features/integrations/mapping/osm'
 
 // Place suggestions for the rider's pickup and destination (Photon, proxied so the open service
 // sees one identified, cached, rate-limited client).
@@ -22,7 +22,8 @@ export async function GET(request: NextRequest) {
     const near = point('near')
     const places = await searchPlaces(q, near, { limit: 6, within: near ? 1.5 : undefined })
     return NextResponse.json({ places }, { headers: { 'Cache-Control': 'public, max-age=600' } })
-  } catch {
+  } catch (error) {
+    if (error instanceof PlacesBusy) return NextResponse.json({ places: [], busy: true }, { status: 503, headers: { 'Cache-Control': 'no-store', 'Retry-After': '1' } })
     return NextResponse.json({ places: [] }, { status: 502 })
   }
 }
