@@ -1,6 +1,13 @@
 import { projectPublishedReviews } from './publicTripProjection'
 import { projectFleetBrand } from './fleetBrand'
 
+/** The rider's own map points, as chosen when booking (rounded to about 10 m). */
+function mapPoint(value: unknown) {
+  if (!Array.isArray(value) || value.length !== 2) return null
+  const [lon, lat] = value.map(Number)
+  return Number.isFinite(lon) && Number.isFinite(lat) && Math.abs(lon) <= 180 && Math.abs(lat) <= 90 ? [lon, lat] : null
+}
+
 export function projectRiderTrip(trip: any) {
   const snapshot = trip.bookingSnapshot && typeof trip.bookingSnapshot === 'object' ? trip.bookingSnapshot : {}
   const quote = snapshot.quote && typeof snapshot.quote === 'object' ? snapshot.quote : {}
@@ -12,7 +19,7 @@ export function projectRiderTrip(trip: any) {
     baseFareMinor: value.baseFareMinor ?? null, distanceMinor: value.distanceMinor ?? null,
     durationMinor: value.durationMinor ?? null, bookingFeeMinor: value.bookingFeeMinor ?? null,
     cancellationFeeMinor: value.cancellationFeeMinor ?? null, noShowFeeMinor: value.noShowFeeMinor ?? null,
-    routeEvidence: { provider: route.provider || 'unavailable', authoritative: route.authoritative === true, disclosure: route.disclosure || 'Route evidence unavailable.' },
+    routeEvidence: { provider: route.provider || 'unavailable', authoritative: route.authoritative === true, disclosure: route.disclosure || 'Route evidence unavailable.', pickup: mapPoint(route.pickup), dropoff: mapPoint(route.dropoff) },
   })
   const events = Array.isArray(trip.events) ? trip.events : []
   return {

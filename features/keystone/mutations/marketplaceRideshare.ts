@@ -6,6 +6,7 @@ import { normalizeReceiptEmail } from '../lib/request-confirmation'
 import { receiptBinding, recoverRequestReceipt, requestIntent, requestIntentHash } from '../domain/requestReceipt'
 import { riderRequestStatus } from './riderReceipts'
 import { estimateRoute } from '../../integrations/mapping/manual'
+import { routeBetween, validPoint } from '../../integrations/mapping/osm'
 import { requireFleetOperations, rideReadiness } from '../domain/operationalReadiness'
 import { currentRiderId, requestOwnerWhere } from '../domain/requestAuthority'
 import { requireServiceReadiness } from '../domain/serviceReadiness'
@@ -84,7 +85,25 @@ export async function marketplaceRideshareServices(_root: unknown, args: { query
   })
 }
 
-export async function marketplaceRideshareQuote(_root: unknown, args: { serviceId: string; pickupLabel: string; dropoffLabel: string; scheduledFor?: string | null; passengerCount?: number | null; wheelchairAccessible?: boolean | null; handoffId?: string | null }, context: any) {
+/** Distance and time from the rider's chosen map points when both are given (the driving route), else the label estimate. */
+async function quoteRoute(pickupLabel: string, dropoffLabel: string, pickupPoint: unknown, dropoffPoint: unknown) {
+  const from = pickupPoint == null ? null : validPoint(pickupPoint)
+  const to = dropoffPoint == null ? null : validPoint(dropoffPoint)
+  if ((pickupPoint != null && !from) || (dropoffPoint != null && !to)) throw new Error('Pickup or destination location is invalid.')
+  if (from && to) {
+    const path = await routeBetween(from, to)
+    // A city ride, not a cross-country one: anything this far is a mistyped place.
+    if (path.distanceMeters > 300_000) throw new Error('Pickup and destination are too far apart.')
+    const points = { pickup: from.map(value => Math.round(value * 1e4) / 1e4), dropoff: to.map(value => Math.round(value * 1e4) / 1e4) }
+    return {
+      distanceMeters: Math.max(path.distanceMeters, 200), durationSeconds: Math.max(path.durationSeconds, 120),
+      evidence: { provider: path.provider === 'osrm' ? 'osrm' : 'straight-line', observedAt: new Date().toISOString(), authoritative: false, disclosure: 'Estimated from the driving route between your pickup and destination.', ...points },
+    }
+  }
+  return estimateRoute({ pickupLabel, dropoffLabel })
+}
+
+export async function marketplaceRideshareQuote(_root: unknown, args: { serviceId: string; pickupLabel: string; dropoffLabel: string; pickupPoint?: unknown; dropoffPoint?: unknown; scheduledFor?: string | null; passengerCount?: number | null; wheelchairAccessible?: boolean | null; handoffId?: string | null }, context: any) {
   return context.transaction(async (context: any) => {
   const riderId = await currentRiderId(context.prisma, context.session)
   const pickupLabel = cleanLabel(args.pickupLabel, 'pickupLabel')
@@ -100,7 +119,7 @@ export async function marketplaceRideshareQuote(_root: unknown, args: { serviceI
   if (scheduledFor && scheduledFor.getTime() < Date.now() + service.advanceBookingMinutes * 60_000) throw new Error('This service requires more advance notice for scheduled rides.')
   await requireFleetOperations(context.prisma, service.fleet.id)
   await requireServiceReadiness(context.prisma, service.id, service.fleet.id)
-  const route = await estimateRoute({ pickupLabel, dropoffLabel })
+  const route = await quoteRoute(pickupLabel, dropoffLabel, args.pickupPoint, args.dropoffPoint)
   const rule = service.fareRules[0]
   const breakdown = calculateFare(rule, route.distanceMeters, route.durationSeconds)
   const publicId = `rq_${randomUUID()}`
@@ -112,7 +131,7 @@ export async function marketplaceRideshareQuote(_root: unknown, args: { serviceI
     fareSnapshot: { ...breakdown, _quoteOwner: { kind: riderId ? 'account' : 'guest', userId: riderId }, cancellationFeeMinor: rule.cancellationFeeMinor, noShowFeeMinor: rule.noShowFeeMinor, fareRuleId: rule.id, fareRuleVersion: rule.version, service: { id: service.id, fleetId: service.fleet.id, name: service.name, category: service.category, passengerCapacity: service.passengerCapacity, wheelchairAccessible: service.wheelchairAccessible }, routeEvidence: route.evidence },
     totalMinor: breakdown.totalMinor, currencyCode: breakdown.currencyCode, scheduledFor, expiresAt, guestProofHash: proof.hash,
   }, query: 'id' })
-  return { quoteId: publicId, quoteProof: proof.token, expiresAt: expiresAt.toISOString(), pickupLabel, dropoffLabel, scheduledFor: scheduledFor?.toISOString() || null, estimatedDistanceMeters: route.distanceMeters, estimatedDurationSeconds: route.durationSeconds, cancellationFeeMinor: rule.cancellationFeeMinor, noShowFeeMinor: rule.noShowFeeMinor, fare: breakdown, estimateDisclosure: 'Estimated from your pickup and destination areas. The fleet confirms the final fare.', sourceCheckoutPath: `/book?service=${encodeURIComponent(service.id)}` }
+  return { quoteId: publicId, quoteProof: proof.token, expiresAt: expiresAt.toISOString(), pickupLabel, dropoffLabel, scheduledFor: scheduledFor?.toISOString() || null, estimatedDistanceMeters: route.distanceMeters, estimatedDurationSeconds: route.durationSeconds, cancellationFeeMinor: rule.cancellationFeeMinor, noShowFeeMinor: rule.noShowFeeMinor, fare: breakdown, estimateDisclosure: route.evidence.provider === 'manual-estimate' ? 'Estimated from your pickup and destination areas. The fleet confirms the final fare.' : 'Estimated from the driving route. The fleet confirms the final fare.', sourceCheckoutPath: `/book?service=${encodeURIComponent(service.id)}` }
   })
 }
 

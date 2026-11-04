@@ -81,7 +81,7 @@ export const typeDefs = graphql`
       tripCardPayment(tripId: ID!): TripCardPayment!
     }
     type Mutation {
-      marketplaceRideshareQuote(serviceId: ID!, pickupLabel: String!, dropoffLabel: String!, scheduledFor: DateTime, passengerCount: Int, wheelchairAccessible: Boolean, handoffId: String): MarketplaceRideQuote!
+      marketplaceRideshareQuote(serviceId: ID!, pickupLabel: String!, dropoffLabel: String!, pickupPoint: JSON, dropoffPoint: JSON, scheduledFor: DateTime, passengerCount: Int, wheelchairAccessible: Boolean, handoffId: String): MarketplaceRideQuote!
       requestRide(quoteId: ID!, quoteProof: String!, passengerCount: Int, accessibilityNeeds: JSON, riderNotes: String, preciseRouteEncryptedRef: String, receiptEmail: String): RideRequestReceipt!
       resolveRideRequestIntent(quoteId: ID!, quoteProof: String!, passengerCount: Int, accessibilityNeeds: JSON, riderNotes: String, preciseRouteEncryptedRef: String): RideIntentResolution!
       offerRideToDriver(requestId: ID!, driverId: ID!, vehicleId: ID!, expiresInSeconds: Int, idempotencyKey: String!, expectedActorId: ID!): MatchOffer!

@@ -3,12 +3,15 @@
 import { RequestCancellation } from '../components/RequestCancellation'
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { ArrowRight, ArrowUpRight, ChevronRight, MapPin, Plane, Search, Ship, Users, X } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, ChevronRight, MapPin, Search, Users, X } from 'lucide-react'
 import { VehicleArt } from '../components/VehicleArt'
 import { PickupTimePicker } from '../components/PickupTimePicker'
 import { StatusDot, StatusTitle } from '@/features/platform/components/StatusTitle'
 import { TRIP_STAGES, statusLabel, statusTone, tripStageIndex } from '@/features/platform/lib/statusTone'
 import { RiderShell } from '../components/RiderShell'
+import { fetchRoute, placePoint, type LngLat, type RoutePath } from '../components/RideMap'
+import { PlaceField, PlaceKindIcon, type PlaceSuggestion } from '../components/PlaceField'
+import type { SheetSnap } from '../components/MapSheet'
 import { RiderButton, RiderButtonLink, RiderTrack } from '../components/RiderPills'
 import { formatMoney } from '@/features/lib/currency'
 import { isQuoteResponse } from '../domain/quoteResponse'
@@ -93,6 +96,21 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
   const [statusError, setStatusError] = useState('')
   const [statusAsOf, setStatusAsOf] = useState('')
   const [recentPlaces, setRecentPlaces] = useState<string[]>([])
+  // The live map: the phone sheet's detent, the fleet's city, the rider's chosen points and the route between them.
+  const [snap, setSnap] = useState<SheetSnap>('half')
+  const [isDesktop, setIsDesktop] = useState(false)
+  useEffect(() => {
+    const query = window.matchMedia('(min-width: 1024px)')
+    const update = () => setIsDesktop(query.matches)
+    update(); query.addEventListener('change', update)
+    return () => query.removeEventListener('change', update)
+  }, [])
+  const [cityPoint, setCityPoint] = useState<LngLat | null>(null)
+  const [pickupPoint, setPickupPoint] = useState<LngLat | null>(null)
+  const [dropoffPoint, setDropoffPoint] = useState<LngLat | null>(null)
+  const [routePath, setRoutePath] = useState<RoutePath | null>(null)
+  const labelsRef = useRef({ pickup: '', dropoff: '' })
+  useEffect(() => { labelsRef.current = { pickup: pickupLabel, dropoff: dropoffLabel } }, [pickupLabel, dropoffLabel])
   // A signed-in rider's own recent drop-offs and pickups are the most useful suggestions.
   useEffect(() => {
     const controller = new AbortController()
@@ -124,6 +142,14 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
   const visibleQuoteBinding = uncertainQuoteIsCurrent
     ? uncertainRequest
     : getUsableQuoteBinding(quoteBinding, quoteInputs, quoteRequestGeneration.current)
+  // An empty pickup is the fleet's own service area, pinned at the city's centre.
+  const mapPickupPoint = pickupPoint ?? (pickupLabel.trim() ? null : cityPoint)
+  useEffect(() => {
+    if (!mapPickupPoint || !dropoffPoint) { setRoutePath(null); return }
+    const controller = new AbortController()
+    void fetchRoute(mapPickupPoint, dropoffPoint, controller.signal).then(path => { if (!controller.signal.aborted) setRoutePath(path) })
+    return () => controller.abort()
+  }, [mapPickupPoint?.[0], mapPickupPoint?.[1], dropoffPoint?.[0], dropoffPoint?.[1]]) // eslint-disable-line react-hooks/exhaustive-deps
   const receiptRequestId = receipt?.requestId
   const receiptRequestProof = receipt?.requestProof
 
@@ -248,8 +274,17 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
     setError('')
     try {
       const scheduled = inputs.scheduledFor ? new Date(inputs.scheduledFor).toISOString() : null
-      const data = await graphql<{ marketplaceRideshareQuote: Quote }>(`mutation Quote($serviceId: ID!, $pickup: String!, $dropoff: String!, $scheduled: DateTime, $passengers: Int, $wheelchair: Boolean) { marketplaceRideshareQuote(serviceId: $serviceId, pickupLabel: $pickup, dropoffLabel: $dropoff, scheduledFor: $scheduled, passengerCount: $passengers, wheelchairAccessible: $wheelchair) { quoteId quoteProof expiresAt pickupLabel dropoffLabel scheduledFor estimatedDistanceMeters estimatedDurationSeconds cancellationFeeMinor noShowFeeMinor estimateDisclosure fare { currencyCode totalMinor } } }`, {
+      // Places typed but not picked from the list are looked up once, near the fleet's city.
+      const [from, to] = await Promise.all([
+        pickupPoint ?? (pickupLabel.trim() ? placePoint(pickupLabel.trim(), cityPoint).catch(() => null) : cityPoint),
+        dropoffPoint ?? placePoint(inputs.dropoffLabel.trim(), cityPoint).catch(() => null),
+      ])
+      if (!isCurrentQuoteRequest(generation, quoteRequestGeneration.current)) return
+      if (from && pickupLabel.trim() && !pickupPoint) setPickupPoint(from)
+      if (to && !dropoffPoint) setDropoffPoint(to)
+      const data = await graphql<{ marketplaceRideshareQuote: Quote }>(`mutation Quote($serviceId: ID!, $pickup: String!, $dropoff: String!, $pickupPoint: JSON, $dropoffPoint: JSON, $scheduled: DateTime, $passengers: Int, $wheelchair: Boolean) { marketplaceRideshareQuote(serviceId: $serviceId, pickupLabel: $pickup, dropoffLabel: $dropoff, pickupPoint: $pickupPoint, dropoffPoint: $dropoffPoint, scheduledFor: $scheduled, passengerCount: $passengers, wheelchairAccessible: $wheelchair) { quoteId quoteProof expiresAt pickupLabel dropoffLabel scheduledFor estimatedDistanceMeters estimatedDurationSeconds cancellationFeeMinor noShowFeeMinor estimateDisclosure fare { currencyCode totalMinor } } }`, {
         serviceId: inputs.serviceId, pickup: inputs.pickupLabel, dropoff: inputs.dropoffLabel,
+        pickupPoint: from && to ? from : null, dropoffPoint: from && to ? to : null,
         scheduled, passengers: Number(inputs.passengerCount), wheelchair: inputs.wheelchairAccessible,
       })
       if (!isCurrentQuoteRequest(generation, quoteRequestGeneration.current)) return
@@ -260,6 +295,7 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
         return
       }
       setQuoteBinding({ quote: acceptedQuote, inputs, generation })
+      setSnap('half')
     } catch (reason) {
       if (!isCurrentQuoteRequest(generation, quoteRequestGeneration.current)) return
       setError(reason instanceof Error ? reason.message : 'Price unavailable.')
@@ -310,6 +346,7 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
       setQuoteBinding(null)
       try {
         const serialized = JSON.stringify(confirmed)
+        setSnap('half')
         archiveReceipt(sessionStorage, confirmed)
         sessionStorage.setItem(receiptStorageKey, serialized)
         if (sessionStorage.getItem(receiptStorageKey) !== serialized) throw new Error('Receipt was not saved.')
@@ -374,7 +411,7 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
     if (!terminal) return
     try { archiveReceipt(sessionStorage, receipt); sessionStorage.removeItem(receiptStorageKey) }
     catch { setError('This ride could not be archived. Keep this tab open.'); return }
-    setReceipt(null); setRequestView(null); setQuoteBinding(null); setPickupLabel(''); setDropoffLabel(''); setScheduledFor(''); setStatusAsOf(''); setStatusError(''); setError('')
+    setReceipt(null); setRequestView(null); setQuoteBinding(null); setPickupLabel(''); setDropoffLabel(''); setPickupPoint(null); setDropoffPoint(null); setScheduledFor(''); setStatusAsOf(''); setStatusError(''); setError('')
     quoteRequestGeneration.current = advanceQuoteRequestGeneration(quoteRequestGeneration.current)
   }
 
@@ -385,6 +422,25 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
     setter(value)
   }
   const change = (setter: (value: string) => void) => (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => update(setter, event.target.value)
+  // Typing frees a field from its pin; choosing a suggestion pins it.
+  const typePickup = (value: string) => { if (locked()) return; update(setPickupLabel, value); setPickupPoint(null) }
+  const typeDropoff = (value: string) => { if (locked()) return; update(setDropoffLabel, value); setDropoffPoint(null) }
+  const pickPickup = (place: PlaceSuggestion) => { if (locked()) return; update(setPickupLabel, place.label); setPickupPoint(place.point); setSnap('half') }
+  const pickDropoff = (place: PlaceSuggestion) => { if (locked()) return; update(setDropoffLabel, place.label); setDropoffPoint(place.point); setSnap('half') }
+  /** A saved or popular place, by name: pinned once its point is found near the fleet's city. */
+  const chooseDropoff = (label: string) => {
+    if (locked()) return
+    update(setDropoffLabel, label); setDropoffPoint(null); setSnap('half')
+    void placePoint(label, cityPoint).then(point => { if (point && labelsRef.current.dropoff === label) setDropoffPoint(point) }).catch(() => {})
+  }
+  /** Use my location: the pickup becomes the nearest named place at the rider's position. */
+  const locatePickup = async (point: LngLat) => {
+    if (locked() || receipt) return
+    const response = await fetch(`/api/places?at=${point.join(',')}`).catch(() => null)
+    const place = response?.ok ? (await response.json())?.places?.[0] as PlaceSuggestion | undefined : undefined
+    if (locked()) return
+    update(setPickupLabel, place?.label || 'Current location'); setPickupPoint(point)
+  }
   const maxPassengers = selectedService?.passengerCapacity || 50
   const passengers = Number(passengerCount) || 1
   const terminal = Boolean(requestView && requestView.handoffState !== 'reassignment_pending' && (['cancelled', 'expired'].includes(requestView.status) || ['completed', 'no_show'].includes(requestView.trip?.status || '')))
@@ -407,10 +463,17 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
   const pickupHint = defaultPickup || 'Pickup area'
   const requestLabel = quoteLoading || requestLoading ? 'Working…' : uncertainRequest ? 'Recover request' : visibleQuoteBinding && quoteFare ? `Confirm ${selectedService?.title || 'ride'} · ${quoteFare}` : selectedService && selectedService.startingFareMinor !== null ? `Request ${selectedService.title}` : 'See price'
 
-  return <RiderShell fleet={selectedService?.fleet} map={{ variant: 'home', areas: selectedService?.publicRegionLabels, pickupLabel: pickupLabel || null }}>
-    <div style={{ '--fleet-hue': normalizeStoreLogoColor(selectedService?.fleet.logoColor) } as CSSProperties} className="w-full lg:max-w-[28.75rem]">
+  const fieldFocus = () => { if (window.innerWidth < 1024) setSnap('full') }
+  return <RiderShell fleet={selectedService?.fleet} map={{
+    pickup: { label: pickupLabel || defaultPickup, point: mapPickupPoint },
+    dropoff: { label: dropoffLabel, point: dropoffPoint },
+    route: routePath?.coordinates || null,
+    snap, onSnap: setSnap, onLocate: point => void locatePickup(point), onCityCentre: setCityPoint,
+    sheetLabel: receipt ? 'Your ride' : 'Plan a ride',
+  }}>
+    <div style={{ '--fleet-hue': normalizeStoreLogoColor(selectedService?.fleet.logoColor) } as CSSProperties} className="w-full">
       <h1 className="sr-only">{receipt ? 'Your ride' : 'Where to?'}</h1>
-      {receipt ? receiptPanel() : <form className="relative lg:rounded-2xl lg:bg-white lg:p-4 lg:shadow-[0_18px_50px_-22px_rgba(11,43,46,0.45)] lg:ring-1 lg:ring-ink/5" onSubmit={event => {
+      {receipt ? receiptPanel() : <form className="relative" onSubmit={event => {
         event.preventDefault()
         if (uncertainRequest) {
           if (visibleQuoteBinding) void requestRide(visibleQuoteBinding)
@@ -421,35 +484,41 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
       }}>
         <fieldset disabled={formLocked} className="min-w-0 disabled:opacity-70">
           <legend className="sr-only">Plan a ride</legend>
-          <label className="flex items-center gap-3 rounded-xl bg-[#f2f5f5] px-4 py-2 max-lg:hidden">
+          <div className="flex items-center gap-3 rounded-xl bg-[#f2f5f5] px-4 py-2 max-lg:hidden">
             <MapPin className="size-5 shrink-0 text-ink" aria-hidden="true" />
-            <span className="min-w-0 flex-1">
-              <span className="block text-xs text-muted-foreground">Pickup</span>
-              <input id="pickup" name="pickup" autoComplete="off" placeholder={pickupHint} value={pickupLabel} onChange={change(setPickupLabel)} minLength={2} maxLength={120} className="block w-full min-w-0 bg-transparent text-[0.9375rem] font-medium text-ink outline-none placeholder:text-muted-foreground/80" />
-            </span>
-            {pickupLabel && <button type="button" aria-label="Clear pickup" onClick={() => update(setPickupLabel, '')} className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-white hover:text-ink"><X className="size-4" aria-hidden="true" /></button>}
-          </label>
-
-          <div className="relative mt-0 flex items-center gap-2.5 rounded-full bg-[#eef3f3] py-1.5 pl-4 pr-1.5 ring-1 ring-transparent focus-within:ring-2 focus-within:ring-tide lg:mt-3 lg:rounded-xl lg:bg-foam lg:py-1.5 lg:pl-4 lg:ring-tide/60">
-            <MapPin className="size-5 shrink-0 fill-signal lg:size-6 text-signal [&>circle]:fill-white [&>circle]:stroke-white" aria-hidden="true" />
-            <label htmlFor="dropoff" className="sr-only">Where to?</label>
-            <input id="dropoff" name="dropoff" autoComplete="off" placeholder="Where to?" value={dropoffLabel} onChange={change(setDropoffLabel)} required minLength={2} maxLength={120} className={`h-10 min-w-0 flex-1 bg-transparent font-semibold tracking-[-0.02em] text-ink outline-none placeholder:text-ink lg:h-11 ${dropoffLabel ? "text-lg lg:text-xl" : "text-[1.4375rem] lg:text-[2.125rem]"}`} />
-            <button type="button" aria-label="See price" disabled={ctaDisabled || Boolean(visibleQuoteBinding)} onClick={() => void getQuote()} className="grid size-10 shrink-0 place-items-center rounded-full bg-signal text-white lg:size-11 transition-colors hover:bg-signal-deep disabled:opacity-60"><ArrowRight className="size-5 lg:size-6" aria-hidden="true" /></button>
+            <div className="min-w-0 flex-1">
+              <span aria-hidden="true" className="block text-xs text-muted-foreground">Pickup</span>
+              {isDesktop && <PlaceField id="pickup" label="Pickup" placeholder={pickupHint} value={pickupLabel} onChange={typePickup} onPick={pickPickup} near={cityPoint} disabled={formLocked}
+                inputClassName="block w-full min-w-0 bg-transparent text-[0.9375rem] font-medium text-ink outline-none placeholder:text-muted-foreground/80">
+                {pickupLabel && <button type="button" aria-label="Clear pickup" onClick={() => typePickup('')} className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-white hover:text-ink"><X className="size-4" aria-hidden="true" /></button>}
+              </PlaceField>}
+            </div>
           </div>
 
-          <label className="mt-1.5 flex items-center gap-3 border-b border-border px-2 py-2.5 lg:hidden">
+          <div className="relative mt-0 rounded-full bg-[#eef3f3] py-1.5 pl-4 pr-1.5 ring-1 ring-transparent focus-within:ring-2 focus-within:ring-tide lg:mt-3 lg:rounded-xl lg:bg-foam lg:py-1.5 lg:pl-4 lg:ring-tide/60">
+            <PlaceField id="dropoff" label="Where to?" placeholder="Where to?" value={dropoffLabel} onChange={typeDropoff} onPick={pickDropoff} near={pickupPoint || cityPoint} onFocus={fieldFocus} required disabled={formLocked}
+              leading={<MapPin className="size-5 shrink-0 fill-signal text-signal lg:size-6 [&>circle]:fill-white [&>circle]:stroke-white" aria-hidden="true" />}
+              inputClassName={`h-10 min-w-0 flex-1 bg-transparent font-semibold tracking-[-0.02em] text-ink outline-none placeholder:text-ink lg:h-11 ${dropoffLabel ? "text-lg lg:text-xl" : "text-[1.4375rem] lg:text-[2.125rem]"}`}>
+              <button type="button" aria-label="See price" disabled={ctaDisabled || Boolean(visibleQuoteBinding)} onClick={() => void getQuote()} className="grid size-10 shrink-0 place-items-center rounded-full bg-signal text-white lg:size-11 transition-colors hover:bg-signal-deep disabled:opacity-60"><ArrowRight className="size-5 lg:size-6" aria-hidden="true" /></button>
+            </PlaceField>
+          </div>
+
+          {!isDesktop && <div className="mt-1.5 flex items-center gap-3 border-b border-border px-2 py-2.5 lg:hidden">
             <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-[#eef3f3]"><span className="size-3 rounded-full bg-ink" /></span>
-            <span className="min-w-0 flex-1">
-              <input id="pickup-phone" name="pickup-phone" aria-label="Pickup" autoComplete="off" placeholder={pickupHint} value={pickupLabel} onChange={change(setPickupLabel)} maxLength={120} className="block w-full min-w-0 bg-transparent text-base font-medium text-ink outline-none placeholder:text-ink" />
+            <div className="min-w-0 flex-1">
+              <PlaceField id="pickup-phone" label="Pickup" placeholder={pickupHint} value={pickupLabel} onChange={typePickup} onPick={pickPickup} near={cityPoint} onFocus={fieldFocus} disabled={formLocked}
+                inputClassName="block w-full min-w-0 bg-transparent text-base font-medium text-ink outline-none placeholder:text-ink">
+                {pickupLabel && <button type="button" aria-label="Clear pickup" onClick={() => typePickup('')} className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-foam hover:text-ink"><X className="size-4" aria-hidden="true" /></button>}
+              </PlaceField>
               <span className="block text-[0.8125rem] text-muted-foreground">Pickup{selectedService?.fleet.publicCity ? ` · ${selectedService.fleet.publicCity}` : ''}</span>
-            </span>
-          </label>
+            </div>
+          </div>}
 
           {suggestions.length > 0 && <div className="mt-1 lg:mt-1 lg:rounded-xl lg:bg-white lg:shadow-[0_6px_20px_-12px_rgba(11,43,46,0.35)] lg:ring-1 lg:ring-ink/5">
             <p className="px-1 pb-0.5 pt-3 text-xs font-medium text-muted-foreground lg:sr-only">Suggestions</p>
             <ul aria-label="Suggestions" className="divide-y divide-border">
-              {suggestions.map(({ label, recent, popular }) => <li key={label}><button type="button" onClick={() => update(setDropoffLabel, label)} className="flex w-full items-center gap-3 px-1.5 py-2.5 text-left transition-colors hover:bg-foam lg:rounded-xl lg:px-4">
-                <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-[#eef3f3] text-ink lg:size-7 lg:bg-transparent"><PlaceIcon label={label} className="size-4 lg:size-5" /></span>
+              {suggestions.map(({ label, recent, popular }) => <li key={label}><button type="button" onClick={() => chooseDropoff(label)} className="flex w-full items-center gap-3 px-1.5 py-2.5 text-left transition-colors hover:bg-foam lg:rounded-xl lg:px-4">
+                <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-[#eef3f3] text-ink lg:size-7 lg:bg-transparent"><PlaceKindIcon label={label} className="size-4 lg:size-5" /></span>
                 <span className="min-w-0 flex-1"><span className="block text-base font-medium leading-snug text-ink lg:text-[0.9375rem] lg:font-semibold">{label}</span><span className="block text-[0.8125rem] text-muted-foreground">{recent ? 'Recent' : popular ? `Popular${selectedService?.fleet.publicCity ? ` in ${selectedService.fleet.publicCity}` : ''}` : selectedService?.fleet.publicCity || 'Service area'}</span></span>
                 <ChevronRight className="size-5 shrink-0 text-muted-foreground lg:hidden" aria-hidden="true" />
               </button></li>)}
@@ -504,7 +573,7 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
           {error && <p role="alert" className="text-sm text-[#c2412d]">{error}</p>}
         </div>
 
-        <div className="sticky bottom-0 z-10 -mx-1 mt-4 space-y-2 rounded-t-2xl bg-white px-1 pb-3 pt-2 shadow-[0_-10px_16px_-12px_rgba(11,43,46,0.25)]">
+        <div className="sticky bottom-0 z-10 -mx-1 mt-4 space-y-2 rounded-t-2xl bg-white px-1 pb-3 pt-2 shadow-[0_-10px_16px_-12px_rgba(11,43,46,0.25)] max-lg:group-data-[snap=peek]/sheet:hidden">
           <RiderButton type="submit" tone="signal" size="lg" disabled={ctaDisabled} className="min-h-12 w-full rounded-full text-base lg:min-h-[3.3rem]">{requestLabel}</RiderButton>
           {uncertainRequest && <RiderButton tone="raised" className="w-full" disabled={requestLoading} onClick={() => void resolveOriginalIntent()}>Check request outcome</RiderButton>}
         </div>
@@ -515,7 +584,7 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
   function receiptPanel() {
     if (!receipt) return null
     const title = requestView ? (requestView.trip ? statusLabel(liveState) : terminal ? statusLabel(liveState) : 'Finding your driver') : statusError ? 'Status unavailable' : 'Checking…'
-    return <section aria-live="polite" aria-labelledby="receipt-title" className="space-y-5 lg:rounded-2xl lg:bg-white lg:p-6 lg:shadow-[0_18px_50px_-22px_rgba(11,43,46,0.45)] lg:ring-1 lg:ring-ink/5">
+    return <section aria-live="polite" aria-labelledby="receipt-title" className="space-y-5 pt-2 lg:p-2">
       <div className="space-y-1.5">
         <p className="text-[0.9375rem] text-ink">{requestView?.trip ? 'Your ride is on the way' : 'Your request'}</p>
         <StatusTitle as="h2" id="receipt-title" tone={requestView ? statusTone(liveState) : 'zinc'} pulse={Boolean(requestView) && !terminal} className="text-[2.25rem] font-semibold leading-[1.1] tracking-[-0.03em] text-ink lg:text-[2.75rem]">{title}</StatusTitle>
@@ -566,13 +635,6 @@ function shortLead(minutes: number) {
 
 function formatDistance(meters: number) {
   return meters < 1000 ? `${Math.round(meters)} m` : `${(meters / 1000).toFixed(meters < 10_000 ? 1 : 0)} km`
-}
-
-/** Suggestion icon by place type, from the place's own name. */
-function PlaceIcon({ label, className }: { label: string; className?: string }) {
-  if (/\b(airport|airfield|terminal \d)/i.test(label)) return <Plane className={className} />
-  if (/\b(ferry|pier|wharf|harbou?r terminal|dock|marina)\b/i.test(label)) return <Ship className={className} />
-  return <MapPin className={className} />
 }
 
 function vehicleFor(service: Service, index: number): { kind: 'sedan' | 'suv' | 'van'; tone: 'light' | 'dark' } {

@@ -4700,8 +4700,8 @@ type Mutation {
   createInitialUser(data: CreateInitialUserInput!): UserAuthenticationWithPasswordSuccess!
   sendUserPasswordResetLink(email: String!): Boolean!
   redeemUserPasswordResetToken(email: String!, token: String!, password: String!): RedeemUserPasswordResetTokenResult
-  marketplaceRideshareQuote(serviceId: ID!, pickupLabel: String!, dropoffLabel: String!, scheduledFor: DateTime, passengerCount: Int, wheelchairAccessible: Boolean, handoffId: String): MarketplaceRideQuote!
-  requestRide(quoteId: ID!, quoteProof: String!, passengerCount: Int, accessibilityNeeds: JSON, riderNotes: String, preciseRouteEncryptedRef: String): RideRequestReceipt!
+  marketplaceRideshareQuote(serviceId: ID!, pickupLabel: String!, dropoffLabel: String!, pickupPoint: JSON, dropoffPoint: JSON, scheduledFor: DateTime, passengerCount: Int, wheelchairAccessible: Boolean, handoffId: String): MarketplaceRideQuote!
+  requestRide(quoteId: ID!, quoteProof: String!, passengerCount: Int, accessibilityNeeds: JSON, riderNotes: String, preciseRouteEncryptedRef: String, receiptEmail: String): RideRequestReceipt!
   resolveRideRequestIntent(quoteId: ID!, quoteProof: String!, passengerCount: Int, accessibilityNeeds: JSON, riderNotes: String, preciseRouteEncryptedRef: String): RideIntentResolution!
   offerRideToDriver(requestId: ID!, driverId: ID!, vehicleId: ID!, expiresInSeconds: Int, idempotencyKey: String!, expectedActorId: ID!): MatchOffer!
   respondToRideOffer(offerId: ID!, response: String!, reason: String, idempotencyKey: String!): RideOfferResponse!
@@ -4717,7 +4717,7 @@ type Mutation {
   requestTripRefund(paymentId: ID!, amountMinor: Int!, reason: String, idempotencyKey: String!): Refund!
   startTripCardPayment(tripId: ID!): TripCardPayment!
   confirmTripCardPayment(tripId: ID!): TripCardPayment!
-  saveFleetBranding(fleetId: ID!, expectedUpdatedAt: DateTime!, logoIcon: String!, logoColor: String!, idempotencyKey: String!, expectedActorId: ID!): JSON!
+  saveFleetBranding(fleetId: ID!, expectedUpdatedAt: DateTime!, logoIcon: String!, logoColor: String!, name: String, idempotencyKey: String!, expectedActorId: ID!): JSON!
   dismissRideshareOnboarding: Boolean!
   bootstrapRideshare(mode: String!): RideshareBootstrapResult!
   expireRideOffers(fleetId: ID!): OfferMaintenanceResult!
@@ -4894,6 +4894,7 @@ type Query {
   validateUserPasswordResetToken(email: String!, token: String!): ValidateUserPasswordResetTokenResult
   redirectToInit: Boolean
   marketplaceRideshareServices(query: String, location: String, limit: Int, after: String): [MarketplaceRideshareService!]!
+  marketplaceRidesharePopularPlaces(serviceId: ID!): [String!]!
   marketplaceRideshareService(id: ID!): MarketplaceRideshareService
   marketplaceRideshareServiceAreas(serviceId: ID!, after: ID): PublicServiceAreaPage!
   publicRideshareTrip(confirmationCode: String!, tripToken: String, requestId: ID, requestProof: String): PublicRideshareTrip

@@ -6,6 +6,8 @@ import { formatMoney } from '@/features/lib/currency'
 import { VehicleArt } from '../components/VehicleArt'
 import { type PublicFleetBrand } from '../components/FleetBrand'
 import { RiderShell } from '../components/RiderShell'
+import { cityCentre, fetchRoute, placePoint, type LngLat, type RoutePath } from '../components/RideMap'
+import type { SheetSnap } from '../components/MapSheet'
 import { RiderButton, RiderButtonLink, RiderTrack } from '../components/RiderPills'
 import { TRIP_STAGES, statusLabel, tripStageIndex } from '@/features/platform/lib/statusTone'
 import { RiderTripHistory } from '../components/RiderTripHistory'
@@ -22,7 +24,7 @@ type TripView = {
   scheduledFor: string | null
   pickupLabel: string | null
   dropoffLabel: string | null
-  bookingSnapshot: { quote?: { currencyCode: string | null; totalMinor: number | null }; service?: { name?: string | null; category?: string | null }; vehicle?: { label?: string | null; make?: string | null; model?: string | null; color?: string | null; plateMasked?: string | null } } | null
+  bookingSnapshot: { quote?: { currencyCode: string | null; totalMinor: number | null; routeEvidence?: { pickup?: LngLat | null; dropoff?: LngLat | null } }; service?: { name?: string | null; category?: string | null }; vehicle?: { label?: string | null; make?: string | null; model?: string | null; color?: string | null; plateMasked?: string | null } } | null
   finalFareSnapshot: { currencyCode: string | null; totalMinor: number | null } | null
   historyTruncated: boolean
   events: Array<{ eventType: string; toStatus: string | null; occurredAt: string }>
@@ -93,8 +95,10 @@ export default function TripStatusPage({ confirmationCode, requestId }: { confir
       else { await navigator.clipboard.writeText(window.location.href); setShared(true); window.setTimeout(() => setShared(false), 2500) }
     } catch { /* the rider closed the share sheet */ }
   }
-  const panel = 'lg:rounded-2xl lg:bg-white lg:p-6 lg:shadow-[0_18px_50px_-22px_rgba(11,43,46,0.45)] lg:ring-1 lg:ring-ink/5'
-  return <RiderShell fleet={trip?.fleetBrand} map={{ variant: trip ? 'route' : 'home', pickupLabel: trip?.pickupLabel, dropoffLabel: trip?.dropoffLabel, corner: trip?.dropoffLabel ? <div className="flex max-w-[16rem] items-center gap-4 rounded-xl bg-white px-5 py-4 shadow-[0_10px_30px_-16px_rgba(11,43,46,0.5)]"><Navigation className="size-6 shrink-0 fill-signal text-signal" aria-hidden="true" /><span className="min-w-0"><span className="block truncate text-[0.8125rem] font-medium text-ink">To {trip.dropoffLabel}</span><span className="block text-[0.8125rem] text-muted-foreground">{statusLabel(trip.status)}</span></span></div> : undefined }}>
+  const panel = 'lg:p-2'
+  const [snap, setSnap] = useState<SheetSnap>('half')
+  const path = useTripPath(trip)
+  return <RiderShell fleet={trip?.fleetBrand} map={{ snap, onSnap: setSnap, sheetLabel: 'Trip', pickup: { label: trip?.pickupLabel, point: path.pickup }, dropoff: { label: trip?.dropoffLabel, point: path.dropoff }, route: path.route?.coordinates || null, corner: trip?.dropoffLabel ? <div className="flex max-w-[16rem] items-center gap-4 rounded-xl bg-white px-5 py-4 shadow-[0_10px_30px_-16px_rgba(11,43,46,0.5)]"><Navigation className="size-6 shrink-0 fill-signal text-signal" aria-hidden="true" /><span className="min-w-0"><span className="block truncate text-[0.8125rem] font-medium text-ink">To {trip.dropoffLabel}</span><span className="block text-[0.8125rem] text-muted-foreground">{statusLabel(trip.status)}</span></span></div> : undefined }}>
     <div className="w-full space-y-4 lg:max-w-[27rem]" aria-live="polite">
       {loading ? <div className={`space-y-4 ${panel}`} role="status" aria-label="Loading trip"><div className="h-12 w-2/3 animate-pulse rounded-xl bg-lane motion-reduce:animate-none" /><div className="h-40 animate-pulse rounded-xl bg-lane motion-reduce:animate-none" /></div>
         : error ? <div role="alert" className={`space-y-4 ${panel}`}><p className="text-sm text-[#c2412d]">Trip status could not be loaded.</p><RiderTrack><RiderButton onClick={() => setRetry(value => value + 1)}>Try again</RiderButton></RiderTrack></div>
@@ -135,6 +139,38 @@ export default function TripStatusPage({ confirmationCode, requestId }: { confir
         </>}
     </div>
   </RiderShell>
+}
+
+/** The trip on the map: the points the rider chose when booking, or (older trips) their labels looked up
+ * near the fleet's city, and the driving route between them. */
+function useTripPath(trip: TripView | null) {
+  const [pickup, setPickup] = useState<LngLat | null>(null)
+  const [dropoff, setDropoff] = useState<LngLat | null>(null)
+  const [route, setRoute] = useState<RoutePath | null>(null)
+  const evidence = trip?.bookingSnapshot?.quote?.routeEvidence
+  const key = [trip?.id, trip?.pickupLabel, trip?.dropoffLabel, evidence?.pickup?.join(), evidence?.dropoff?.join()].join('|')
+  useEffect(() => {
+    if (!trip) return
+    const controller = new AbortController()
+    void (async () => {
+      const storeCity = await storeCityCentre()
+      const from = evidence?.pickup || (trip.pickupLabel ? await placePoint(trip.pickupLabel, storeCity, controller.signal).catch(() => null) : null)
+      const to = evidence?.dropoff || (trip.dropoffLabel ? await placePoint(trip.dropoffLabel, from || storeCity, controller.signal).catch(() => null) : null)
+      if (controller.signal.aborted) return
+      setPickup(from); setDropoff(to)
+      setRoute(from && to ? await fetchRoute(from, to, controller.signal).catch(() => null) : null)
+    })()
+    return () => controller.abort()
+  }, [key]) // eslint-disable-line react-hooks/exhaustive-deps
+  return { pickup, dropoff, route }
+}
+
+async function storeCityCentre() {
+  try {
+    const cached = sessionStorage.getItem('openfront-rideshare-store-brand-v2')
+    const city = cached ? JSON.parse(cached)?.publicCity : null
+    return await cityCentre(typeof city === 'string' ? city : null)
+  } catch { return null }
 }
 
 /** The assigned driver: their own photo (initials without one), name, and rating only once enough riders have rated them. */
