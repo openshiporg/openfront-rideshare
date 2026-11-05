@@ -13,7 +13,8 @@
     "audit": "tsx scripts/audit.ts",
     "migrate:gen": "keystone build --no-ui && tsx features/keystone/view-order/generate-view-order.ts && keystone prisma migrate dev",
     "migrate": "prisma migrate deploy",
-    "test:internal-origin": "node --import tsx --test features/keystone/lib/internal-origin.test.ts"
+    "test:internal-origin": "node --import tsx --test features/keystone/lib/internal-origin.test.ts",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@ai-sdk/mcp": "^1.0.13",
@@ -80,6 +81,7 @@
     "next": "^16.0.10",
     "next-themes": "^0.4.6",
     "nodemailer": "^7.0.5",
+    "patch-package": "^8.0.1",
     "pluralize": "^8.0.0",
     "react": "^19.2.2",
     "react-day-picker": "^9.7.0",
@@ -96,6 +98,7 @@
     "tailwind-merge": "^3.3.0",
     "tailwindcss-animate": "^1.0.7",
     "use-stick-to-bottom": "^1.1.1",
+    "vaul": "^1.1.2",
     "zod": "^3.25.50"
   },
   "devDependencies": {

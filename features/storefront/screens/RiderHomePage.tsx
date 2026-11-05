@@ -60,6 +60,19 @@ type Quote = {
 }
 import { parsePendingRequest, parseRiderReceipt, receiptFromFragment, pendingRequestStorageKey, persistPendingRequest, receiptStorageKey, riderStatusHref, archiveReceipt } from '../domain/riderReceiptStorage'
 
+/* The rider sheet's one design system.
+   Type: 16/medium field values and ride names; 16/semibold prices; 13/regular secondary lines; 17/semibold the CTA;
+   (28/semibold the status title). Radii: 12 rows, inputs and buttons; 16 the trip field and popovers (12 + 4 padding);
+   24 the sheet; full for icon buttons and chips over the map. */
+const secondary = 'text-[13px] leading-[18px] text-muted-foreground'
+const fieldValue = 'block h-12 w-full min-w-0 flex-1 bg-transparent text-[16px] font-medium leading-6 text-ink outline-none placeholder:text-muted-foreground'
+const clearButton = 'press grid size-9 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-white hover:text-ink'
+const suggestionRow = 'press flex min-h-14 w-full items-center gap-3 rounded-[12px] px-2 text-left hover:bg-field'
+const suggestionIcon = 'grid size-8 shrink-0 place-items-center rounded-full bg-field text-ink'
+function PickupDot() {
+  return <span aria-hidden="true" className="grid size-6 shrink-0 place-items-center"><span className="size-3 rounded-full border-[3px] border-ink bg-white" /></span>
+}
+
 type BoundQuote = QuoteBinding<Quote>
 type Estimate = { serviceId: string; totalMinor: number; currencyCode: string; cancellationFeeMinor: number; noShowFeeMinor: number }
 type Estimates = { key: string; distanceMeters: number; durationSeconds: number; options: Map<string, Estimate> }
@@ -111,7 +124,6 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
   const [pinMode, setPinMode] = useState<null | 'pickup' | 'dropoff'>(null)
   const [pinSpot, setPinSpot] = useState<{ point: LngLat; label: string; loading: boolean } | null>(null)
   const [timeOpen, setTimeOpen] = useState(false)
-  const [emailOpen, setEmailOpen] = useState(false)
   const [locatingPickup, setLocatingPickup] = useState(false)
   // The rider's own position (once they allow it) and its address; the pickup starts there.
   const [currentPlace, setCurrentPlace] = useState<{ point: LngLat; label: string } | null>(null)
@@ -616,87 +628,84 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
       {receipt ? receiptPanel() : pinMode ? pinPanel() : <form className="relative" onSubmit={event => { event.preventDefault(); void primaryAction() }}>
         <fieldset disabled={formLocked} className="min-w-0 disabled:opacity-70">
           <legend className="sr-only">Plan a ride</legend>
-          <div className="flex min-h-[3.75rem] items-center gap-3 rounded-2xl bg-[#f2f5f5] py-1.5 pl-3 pr-1.5 focus-within:ring-2 focus-within:ring-tide lg:rounded-xl lg:pl-4">
-            {pickupEditing ? <PlaceField id="pickup" label="Pickup" placeholder="Search pickup" value={pickupIsCurrent ? '' : pickupLabel} onChange={typePickup} onPick={pickPickup} near={currentPlace?.point || cityPoint} onFocus={fieldFocus} onBlur={() => setPickupEditing(false)} autoFocus disabled={formLocked} quick={pickupQuick} className="min-w-0 flex-1"
-                leading={<span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-white"><span className="size-3 rounded-full bg-ink" /></span>}
-                inputClassName="block h-11 w-full min-w-0 flex-1 bg-transparent text-base font-medium text-ink outline-none placeholder:text-muted-foreground">
-                {pickupLabel && !pickupIsCurrent && <button type="button" aria-label="Clear pickup" onMouseDown={event => event.preventDefault()} onClick={() => typePickup('')} className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-white hover:text-ink"><X className="size-4" aria-hidden="true" /></button>}
-              </PlaceField>
-            : <>
-            <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-white"><span className="size-3 rounded-full bg-ink" /></span>
-            <div className="min-w-0 flex-1">
-              <button type="button" id="pickup-row" aria-label={`Pickup: ${pickupTitle}${pickupIsCurrent && currentPlace?.label ? `, ${currentPlace.label}` : ''}. Change pickup`} onClick={() => { if (!formLocked) setPickupEditing(true) }} className="block w-full min-w-0 py-0.5 text-left focus-visible:outline-none">
-                <span className="block truncate text-base font-semibold leading-snug text-ink">{pickupTitle}</span>
-                <span className="block truncate text-[0.8125rem] text-muted-foreground">{pickupDetail}</span>
-              </button>
+          {/* One trip field: pickup (dot) over destination (pin), joined by a hairline, swap on the right. */}
+          <div className="relative rounded-[16px] bg-field p-1">
+            <span aria-hidden="true" className="pointer-events-none absolute left-[1.6875rem] top-[2.375rem] h-[calc(100%-4.75rem)] w-px bg-ink/20" />
+            <div className="flex min-h-14 items-center gap-3 rounded-[12px] pl-3 pr-1 focus-within:bg-white focus-within:ring-1 focus-within:ring-tide/50">
+              {pickupEditing ? <PlaceField id="pickup" label="Pickup" placeholder="Search pickup" value={pickupIsCurrent ? '' : pickupLabel} onChange={typePickup} onPick={pickPickup} near={currentPlace?.point || cityPoint} onFocus={fieldFocus} onBlur={() => setPickupEditing(false)} autoFocus disabled={formLocked} quick={pickupQuick} className="min-w-0 flex-1"
+                  leading={<PickupDot />}
+                  inputClassName={fieldValue}>
+                  {pickupLabel && !pickupIsCurrent && <button type="button" aria-label="Clear pickup" onMouseDown={event => event.preventDefault()} onClick={() => typePickup('')} className={clearButton}><X className="size-4" aria-hidden="true" /></button>}
+                </PlaceField>
+              : <>
+                <PickupDot />
+                <button type="button" id="pickup-row" aria-label={`Pickup: ${pickupTitle}${pickupIsCurrent && currentPlace?.label ? `, ${currentPlace.label}` : ''}. Change pickup`} onClick={() => { if (!formLocked) setPickupEditing(true) }} className="block min-w-0 flex-1 py-2 text-left focus-visible:outline-none">
+                  <span className="block truncate text-[16px] font-medium leading-6 text-ink">{pickupTitle}</span>
+                  <span className={`block truncate ${secondary}`}>{pickupDetail}</span>
+                </button>
+                {offerLocate && <button type="button" onClick={useCurrentLocation} className="press inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-white px-3 text-[13px] font-medium text-ink ring-1 ring-ink/10 hover:bg-foam"><Navigation className="size-3.5 fill-current text-signal" aria-hidden="true" />Use my location</button>}
+                {locatingPickup && <LoaderCircle className="mr-3 size-4 shrink-0 animate-spin text-muted-foreground motion-reduce:animate-none" aria-label="Finding your location" />}
+              </>}
             </div>
-            </>}
-            {!pickupEditing && offerLocate && <button type="button" onClick={useCurrentLocation} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-white px-3 text-[0.8125rem] font-medium text-ink ring-1 ring-ink/10 hover:bg-foam"><Navigation className="size-3.5 fill-current text-signal" aria-hidden="true" />Use my location</button>}
-            {!pickupEditing && locatingPickup && <LoaderCircle className="mr-2 size-4 shrink-0 animate-spin text-muted-foreground motion-reduce:animate-none" aria-label="Finding your location" />}
-            {!pickupEditing && dropoffLabel.trim() && <button type="button" aria-label="Swap pickup and destination" onClick={swapPlaces} className="grid size-10 shrink-0 place-items-center rounded-full bg-white text-ink ring-1 ring-ink/10 hover:bg-foam"><ArrowDownUp className="size-4" aria-hidden="true" /></button>}
+            <div aria-hidden="true" className="ml-12 mr-12 h-px bg-ink/10" />
+            <div className="flex min-h-14 items-center rounded-[12px] pl-3 pr-1 focus-within:bg-white focus-within:ring-1 focus-within:ring-tide/50">
+              <PlaceField id="dropoff" label="Where to?" placeholder="Where to?" value={dropoffLabel} onChange={typeDropoff} onPick={pickDropoff} near={pickupPoint || cityPoint} onFocus={fieldFocus} required disabled={formLocked} quick={dropoffQuick} className="min-w-0 flex-1"
+                leading={<span aria-hidden="true" className="grid size-6 shrink-0 place-items-center"><MapPin className="size-5 fill-signal text-signal [&>circle]:fill-white [&>circle]:stroke-white" /></span>}
+                inputClassName={`${fieldValue} placeholder:text-ink/60`}>
+                {dropoffLabel && <button type="button" aria-label="Clear destination" onClick={() => typeDropoff('')} className={clearButton}><X className="size-4" aria-hidden="true" /></button>}
+                {!dropoffPoint && <button type="button" aria-label="Find destination" disabled={!dropoffLabel.trim() || formLocked} onClick={() => chooseDropoff(dropoffLabel.trim())} className="press grid size-10 shrink-0 place-items-center rounded-full bg-signal text-white hover:bg-signal-deep disabled:opacity-50"><ArrowRight className="size-5" aria-hidden="true" /></button>}
+              </PlaceField>
+            </div>
+            {!pickupEditing && dropoffLabel.trim() && dropoffPoint && <button type="button" aria-label="Swap pickup and destination" onClick={swapPlaces} className="press absolute right-2 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-full bg-white text-ink shadow-[0_2px_8px_-4px_rgba(11,43,46,0.4)] ring-1 ring-ink/10 hover:bg-foam active:scale-[0.97]"><ArrowDownUp className="size-4" aria-hidden="true" /></button>}
           </div>
 
-          <div className="relative mt-2 rounded-full bg-[#eef3f3] py-1.5 pl-4 pr-1.5 ring-1 ring-transparent focus-within:ring-2 focus-within:ring-tide lg:mt-3 lg:rounded-xl lg:bg-foam lg:py-1.5 lg:pl-4 lg:ring-tide/60">
-            <PlaceField id="dropoff" label="Where to?" placeholder="Where to?" value={dropoffLabel} onChange={typeDropoff} onPick={pickDropoff} near={pickupPoint || cityPoint} onFocus={fieldFocus} required disabled={formLocked} quick={dropoffQuick}
-              leading={<MapPin className="size-5 shrink-0 fill-signal text-signal lg:size-6 [&>circle]:fill-white [&>circle]:stroke-white" aria-hidden="true" />}
-              inputClassName={`h-10 min-w-0 flex-1 bg-transparent font-semibold tracking-[-0.02em] text-ink outline-none placeholder:text-ink lg:h-11 ${dropoffLabel ? "text-lg lg:text-xl" : "text-[1.375rem] lg:text-[1.75rem]"}`}>
-              {dropoffLabel && <button type="button" aria-label="Clear destination" onClick={() => typeDropoff('')} className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-white hover:text-ink"><X className="size-4" aria-hidden="true" /></button>}
-              {!dropoffPoint && <button type="button" aria-label="Find destination" disabled={!dropoffLabel.trim() || formLocked} onClick={() => chooseDropoff(dropoffLabel.trim())} className="grid size-10 shrink-0 place-items-center rounded-full bg-signal text-white lg:size-11 transition-colors hover:bg-signal-deep disabled:opacity-60"><ArrowRight className="size-5 lg:size-6" aria-hidden="true" /></button>}
-            </PlaceField>
-          </div>
+          {!routeKnown && <ul aria-label="Suggestions" className="mt-2">
+            {suggestions.map(({ label, kind }) => <li key={label}><button type="button" onClick={() => chooseDropoff(label)} className={suggestionRow}>
+              <span aria-hidden="true" className={suggestionIcon}>{kind === 'recent' ? <History className="size-4" /> : <PlaceKindIcon label={label} className="size-4" />}</span>
+              <span className="min-w-0 flex-1"><span className="block truncate text-[16px] font-medium leading-6 text-ink">{label}</span><span className={`block truncate ${secondary}`}>{knownDetail(kind)}</span></span>
+              <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+            </button></li>)}
+            <li><button type="button" onClick={() => startPin('dropoff')} className={suggestionRow}>
+              <span aria-hidden="true" className={`${suggestionIcon} text-signal`}><Crosshair className="size-4" /></span>
+              <span className="min-w-0 flex-1"><span className="block truncate text-[16px] font-medium leading-6 text-ink">Set destination on map</span><span className={`block truncate ${secondary}`}>Move the map under the pin</span></span>
+            </button></li>
+          </ul>}
 
-          {!routeKnown && <div className="mt-1 lg:mt-1 lg:rounded-xl lg:bg-white lg:shadow-[0_6px_20px_-12px_rgba(11,43,46,0.35)] lg:ring-1 lg:ring-ink/5">
-            <p className="px-1 pb-0.5 pt-3 text-xs font-medium text-muted-foreground lg:sr-only">Suggestions</p>
-            <ul aria-label="Suggestions" className="divide-y divide-border">
-              {suggestions.map(({ label, kind }) => <li key={label}><button type="button" onClick={() => chooseDropoff(label)} className="flex w-full items-center gap-3 px-1.5 py-2.5 text-left transition-colors hover:bg-foam lg:rounded-xl lg:px-4">
-                <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-[#eef3f3] text-ink lg:size-7 lg:bg-transparent">{kind === 'recent' ? <History className="size-4 lg:size-5" /> : <PlaceKindIcon label={label} className="size-4 lg:size-5" />}</span>
-                <span className="min-w-0 flex-1"><span className="block truncate text-base font-medium leading-snug text-ink lg:text-[0.9375rem] lg:font-semibold">{label}</span><span className="block text-[0.8125rem] text-muted-foreground">{knownDetail(kind)}</span></span>
-                <ChevronRight className="size-5 shrink-0 text-muted-foreground lg:hidden" aria-hidden="true" />
-              </button></li>)}
-              <li><button type="button" onClick={() => startPin('dropoff')} className="flex w-full items-center gap-3 px-1.5 py-2.5 text-left transition-colors hover:bg-foam lg:rounded-xl lg:px-4">
-                <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-[#eef3f3] text-signal lg:size-7 lg:bg-transparent"><Crosshair className="size-4 lg:size-5" /></span>
-                <span className="min-w-0 flex-1"><span className="block text-base font-medium leading-snug text-ink lg:text-[0.9375rem] lg:font-semibold">Set destination on map</span><span className="block text-[0.8125rem] text-muted-foreground">Move the map under the pin</span></span>
-              </button></li>
-            </ul>
-          </div>}
-
-          <section aria-labelledby="services-title" className="mt-3 lg:mt-5">
+          <section aria-labelledby="services-title" className="mt-4">
             <div className="flex items-center justify-between gap-3 px-1">
-              <h2 id="services-title" className="text-xs font-medium text-muted-foreground lg:text-lg lg:font-semibold lg:text-ink">{routeKnown ? `Choose a ride${tripMinutes ? ` · ${tripMinutes} trip` : ''}${liveEstimates ? ` · ${formatDistance(liveEstimates.distanceMeters)}` : ''}` : 'Ride options'}</h2>
-              {nextServiceCursor && <button type="button" disabled={servicesLoading} onClick={() => void moreServices()} className="text-sm font-medium text-ink underline underline-offset-4 hover:text-signal">View all</button>}
+              <h2 id="services-title" className={secondary}>{routeKnown ? `Choose a ride${tripMinutes ? ` · ${tripMinutes}` : ''}${liveEstimates ? ` · ${formatDistance(liveEstimates.distanceMeters)}` : ''}` : 'Ride options'}</h2>
+              {nextServiceCursor && <button type="button" disabled={servicesLoading} onClick={() => void moreServices()} className="text-[13px] font-medium text-ink underline underline-offset-4 hover:text-signal">View all</button>}
             </div>
             <ServiceList services={services} serviceId={serviceId} disabled={formLocked} onChange={event => { change(setServiceId)(event); if (routeKnown && snap === 'peek') setSnap('half') }} loading={servicesLoading} name="service" estimates={liveEstimates?.options || null} pricing={routeKnown && !liveEstimates} scheduledFor={scheduledFor} durationSeconds={liveEstimates?.durationSeconds ?? null} />
           </section>
-
-          <div className="mt-3 px-1">
-            {emailOpen || receiptEmail ? <label className="block">
-              <span className="block text-sm font-medium text-ink">Email for receipt</span>
-              <input name="receiptEmail" type="email" autoComplete="email" maxLength={254} value={receiptEmail} onChange={event => setReceiptEmail(event.target.value)} className="mt-1 block h-11 w-full min-w-0 rounded-xl bg-[#f2f5f5] px-4 text-base text-ink outline-none focus:ring-2 focus:ring-tide" />
-            </label> : <button type="button" onClick={() => setEmailOpen(true)} className="text-sm font-medium text-ink underline underline-offset-4 hover:text-signal">Email me a receipt</button>}
-          </div>
         </fieldset>
 
-        <div className="mt-3 space-y-2 empty:hidden" aria-live="polite">
-          {quoteExpired && !uncertainRequest && <p role="status" className="text-sm text-amber-700">Price expired. Request again for a new price.</p>}
-          {uncertainRequest && <p role="status" className="flex items-start gap-2 text-sm text-amber-700"><StatusDot tone="amber" pulse className="mt-1.5" />Request unconfirmed. Recover it before booking again.</p>}
-          {servicesLoading && <p className="text-sm text-muted-foreground" role="status">Loading rides…</p>}
-          {!servicesLoading && !services.length && <p className="text-sm text-amber-700" role="status">No rides available right now</p>}
-          {selectedService?.readiness && !selectedService.readiness.bookingEnabled && <p role="status" className="text-sm text-amber-700">{selectedService.readiness.reason}</p>}
-          {statusError && <p role="status" className="text-sm text-amber-700">{statusError}</p>}
+        <div className="mt-2 space-y-1 px-1 empty:hidden" aria-live="polite">
+          {quoteExpired && !uncertainRequest && <p role="status" className="text-[13px] text-amber-700">Price expired. Request again for a new price.</p>}
+          {uncertainRequest && <p role="status" className="flex items-start gap-2 text-[13px] text-amber-700"><StatusDot tone="amber" pulse className="mt-1.5" />Request unconfirmed. Recover it before booking again.</p>}
+          {servicesLoading && <p className={secondary} role="status">Loading rides…</p>}
+          {!servicesLoading && !services.length && <p className="text-[13px] text-amber-700" role="status">No rides available right now</p>}
+          {selectedService?.readiness && !selectedService.readiness.bookingEnabled && <p role="status" className="text-[13px] text-amber-700">{selectedService.readiness.reason}</p>}
+          {statusError && <p role="status" className="text-[13px] text-amber-700">{statusError}</p>}
         </div>
 
-        <div className="sticky bottom-0 z-10 -mx-1 mt-3 space-y-2 rounded-t-2xl bg-white px-1 pb-3 pt-2 shadow-[0_-10px_16px_-12px_rgba(11,43,46,0.25)] max-lg:group-data-[snap=peek]/sheet:hidden">
+        {/* Time and request: one group, same 12px family, pinned to the sheet's visible bottom. */}
+        <div className="sticky bottom-0 z-10 -mx-4 mt-2 space-y-2 bg-white px-4 pb-2 pt-3 shadow-[0_-1px_0_rgba(13,46,49,0.08)] group-data-[snap=peek]/sheet:hidden lg:-mx-4">
           <PickupTimePicker value={scheduledFor} onChange={value => { if (locked()) return; update(setScheduledFor, value) }} open={timeOpen} onOpenChange={setTimeOpen} needed={needsTime && Boolean(dropoffLabel.trim())}
             advanceBookingMinutes={selectedService?.advanceBookingMinutes || 0} disabled={formLocked}
             passengers={passengers} maxPassengers={maxPassengers} onPassengers={value => update(setPassengerCount, String(value))}
             wheelchair={wheelchairAccessible} onWheelchair={value => { if (locked()) return; invalidateQuote(); setWheelchairAccessible(value) }}>
+            <label className="block">
+              <span className="block text-[13px] font-medium text-ink">Email a receipt <span className="font-normal text-muted-foreground">· optional</span></span>
+              <input name="receiptEmail" type="email" autoComplete="email" inputMode="email" maxLength={254} placeholder="you@example.com" value={receiptEmail} onChange={event => setReceiptEmail(event.target.value)} className="mt-1.5 block h-11 w-full min-w-0 rounded-[12px] bg-field px-3 text-[16px] text-ink outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-tide/50" />
+            </label>
             {selectedService && <ServiceDetail service={selectedService} />}
           </PickupTimePicker>
-          {quote && visibleQuoteBinding && <p aria-live="polite" aria-label="Price" className="flex flex-wrap items-center gap-x-2 px-1 text-[0.8125rem] text-ink"><span className="font-semibold">{estimate && estimate.totalMinor !== quote.fare.totalMinor ? `Price updated to ${quoteFare}` : `Price ${quoteFare}`}</span><span className="text-muted-foreground">·</span><span className="tabular-nums text-muted-foreground"><QuoteCountdown expiresAt={quote.expiresAt} /></span>{quote.scheduledFor && <><span className="text-muted-foreground">·</span><span className="text-muted-foreground">Pickup {whenLabel(new Date(quote.scheduledFor))}</span></>}</p>}
-          {error && <p role="alert" className="px-1 text-sm text-[#c2412d]">{error}</p>}
-          <RiderButton type="submit" tone="signal" size="lg" disabled={ctaDisabled} className="min-h-12 w-full rounded-full text-base lg:min-h-[3.3rem]">{busyLabel && <LoaderCircle className="size-5 animate-spin motion-reduce:animate-none" aria-hidden="true" />}{requestLabel}</RiderButton>
-          {(quote || estimate) && <p title={quote ? quote.estimateDisclosure : 'Estimated from the driving route. The fleet confirms the final fare.'} className="truncate px-1 text-center text-xs text-muted-foreground">Estimated fare · Cancellation {formatMoney((quote || estimate)!.cancellationFeeMinor, quote?.fare.currencyCode || estimate!.currencyCode)} · No-show {formatMoney((quote || estimate)!.noShowFeeMinor, quote?.fare.currencyCode || estimate!.currencyCode)}</p>}
-          {uncertainRequest && <RiderButton tone="raised" className="w-full" disabled={requestLoading} onClick={() => void resolveOriginalIntent()}>Check request outcome</RiderButton>}
+          {quote && visibleQuoteBinding && <p aria-live="polite" aria-label="Price" className={`flex flex-wrap items-center gap-x-1.5 px-1 ${secondary}`}><span className="font-medium text-ink">{estimate && estimate.totalMinor !== quote.fare.totalMinor ? `Price updated to ${quoteFare}` : `Price ${quoteFare}`}</span><span>·</span><span className="tabular-nums"><QuoteCountdown expiresAt={quote.expiresAt} /></span>{quote.scheduledFor && <><span>·</span><span>Pickup {whenLabel(new Date(quote.scheduledFor))}</span></>}</p>}
+          {error && <p role="alert" className="px-1 text-[13px] text-[#c2412d]">{error}</p>}
+          <button type="submit" disabled={ctaDisabled} className="press flex h-12 w-full items-center justify-center gap-2 rounded-[12px] bg-signal px-4 text-[17px] font-semibold text-white hover:bg-signal-deep disabled:opacity-45">{busyLabel && <LoaderCircle className="size-5 animate-spin motion-reduce:animate-none" aria-hidden="true" />}<span className="truncate">{requestLabel}</span></button>
+          {(quote || estimate) && <p title={quote ? quote.estimateDisclosure : 'Estimated from the driving route. The fleet confirms the final fare.'} className={`truncate px-1 text-center ${secondary}`}>Estimate · Cancel {formatMoney((quote || estimate)!.cancellationFeeMinor, quote?.fare.currencyCode || estimate!.currencyCode)} · No-show {formatMoney((quote || estimate)!.noShowFeeMinor, quote?.fare.currencyCode || estimate!.currencyCode)}</p>}
+          {uncertainRequest && <button type="button" className="press flex h-12 w-full items-center justify-center rounded-[12px] bg-white text-[16px] font-medium text-ink ring-1 ring-ink/15 disabled:opacity-45" disabled={requestLoading} onClick={() => void resolveOriginalIntent()}>Check request outcome</button>}
         </div>
       </form>}
     </div>
@@ -704,16 +713,16 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
 
   function pinPanel() {
     const field = pinMode === 'pickup' ? 'pickup' : 'destination'
-    return <section aria-live="polite" aria-labelledby="pin-title" className="space-y-3 pt-1 lg:p-2">
-      <div className="flex items-start gap-3">
-        <span aria-hidden="true" className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-full bg-foam text-signal"><Crosshair className="size-4" /></span>
-        <div className="min-w-0 flex-1">
-          <h2 id="pin-title" className="text-xs font-medium text-muted-foreground">Move the map to set your {field}</h2>
-          <p className="truncate text-base font-semibold text-ink">{!pinSpot || pinSpot.loading ? 'Finding the address…' : pinSpot.label}</p>
+    return <section aria-live="polite" aria-labelledby="pin-title" className="space-y-3">
+      <div className="flex min-h-14 items-center gap-3 rounded-[16px] bg-field py-1 pl-3 pr-1">
+        <span aria-hidden="true" className="grid size-6 shrink-0 place-items-center text-signal"><Crosshair className="size-5" /></span>
+        <div className="min-w-0 flex-1 py-1">
+          <p className="truncate text-[16px] font-medium leading-6 text-ink">{!pinSpot || pinSpot.loading ? 'Finding the address…' : pinSpot.label}</p>
+          <h2 id="pin-title" className={`truncate ${secondary}`}>Move the map to set your {field}</h2>
         </div>
-        <button type="button" aria-label="Cancel" onClick={() => { setPinMode(null); setPinSpot(null); setSnap('half') }} className="grid size-9 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-foam hover:text-ink"><X className="size-5" aria-hidden="true" /></button>
+        <button type="button" aria-label="Cancel" onClick={() => { setPinMode(null); setPinSpot(null); setSnap('half') }} className={clearButton}><X className="size-4" aria-hidden="true" /></button>
       </div>
-      <RiderButton tone="signal" size="lg" disabled={!pinSpot} onClick={confirmPin} className="min-h-12 w-full rounded-full text-base">Confirm {field}</RiderButton>
+      <button type="button" disabled={!pinSpot} onClick={confirmPin} className="press flex h-12 w-full items-center justify-center rounded-[12px] bg-signal text-[17px] font-semibold text-white hover:bg-signal-deep disabled:opacity-45">Confirm {field}</button>
     </section>
   }
 
@@ -721,11 +730,11 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
     if (!receipt) return null
     const cancelled = requestView?.status === 'cancelled' && !requestView.trip
     const title = requestView ? (requestView.trip ? statusLabel(liveState) : cancelled ? 'Ride cancelled' : terminal ? statusLabel(liveState) : 'Finding your driver') : statusError ? 'Status unavailable' : 'Checking…'
-    return <section aria-live="polite" aria-labelledby="receipt-title" className="space-y-5 pt-2 lg:p-2">
-      <div className="space-y-1.5">
-        <p className="text-[0.9375rem] text-ink">{requestView?.trip ? 'Your ride is on the way' : 'Your request'}</p>
-        <StatusTitle as="h2" id="receipt-title" tone={requestView ? statusTone(liveState) : 'zinc'} pulse={Boolean(requestView) && !terminal} className="text-[2.25rem] font-semibold leading-[1.1] tracking-[-0.03em] text-ink lg:text-[2.75rem]">{title}</StatusTitle>
-        <p className="text-[0.9375rem] text-ink"><span className="font-mono font-medium">{receipt.requestNumber}</span>{statusAsOf && <span className="text-muted-foreground"> · Updated {statusAsOf}</span>}</p>
+    return <section aria-live="polite" aria-labelledby="receipt-title" className="space-y-4 pt-1">
+      <div className="space-y-1">
+        <p className={secondary}>{requestView?.trip ? 'Your ride is on the way' : 'Your request'}</p>
+        <StatusTitle as="h2" id="receipt-title" tone={requestView ? statusTone(liveState) : 'zinc'} pulse={Boolean(requestView) && !terminal} className="text-[28px] font-semibold leading-[1.15] tracking-[-0.02em] text-ink">{title}</StatusTitle>
+        <p className={secondary}><span className="font-medium tabular-nums text-ink">{receipt.requestNumber}</span>{statusAsOf && <> · Updated {statusAsOf}</>}</p>
       </div>
       {requestView?.trip ? <div className="space-y-4 border-t border-border pt-5">
         <TripProgress status={requestView.trip.status} />
@@ -734,15 +743,15 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
           <RiderButtonLink href={riderStatusHref(requestView.trip.confirmationCode, receipt.requestId)} tone="signal" className="min-h-12 px-6">Track ride<ArrowUpRight className="size-4" aria-hidden="true" /></RiderButtonLink>
         </div>
         {requestView.handoffState === 'reassignment_pending' && <p className="text-sm text-amber-700">Driver cancelled. Finding another driver.</p>}
-      </div> : requestView && !terminal && <div className="flex items-center gap-3 rounded-xl bg-foam p-4"><span className="relative grid size-10 shrink-0 place-items-center rounded-full bg-white"><Search className="size-4 text-signal" aria-hidden="true" /><span className="absolute inset-0 animate-ping rounded-full bg-tide/20 motion-reduce:animate-none" /></span><p className="text-sm font-medium">Matching you with a driver</p></div>}
-      {cancelled && <p className="text-[0.9375rem] text-ink">No fee charged. No driver had been assigned.</p>}
+      </div> : requestView && !terminal && <div className="flex min-h-14 items-center gap-3 rounded-[16px] bg-field px-3"><span className="relative grid size-8 shrink-0 place-items-center rounded-full bg-white"><Search className="size-4 text-signal" aria-hidden="true" /><span className="absolute inset-0 animate-ping rounded-full bg-tide/20 motion-reduce:animate-none" /></span><p className="text-[16px] font-medium text-ink">Matching you with a driver</p></div>}
+      {cancelled && <p className={secondary}>No fee charged. No driver had been assigned.</p>}
       {requestView?.handoffState === 'unavailable' && <p className="text-sm text-amber-700">Assignment details unavailable. The operator needs to reconcile this request.</p>}
       {statusError && <p role="status" className="text-sm text-amber-700">{statusError}</p>}
       {error && <p role="alert" className="text-sm text-[#c2412d]">{error}</p>}
       {requestView && !cancelled && <RequestCancellation requestId={receipt.requestId} requestProof={receipt.requestProof} status={requestView.status} onAcknowledged={() => { setRequestView(view => view ? { ...view, status: 'cancelled' } : view); setStatusAsOf(new Date().toLocaleTimeString()); setStatusError('') }} />}
       <RiderTrack className="w-full">
-        {terminal && <RiderButton tone="signal" className="min-h-12 flex-1" onClick={beginAnotherRide}>{cancelled ? 'Book another ride' : 'New ride'}</RiderButton>}
-        <RiderButtonLink href="/account/rides" tone={terminal ? 'quiet' : 'raised'} className="min-h-12 flex-1">My rides</RiderButtonLink>
+        {terminal && <RiderButton tone="signal" className="press min-h-12 flex-1 rounded-[12px] text-[17px]" onClick={beginAnotherRide}>{cancelled ? 'Book another ride' : 'New ride'}</RiderButton>}
+        <RiderButtonLink href="/account/rides" tone={terminal ? 'quiet' : 'raised'} className="press min-h-12 flex-1 rounded-[12px] text-[16px] font-medium">My rides</RiderButtonLink>
       </RiderTrack>
     </section>
   }
@@ -791,32 +800,35 @@ function vehicleFor(service: Service, index: number): { kind: 'sedan' | 'suv' | 
 }
 
 function ServiceList({ services, serviceId, disabled, onChange, loading, name, estimates, pricing, scheduledFor, durationSeconds }: { services: Service[]; serviceId: string; disabled: boolean; onChange: (event: React.ChangeEvent<HTMLInputElement>) => void; loading: boolean; name: string; estimates: Map<string, Estimate> | null; pricing: boolean; scheduledFor: string; durationSeconds: number | null }) {
-  if (loading && !services.length) return <div className="mt-3 space-y-2" aria-hidden="true">{[0, 1].map(index => <div key={index} className="h-[5.5rem] animate-pulse rounded-xl bg-lane motion-reduce:animate-none" />)}</div>
+  if (loading && !services.length) return <div className="mt-2 space-y-1" aria-hidden="true">{[0, 1].map(index => <div key={index} className="h-[4.5rem] animate-pulse rounded-[12px] bg-field motion-reduce:animate-none" />)}</div>
   // One fleet runs every ride here, and its name already sits in the header.
   const multiFleet = new Set(services.map(service => service.fleet.name)).size > 1
-  return <div className="mt-1.5 divide-y divide-border lg:mt-3 lg:divide-y-0 lg:space-y-1.5" role="radiogroup" aria-label="Ride">
+  return <div className="mt-2 space-y-1" role="radiogroup" aria-label="Ride">
     {services.map((service, index) => {
       const ready = service.readiness?.bookingEnabled === true
       const vehicle = vehicleFor(service, index)
-      return <label key={service.id} className="group flex min-h-[3.75rem] cursor-pointer items-center gap-3 rounded-2xl px-2 py-2 transition-[box-shadow,background-color] has-[:checked]:bg-foam has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-tide has-[:disabled]:cursor-default sm:gap-4 lg:min-h-[5.6rem] lg:rounded-xl lg:bg-white lg:px-3 lg:shadow-[0_4px_16px_-12px_rgba(11,43,46,0.4)] lg:ring-1 lg:ring-ink/5 lg:has-[:checked]:ring-2 lg:has-[:checked]:ring-tide">
+      // Every row is the same height: one-line name, one secondary line, a fixed 72×40 vehicle box on one baseline.
+      return <label key={service.id} title={service.title} className="press group flex h-[4.5rem] cursor-pointer items-center gap-2.5 rounded-[12px] px-2 ring-1 ring-transparent transition-[background-color,box-shadow,transform] hover:bg-field has-[:checked]:bg-foam has-[:checked]:ring-tide/40 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-tide has-[:disabled]:cursor-default">
         <input type="radio" name={name} value={service.id} checked={serviceId === service.id} disabled={disabled} onChange={onChange} className="sr-only" />
-        {service.photoUrl
-          ? <img src={service.photoUrl} alt="" loading="lazy" className="h-10 w-[4.75rem] shrink-0 object-contain mix-blend-multiply sm:h-12 sm:w-[6.5rem] lg:h-14 lg:w-[7rem]" />
-          : <VehicleArt kind={vehicle.kind} tone={vehicle.tone} className="h-10 w-[4.75rem] shrink-0 sm:h-12 sm:w-[6.5rem] lg:h-14 lg:w-[7rem]" />}
+        <span aria-hidden="true" className="flex h-10 w-[4.5rem] shrink-0 items-end justify-center">
+          {service.photoUrl
+            ? <img src={service.photoUrl} alt="" loading="lazy" className="h-10 w-[4.5rem] object-contain object-bottom mix-blend-multiply" />
+            : <VehicleArt kind={vehicle.kind} tone={vehicle.tone} className="h-10 w-[4.5rem]" />}
+        </span>
         <span className="min-w-0 flex-1">
-          <span className="flex items-center gap-2"><span className="line-clamp-2 text-base font-semibold leading-tight text-ink [overflow-wrap:anywhere]">{service.title}</span>{!ready && <StatusDot tone="amber" />}</span>
-          <span className="mt-1 flex flex-wrap items-center gap-x-1.5 text-[0.8125rem] text-muted-foreground"><span className="inline-flex items-center gap-1"><Users className="size-3.5 fill-current" aria-hidden="true" />{service.passengerCapacity}<span className="max-sm:hidden"> seats</span></span>{service.category && <><span aria-hidden="true" className="max-sm:hidden">·</span><span className="capitalize max-sm:hidden">{service.category.replaceAll('_', ' ')}</span></>}{multiFleet && <span className="truncate">· {service.fleet.name}</span>}</span>
+          <span className="flex min-w-0 items-center gap-2"><span className="truncate text-[16px] font-medium leading-6 text-ink">{service.title}</span>{!ready && <StatusDot tone="amber" />}</span>
+          <span className={`flex min-w-0 items-center gap-x-1 ${secondary}`}><Users className="size-3.5 shrink-0 fill-current" aria-hidden="true" /><span className="tabular-nums">{service.passengerCapacity}</span>{multiFleet && <span className="truncate">· {service.fleet.name}</span>}</span>
         </span>
         {(() => {
           const price = estimates?.get(service.id)
           // The trip's own price once the route is known.
           if (price) {
             const arrive = durationSeconds !== null && (!service.advanceBookingMinutes || scheduledFor) ? new Date((scheduledFor ? new Date(scheduledFor).getTime() : Date.now()) + durationSeconds * 1000) : null
-            return <span className="shrink-0 text-right"><span className="block text-[1.0625rem] font-semibold tabular-nums text-ink">{formatMoney(price.totalMinor, price.currencyCode)}</span><span className="mt-0.5 block whitespace-nowrap text-xs text-muted-foreground lg:text-[0.8125rem]">{arrive ? `Drop-off ${arrive.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : service.advanceBookingMinutes ? `Book ${shortLead(service.advanceBookingMinutes)} ahead` : 'Now'}</span></span>
+            return <span className="shrink-0 text-right"><span className="block text-[16px] font-semibold leading-6 tabular-nums text-ink">{formatMoney(price.totalMinor, price.currencyCode)}</span><span className={`block whitespace-nowrap ${secondary}`}>{arrive ? `Drop-off ${arrive.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : service.advanceBookingMinutes ? `${shortLead(service.advanceBookingMinutes)} ahead` : 'Now'}</span></span>
           }
-          if (pricing) return <span aria-label="Pricing" className="h-5 w-14 shrink-0 animate-pulse rounded-md bg-lane motion-reduce:animate-none" />
+          if (pricing) return <span aria-label="Pricing" className="h-5 w-14 shrink-0 animate-pulse rounded-[6px] bg-field motion-reduce:animate-none" />
           // No price until there's a trip to price: just how far ahead it books.
-          return service.advanceBookingMinutes > 0 && <span className="shrink-0 whitespace-nowrap text-right text-xs text-muted-foreground lg:text-[0.8125rem]">Book {shortLead(service.advanceBookingMinutes)} ahead</span>
+          return service.advanceBookingMinutes > 0 && <span className={`shrink-0 whitespace-nowrap text-right ${secondary}`}>{shortLead(service.advanceBookingMinutes)} ahead</span>
         })()}
       </label>
     })}
@@ -824,10 +836,10 @@ function ServiceList({ services, serviceId, disabled, onChange, loading, name, e
 }
 
 function ServiceDetail({ service }: { service: Service }) {
-  return <div className="space-y-2.5 border-t border-border pt-3 text-sm">
-    {service.description && <p className="text-muted-foreground">{service.description}</p>}
-    {service.publicRegionLabels.length > 0 && <ul aria-label="Service areas" className="flex flex-wrap gap-1.5">{service.publicRegionLabels.map(label => <li key={label} className="inline-flex items-center gap-1 rounded-full bg-foam px-2.5 py-1 text-xs text-ink"><MapPin className="size-3 text-tide" aria-hidden="true" />{label}</li>)}</ul>}
-    {service.advanceBookingMinutes > 0 && <p className="text-xs text-muted-foreground">Book at least {formatLeadTime(service.advanceBookingMinutes)} ahead</p>}
+  return <div className="space-y-2 border-t border-border pt-3">
+    {service.description && <p className={secondary}>{service.description}</p>}
+    {service.publicRegionLabels.length > 0 && <p className={`flex items-start gap-1.5 ${secondary}`}><MapPin className="mt-0.5 size-3.5 shrink-0 text-tide" aria-hidden="true" /><span>Serves {service.publicRegionLabels.join(', ')}</span></p>}
+    {service.advanceBookingMinutes > 0 && <p className={secondary}>Book at least {formatLeadTime(service.advanceBookingMinutes)} ahead</p>}
     <ServiceAreaPages serviceId={service.id} />
   </div>
 }

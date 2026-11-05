@@ -146,7 +146,9 @@ export function PlaceField({ id, value, onChange, onPick, near, placeholder, lab
     return () => document.removeEventListener('pointerdown', close)
   }, [open])
 
-  const pick = (place: PlaceSuggestion) => { rememberPlace(place); typed.current = false; setOpen(false); setResults([]); setState('idle'); onPick(place) }
+  // A pick settles the field: drop focus (keyboard down, ring off) and show the start of the place name, not its tail.
+  const settle = () => { const input = document.getElementById(id) as HTMLInputElement | null; if (!input) return; input.blur(); requestAnimationFrame(() => { input.scrollLeft = 0 }) }
+  const pick = (place: PlaceSuggestion) => { rememberPlace(place); typed.current = false; setOpen(false); setResults([]); setState('idle'); onPick(place); settle() }
   const query = value.trim().toLowerCase()
   const searched = query.length >= 3 || (query.length > 0 && results.length > 0)
   const browsing = !query || !typing
@@ -195,19 +197,19 @@ export function PlaceField({ id, value, onChange, onPick, near, placeholder, lab
       />
       {children}
     </div>
-    {showList && <div className="absolute inset-x-0 top-full z-50 mt-2 overflow-hidden rounded-2xl bg-white shadow-[0_18px_50px_-18px_rgba(11,43,46,0.5)] ring-1 ring-ink/10">
-      <ul id={listId} role="listbox" aria-label={`${label} suggestions`} className="max-h-[min(20rem,45dvh)] divide-y divide-border overflow-y-auto overscroll-contain" data-sheet-no-drag>
+    {showList && <div className="absolute inset-x-0 top-full z-50 mt-2 overflow-hidden rounded-[16px] bg-white shadow-[0_18px_50px_-18px_rgba(11,43,46,0.5)] ring-1 ring-ink/10">
+      <ul id={listId} role="listbox" aria-label={`${label} suggestions`} className="max-h-[min(20rem,45dvh)] divide-y divide-border overflow-y-auto overscroll-contain" data-vaul-no-drag>
         {rows.map((row, index) => <li key={row.quick ? `q:${row.quick.key}` : `${row.place.label}:${index}`} id={`${listId}-${index}`} role="option" aria-selected={index === active}
           onMouseDown={event => event.preventDefault()}
           onClick={() => choose(row)}
-          className="flex min-h-14 cursor-pointer items-center gap-3 px-3 py-2.5 aria-selected:bg-foam hover:bg-foam">
-          <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-[#eef3f3] text-ink">{row.quick ? row.quick.icon : <PlaceKindIcon kind={row.place.kind} label={row.place.name} className="size-4" />}</span>
-          <span className="min-w-0 flex-1"><span className="block truncate text-[0.9375rem] font-medium text-ink">{row.quick ? row.quick.title : row.place.name}</span>{(row.quick ? row.quick.detail : row.place.detail) && <span className="block truncate text-[0.8125rem] text-muted-foreground">{row.quick ? row.quick.detail : row.place.detail}</span>}</span>
+          className="flex min-h-14 cursor-pointer items-center gap-3 px-3 py-2 aria-selected:bg-foam hover:bg-foam">
+          <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-field text-ink">{row.quick ? row.quick.icon : <PlaceKindIcon kind={row.place.kind} label={row.place.name} className="size-4" />}</span>
+          <span className="min-w-0 flex-1"><span className="block truncate text-[16px] font-medium leading-6 text-ink">{row.quick ? row.quick.title : row.place.name}</span>{(row.quick ? row.quick.detail : row.place.detail) && <span className="block truncate text-[13px] leading-[18px] text-muted-foreground">{row.quick ? row.quick.detail : row.place.detail}</span>}</span>
         </li>)}
       </ul>
-      {searched && typing && state === 'loading' && <p role="status" className="flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground"><span aria-hidden="true" className="size-3.5 animate-spin rounded-full border-2 border-tide/30 border-t-tide motion-reduce:animate-none" />Searching places…</p>}
-      {searched && typing && state === 'none' && <p role="status" className="px-4 py-3 text-sm text-muted-foreground">No matching places</p>}
-      {searched && typing && state === 'error' && <p role="status" className="px-4 py-3 text-sm text-amber-700">Place search unavailable</p>}
+      {searched && typing && state === 'loading' && <p role="status" className="flex items-center gap-2 px-4 py-3 text-[13px] text-muted-foreground"><span aria-hidden="true" className="size-3.5 animate-spin rounded-full border-2 border-tide/30 border-t-tide motion-reduce:animate-none" />Searching places…</p>}
+      {searched && typing && state === 'none' && <p role="status" className="px-4 py-3 text-[13px] text-muted-foreground">No matching places</p>}
+      {searched && typing && state === 'error' && <p role="status" className="px-4 py-3 text-[13px] text-amber-700">Place search unavailable</p>}
     </div>}
   </div>
 }

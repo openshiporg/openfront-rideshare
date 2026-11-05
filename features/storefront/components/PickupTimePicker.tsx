@@ -55,17 +55,17 @@ export function PickupTimePicker({ value, onChange, advanceBookingMinutes, passe
 
   return <Popover open={open} onOpenChange={setOpen}>
     <PopoverTrigger asChild disabled={disabled}>
-      <button type="button" className={`mt-3 flex min-h-12 w-full items-center gap-3 rounded-xl px-4 text-left text-sm text-ink outline-none transition-colors focus-visible:ring-2 focus-visible:ring-tide disabled:opacity-60 ${needed ? 'bg-foam ring-2 ring-tide' : 'bg-[#f2f5f5] hover:bg-foam'}`}>
-        <CalendarClock className="size-4 shrink-0 text-tide" aria-hidden="true" />
-        <span className="min-w-0 flex-1"><span className="font-medium">{needed ? 'Pick a pickup time' : 'Pickup time'}</span> {!needed && <span className="text-ink">· {when}</span>}<span className="text-muted-foreground"> · {who}</span>{needed && <span className="block text-xs text-muted-foreground">Book {advanceBookingMinutes % 60 ? `${advanceBookingMinutes} min` : `${advanceBookingMinutes / 60} hr`} ahead for this ride</span>}</span>
+      <button type="button" className={`press flex h-12 w-full items-center gap-3 rounded-[12px] px-3 text-left text-ink outline-none ring-1 focus-visible:ring-2 focus-visible:ring-tide disabled:opacity-60 ${needed ? 'bg-foam ring-tide/40' : 'bg-field ring-transparent hover:bg-foam'}`}>
+        <CalendarClock className="size-5 shrink-0 text-tide" aria-hidden="true" />
+        <span className="min-w-0 flex-1 truncate text-[16px] font-medium leading-6">{needed ? 'Pick a pickup time' : when}<span className="text-[13px] font-normal text-muted-foreground"> · {needed ? `book ${advanceBookingMinutes % 60 ? `${advanceBookingMinutes} min` : `${advanceBookingMinutes / 60} hr`} ahead` : who}</span></span>
         <ChevronDown className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
       </button>
     </PopoverTrigger>
-    <PopoverContent align="start" sideOffset={8} collisionPadding={12} className="rs max-h-[min(40rem,var(--radix-popover-content-available-height))] w-[min(22rem,calc(100vw-1.5rem))] overflow-y-auto rounded-2xl border-0 bg-white p-0 text-ink shadow-[0_18px_50px_-18px_rgba(11,43,46,0.5)] ring-1 ring-ink/10">
+    <PopoverContent align="start" sideOffset={8} collisionPadding={12} data-vaul-no-drag className="rs max-h-[min(40rem,var(--radix-popover-content-available-height))] w-[min(22rem,calc(100vw-1.5rem))] overflow-y-auto overscroll-contain rounded-[16px] border-0 bg-white p-0 text-ink shadow-[0_18px_50px_-18px_rgba(11,43,46,0.5)] ring-1 ring-ink/10">
       <div className="space-y-3 p-4">
         <div className="flex items-baseline justify-between gap-3">
-          <p className="text-sm font-semibold">Pickup time</p>
-          {bookAhead && <p className="text-xs text-muted-foreground">Book {advanceBookingMinutes % 60 ? `${advanceBookingMinutes} min` : `${advanceBookingMinutes / 60} hr`} ahead</p>}
+          <p className="text-[16px] font-medium">Pickup time</p>
+          {bookAhead && <p className="text-[13px] text-muted-foreground">Book {advanceBookingMinutes % 60 ? `${advanceBookingMinutes} min` : `${advanceBookingMinutes / 60} hr`} ahead</p>}
         </div>
         <div role="group" aria-label="Day" className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none]">
           {!bookAhead && <button type="button" aria-pressed={!selected} onClick={() => { onChange(''); setOpen(false) }} className={chip(!selected)}>Now</button>}
@@ -74,21 +74,21 @@ export function PickupTimePicker({ value, onChange, advanceBookingMinutes, passe
         <div role="listbox" aria-label="Time" className="grid max-h-48 grid-cols-3 gap-1.5 overflow-y-auto pr-0.5">
           {slots.map(slot => {
             const active = selected?.getTime() === slot.getTime()
-            return <button type="button" role="option" aria-selected={active} key={slot.getTime()} onClick={() => { onChange(toLocalInputValue(slot)); setOpen(false) }} className={`h-10 rounded-lg text-sm tabular-nums transition-colors ${active ? 'bg-signal font-semibold text-white' : 'bg-[#f2f5f5] hover:bg-foam'}`}>{timeLabel(slot)}</button>
+            return <button type="button" role="option" aria-selected={active} key={slot.getTime()} onClick={() => { onChange(toLocalInputValue(slot)); setOpen(false) }} className={`press h-10 rounded-[12px] text-[16px] tabular-nums ${active ? 'bg-signal font-semibold text-white' : 'bg-field hover:bg-foam'}`}>{timeLabel(slot)}</button>
           })}
-          {now && !slots.length && <p className="col-span-3 py-3 text-center text-sm text-muted-foreground">No times left today</p>}
+          {now && !slots.length && <p className="col-span-3 py-3 text-center text-[13px] text-muted-foreground">No times left today</p>}
         </div>
       </div>
-      <div className="space-y-2 border-t border-border p-4">
+      <div className="space-y-3 border-t border-border p-4">
         <div className="flex items-center justify-between gap-3">
-          <span className="text-sm font-medium">Passengers</span>
+          <span className="text-[16px] font-medium">Passengers</span>
           <span className="inline-flex items-center gap-2">
-            <button type="button" aria-label="Fewer passengers" disabled={passengers <= 1} onClick={() => onPassengers(Math.max(1, passengers - 1))} className="grid size-9 place-items-center rounded-full ring-1 ring-ink/15 disabled:opacity-40"><Minus className="size-4" aria-hidden="true" /></button>
+            <button type="button" aria-label="Fewer passengers" disabled={passengers <= 1} onClick={() => onPassengers(Math.max(1, passengers - 1))} className="press grid size-9 place-items-center rounded-full ring-1 ring-ink/15 disabled:opacity-40"><Minus className="size-4" aria-hidden="true" /></button>
             <span aria-live="polite" className="w-6 text-center font-semibold tabular-nums">{passengers}</span>
-            <button type="button" aria-label="More passengers" disabled={passengers >= maxPassengers} onClick={() => onPassengers(Math.min(maxPassengers, passengers + 1))} className="grid size-9 place-items-center rounded-full ring-1 ring-ink/15 disabled:opacity-40"><Plus className="size-4" aria-hidden="true" /></button>
+            <button type="button" aria-label="More passengers" disabled={passengers >= maxPassengers} onClick={() => onPassengers(Math.min(maxPassengers, passengers + 1))} className="press grid size-9 place-items-center rounded-full ring-1 ring-ink/15 disabled:opacity-40"><Plus className="size-4" aria-hidden="true" /></button>
           </span>
         </div>
-        <label className="flex min-h-10 cursor-pointer items-center justify-between gap-3 text-sm font-medium">
+        <label className="flex min-h-10 cursor-pointer items-center justify-between gap-3 text-[16px] font-medium">
           <span className="inline-flex items-center gap-2"><Accessibility className="size-4 text-muted-foreground" aria-hidden="true" />Wheelchair accessible</span>
           <input type="checkbox" role="switch" checked={wheelchair} onChange={event => onWheelchair(event.target.checked)} className="peer sr-only" />
           <span aria-hidden="true" className="relative h-7 w-12 shrink-0 rounded-full bg-[#dfe6e6] transition-colors after:absolute after:left-1 after:top-1 after:size-5 after:rounded-full after:bg-white after:shadow after:transition-transform peer-checked:bg-signal peer-checked:after:translate-x-5 peer-focus-visible:ring-2 peer-focus-visible:ring-tide" />
@@ -99,4 +99,4 @@ export function PickupTimePicker({ value, onChange, advanceBookingMinutes, passe
   </Popover>
 }
 
-const chip = (active: boolean) => `h-9 shrink-0 whitespace-nowrap rounded-full px-3.5 text-sm transition-colors ${active ? 'bg-ink font-semibold text-white' : 'bg-[#f2f5f5] text-ink hover:bg-foam'}`
+const chip = (active: boolean) => `press h-9 shrink-0 whitespace-nowrap rounded-full px-3.5 text-[16px] ${active ? 'bg-ink font-medium text-white' : 'bg-field text-ink hover:bg-foam'}`
