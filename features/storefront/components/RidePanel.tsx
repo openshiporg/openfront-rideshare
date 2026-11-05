@@ -311,7 +311,7 @@ function CancelConfirm({ requestId, proof, tripId, requestCancellable, onClose, 
     <p className="mt-2 text-[15px] text-[#5e5e5e]">{state === 'loading' ? 'Checking…' : state === 'unavailable' ? 'This ride can’t be cancelled here any more. It may already have a driver.' : fee ? `Your driver is already on the way, so a ${fee} cancellation fee applies.` : 'You won’t be charged.'}</p>
     {state === 'failed' && <p role="alert" className="mt-2 text-[14px] text-[#c4160d]">We couldn’t confirm the cancellation. Try again.</p>}
     <div className="mt-4 grid gap-2">
-      <Button size="lg" className="bg-[#c4160d] hover:bg-[#a8120b]" disabled={!preview || state === 'loading' || state === 'sending' || state === 'unavailable'} onClick={() => void confirm()}>{state === 'sending' ? <><Spinner className="size-4" />Cancelling…</> : state === 'failed' ? 'Try again' : 'Cancel ride'}</Button>
+      <Button size="lg" disabled={!preview || state === 'loading' || state === 'sending' || state === 'unavailable'} onClick={() => void confirm()}>{state === 'sending' ? <><Spinner className="size-4" />Cancelling…</> : state === 'failed' ? 'Try again' : 'Cancel ride'}</Button>
       <Button tone="secondary" size="lg" disabled={state === 'sending'} onClick={onClose}>Keep ride</Button>
     </div>
   </Overlay>
