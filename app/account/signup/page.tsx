@@ -1,2 +1,2 @@
-import RiderSignInPage from '@/features/storefront/screens/RiderSignInPage'
-export default function Page() { return <RiderSignInPage register /> }
+import RiderAccount from '@/features/storefront/screens/RiderAccount'
+export default function Page() { return <RiderAccount register /> }

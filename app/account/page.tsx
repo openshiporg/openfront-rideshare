@@ -1,1 +1,1 @@
-export { default } from '@/features/storefront/screens/RiderSignInPage'
+export { default } from '@/features/storefront/screens/RiderAccount'
