@@ -101,13 +101,6 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
   const [recentPlaces, setRecentPlaces] = useState<string[]>([])
   // The live map: the phone sheet's detent, the fleet's city, the rider's chosen points and the route between them.
   const [snap, setSnap] = useState<SheetSnap>('half')
-  const [isDesktop, setIsDesktop] = useState(false)
-  useEffect(() => {
-    const query = window.matchMedia('(min-width: 1024px)')
-    const update = () => setIsDesktop(query.matches)
-    update(); query.addEventListener('change', update)
-    return () => query.removeEventListener('change', update)
-  }, [])
   const [cityPoint, setCityPoint] = useState<LngLat | null>(null)
   const [pickupPoint, setPickupPoint] = useState<LngLat | null>(null)
   const [dropoffPoint, setDropoffPoint] = useState<LngLat | null>(null)
@@ -120,6 +113,14 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
   const [timeOpen, setTimeOpen] = useState(false)
   const [emailOpen, setEmailOpen] = useState(false)
   const [locatingPickup, setLocatingPickup] = useState(false)
+  // The rider's own position (once they allow it) and its address; the pickup starts there.
+  const [currentPlace, setCurrentPlace] = useState<{ point: LngLat; label: string } | null>(null)
+  const [locateState, setLocateState] = useState<'asking' | 'ok' | 'denied' | 'unavailable'>('asking')
+  const [pickupEditing, setPickupEditing] = useState(false)
+  const [locateRetried, setLocateRetried] = useState(false)
+  const pickupPointRef = useRef<LngLat | null>(null)
+  const receiptRef = useRef(false)
+  useEffect(() => { pickupPointRef.current = pickupPoint; receiptRef.current = Boolean(receipt) }, [pickupPoint, receipt])
   const quoteBindingRef = useRef<BoundQuote | null>(null)
   const labelsRef = useRef({ pickup: '', dropoff: '' })
   useEffect(() => { labelsRef.current = { pickup: pickupLabel, dropoff: dropoffLabel } }, [pickupLabel, dropoffLabel])
@@ -455,7 +456,7 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
   // Typing frees a field from its pin; choosing a suggestion pins it.
   const typePickup = (value: string) => { if (locked()) return; update(setPickupLabel, value); setPickupPoint(null) }
   const typeDropoff = (value: string) => { if (locked()) return; update(setDropoffLabel, value); setDropoffPoint(null) }
-  const pickPickup = (place: PlaceSuggestion) => { if (locked()) return; update(setPickupLabel, place.label); setPickupPoint(place.point); setSnap('half') }
+  const pickPickup = (place: PlaceSuggestion) => { setPickupEditing(false); if (locked()) return; update(setPickupLabel, place.label); setPickupPoint(place.point); setSnap('half') }
   const pickDropoff = (place: PlaceSuggestion) => { if (locked()) return; update(setDropoffLabel, place.label); setDropoffPoint(place.point); setSnap('half') }
   /** A saved or popular place, by name: pinned once its point is found near the fleet's city. */
   const choosePlace = (field: 'pickup' | 'dropoff', label: string) => {
@@ -482,23 +483,34 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
     if (locked() || labelsRef.current[field] !== placeholder) return
     if (field === 'pickup') update(setPickupLabel, label); else update(setDropoffLabel, label)
   }
-  /** Use my location: the pickup becomes the nearest named place at the rider's position. */
-  const locatePickup = async (point: LngLat) => {
-    if (locked() || receipt) return
+  /** The rider's position: remembered as "Current location", named once the address lookup answers.
+   * It becomes the pickup when the rider asked for it (`force`), or on load while no pickup was chosen. */
+  const locatePickup = async (point: LngLat, force = true) => {
+    setCurrentPlace({ point, label: '' }); setLocateState('ok')
+    const free = () => !locked() && !receiptRef.current
+    if (free() && (force || !labelsRef.current.pickup.trim())) { update(setPickupLabel, 'Current location'); setPickupPoint(point) }
     const label = await placeAt(point)
-    if (locked()) return
-    update(setPickupLabel, label === 'Pinned location' ? 'Current location' : label); setPickupPoint(point)
+    const address = label === 'Pinned location' ? '' : label
+    setCurrentPlace(current => current?.point === point ? { point, label: address } : current)
+    if (address && free() && pickupPointRef.current === point && labelsRef.current.pickup === 'Current location') update(setPickupLabel, address)
   }
-  const useCurrentLocation = () => {
-    if (!('geolocation' in navigator)) { setError('Location unavailable on this device.'); return }
+  const askLocation = (force: boolean) => {
+    if (typeof navigator === 'undefined' || !('geolocation' in navigator)) { setLocateState('unavailable'); return }
     setLocatingPickup(true)
     navigator.geolocation.getCurrentPosition(position => {
-      setLocatingPickup(false); setSnap('half')
-      void locatePickup([Math.round(position.coords.longitude * 1e5) / 1e5, Math.round(position.coords.latitude * 1e5) / 1e5])
-    }, failure => {
       setLocatingPickup(false)
-      setError(failure.code === failure.PERMISSION_DENIED ? 'Location blocked. Allow it in your browser settings, or set the pickup on the map.' : 'Location unavailable. Set the pickup on the map.')
+      void locatePickup([Math.round(position.coords.longitude * 1e5) / 1e5, Math.round(position.coords.latitude * 1e5) / 1e5], force)
+    }, failure => {
+      // Quietly keep the fleet's area as the pickup; the row offers "Use my location" to try again.
+      setLocatingPickup(false)
+      setLocateState(failure.code === failure.PERMISSION_DENIED ? 'denied' : 'unavailable')
     }, { enableHighAccuracy: true, timeout: 10_000, maximumAge: 60_000 })
+  }
+  // On open: ask for the rider's position (the browser's permission prompt) so the pickup is where they are.
+  useEffect(() => { askLocation(false) }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  const useCurrentLocation = () => {
+    if (currentPlace && locateState === 'ok') { void locatePickup(currentPlace.point, true); return }
+    setLocateRetried(true); askLocation(true)
   }
   // Centre-pin mode: the spot under the pin, named once the map stops.
   const pinLookup = useRef(0)
@@ -552,13 +564,20 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
   const suggestions = known.filter(item => ![effectivePickup, dropoffLabel.trim().toLowerCase()].includes(item.label.toLowerCase())).slice(0, 3)
   const placeRows = (field: 'pickup' | 'dropoff'): QuickRow[] => known.slice(0, 8).map(item => ({ key: `${field}:${item.label}`, title: item.label.split(',')[0], detail: knownDetail(item.kind), match: item.label, icon: item.kind === 'recent' ? <History className="size-4" /> : <PlaceKindIcon label={item.label} className="size-4" />, onSelect: () => choosePlace(field, item.label) }))
   const pickupQuick: QuickRow[] = [
-    { key: 'here', title: locatingPickup ? 'Finding you…' : 'Current location', detail: 'Use where you are now', icon: locatingPickup ? <LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" /> : <Navigation className="size-4 fill-current text-signal" />, onSelect: useCurrentLocation },
-    { key: 'pin', title: 'Set pickup on map', detail: 'Move the map under the pin', icon: <Crosshair className="size-4 text-signal" />, onSelect: () => startPin('pickup') },
+    { key: 'here', title: locatingPickup ? 'Finding you…' : 'Current location', detail: currentPlace?.label || (locateState === 'denied' ? 'Location is off for this site' : 'Use where you are now'), icon: locatingPickup ? <LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" /> : <Navigation className="size-4 fill-current text-signal" />, onSelect: useCurrentLocation },
+    { key: 'pin', title: 'Set on map', detail: 'Move the map under the pin', icon: <Crosshair className="size-4 text-signal" />, onSelect: () => startPin('pickup') },
     ...placeRows('pickup'),
-  ]
+  ].map(row => ({ ...row, onSelect: () => { setPickupEditing(false); row.onSelect() } }))
+  // The pickup row: "Current location" with its address, a chosen place, or the fleet's own area.
+  const pickupIsCurrent = Boolean(currentPlace && pickupPoint && pickupPoint[0] === currentPlace.point[0] && pickupPoint[1] === currentPlace.point[1])
+  const pickupTitle = pickupIsCurrent ? 'Current location' : pickupLabel.trim() || defaultPickup || 'Choose pickup'
+  const pickupDetail = pickupIsCurrent ? (currentPlace?.label || 'Finding the address…')
+    : pickupLabel.trim() ? (pickupPoint ? 'Pickup · drag the pin to adjust' : 'Pickup')
+    : locatingPickup ? 'Finding your location…'
+    : locateState === 'denied' ? (locateRetried ? 'Location is blocked in your browser settings' : 'Pickup · service area')
+    : selectedService?.fleet.publicCity ? `Pickup · ${selectedService.fleet.publicCity}` : 'Pickup · service area'
+  const offerLocate = !pickupIsCurrent && !locatingPickup && (locateState === 'denied' || locateState === 'unavailable')
   const dropoffQuick: QuickRow[] = [...placeRows('dropoff'), { key: 'pin', title: 'Set destination on map', detail: 'Move the map under the pin', icon: <Crosshair className="size-4 text-signal" />, onSelect: () => startPin('dropoff') }]
-  // Pickup hint: the fleet's own first service area, so the empty field names a real place.
-  const pickupHint = defaultPickup || 'Pickup area'
   const busyLabel = requestLoading ? 'Requesting…' : quoteLoading ? 'Getting your price…' : ''
   const requestLabel = busyLabel || (uncertainRequest ? 'Recover request'
     : visibleQuoteBinding && quoteFare ? `Confirm ${selectedService?.title || 'ride'} · ${quoteFare}`
@@ -586,7 +605,7 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
     pickup: { label: pickupLabel || defaultPickup, point: mapPickupPoint, approximate: !pickupPoint, note: dropoffPoint ? (pickupWhen || (selectedService && !selectedService.advanceBookingMinutes ? 'Now' : null)) : null, onMove: movable ? point => void movePlace('pickup', point) : undefined },
     dropoff: { label: dropoffLabel, point: dropoffPoint, note: tripMinutes ? [tripMinutes, quoteFare || estimateFare].filter(Boolean).join(' · ') : null, onMove: movable ? point => void movePlace('dropoff', point) : undefined },
     route: routePath?.coordinates || null,
-    snap, onSnap: setSnap, onLocate: point => void locatePickup(point), onCityCentre: setCityPoint,
+    snap, onSnap: setSnap, onLocate: point => { if (!locked() && !receipt) void locatePickup(point, true) }, onCityCentre: setCityPoint,
     sheetLabel: receipt ? 'Your ride' : pinMode ? (pinMode === 'pickup' ? 'Set pickup' : 'Set destination') : 'Plan a ride',
     pinMode: pinMode ? { kind: pinMode, onCentre: pinCentre } : null,
     searching: Boolean(receipt && requestView && !requestView.trip && !terminal),
@@ -597,38 +616,31 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
       {receipt ? receiptPanel() : pinMode ? pinPanel() : <form className="relative" onSubmit={event => { event.preventDefault(); void primaryAction() }}>
         <fieldset disabled={formLocked} className="min-w-0 disabled:opacity-70">
           <legend className="sr-only">Plan a ride</legend>
-          <div className="flex items-center gap-3 rounded-xl bg-[#f2f5f5] px-4 py-2 max-lg:hidden">
-            <span aria-hidden="true" className="grid size-5 shrink-0 place-items-center"><span className="size-3 rounded-full bg-ink ring-[3px] ring-white" /></span>
+          <div className="flex min-h-[3.75rem] items-center gap-3 rounded-2xl bg-[#f2f5f5] py-1.5 pl-3 pr-1.5 focus-within:ring-2 focus-within:ring-tide lg:rounded-xl lg:pl-4">
+            <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-white"><span className="size-3 rounded-full bg-ink" /></span>
             <div className="min-w-0 flex-1">
-              <span aria-hidden="true" className="block text-xs text-muted-foreground">Pickup</span>
-              {isDesktop && <PlaceField id="pickup" label="Pickup" placeholder={pickupHint} value={pickupLabel} onChange={typePickup} onPick={pickPickup} near={cityPoint} disabled={formLocked} quick={pickupQuick}
-                inputClassName="block w-full min-w-0 bg-transparent text-[0.9375rem] font-medium text-ink outline-none placeholder:text-ink">
-                {pickupLabel && <button type="button" aria-label="Clear pickup" onClick={() => typePickup('')} className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-white hover:text-ink"><X className="size-4" aria-hidden="true" /></button>}
-              </PlaceField>}
+              {pickupEditing ? <PlaceField id="pickup" label="Pickup" placeholder="Search pickup" value={pickupIsCurrent ? '' : pickupLabel} onChange={typePickup} onPick={pickPickup} near={currentPlace?.point || cityPoint} onFocus={fieldFocus} onBlur={() => setPickupEditing(false)} autoFocus disabled={formLocked} quick={pickupQuick}
+                inputClassName="block h-11 w-full min-w-0 flex-1 bg-transparent text-base font-medium text-ink outline-none placeholder:text-muted-foreground">
+                {pickupLabel && !pickupIsCurrent && <button type="button" aria-label="Clear pickup" onPointerDown={event => event.preventDefault()} onClick={() => typePickup('')} className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-white hover:text-ink"><X className="size-4" aria-hidden="true" /></button>}
+              </PlaceField>
+              : <button type="button" id="pickup-row" aria-label={`Pickup: ${pickupTitle}${pickupIsCurrent && currentPlace?.label ? `, ${currentPlace.label}` : ''}. Change pickup`} onClick={() => { if (!formLocked) setPickupEditing(true) }} className="block w-full min-w-0 py-0.5 text-left focus-visible:outline-none">
+                <span className="block truncate text-base font-semibold leading-snug text-ink">{pickupTitle}</span>
+                <span className="block truncate text-[0.8125rem] text-muted-foreground">{pickupDetail}</span>
+              </button>}
             </div>
-            {dropoffLabel.trim() && <button type="button" aria-label="Swap pickup and destination" onClick={swapPlaces} className="grid size-9 shrink-0 place-items-center rounded-full bg-white text-ink ring-1 ring-ink/10 hover:bg-foam"><ArrowDownUp className="size-4" aria-hidden="true" /></button>}
+            {!pickupEditing && offerLocate && <button type="button" onClick={useCurrentLocation} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-white px-3 text-[0.8125rem] font-medium text-ink ring-1 ring-ink/10 hover:bg-foam"><Navigation className="size-3.5 fill-current text-signal" aria-hidden="true" />Use my location</button>}
+            {!pickupEditing && locatingPickup && <LoaderCircle className="mr-2 size-4 shrink-0 animate-spin text-muted-foreground motion-reduce:animate-none" aria-label="Finding your location" />}
+            {!pickupEditing && dropoffLabel.trim() && <button type="button" aria-label="Swap pickup and destination" onClick={swapPlaces} className="grid size-10 shrink-0 place-items-center rounded-full bg-white text-ink ring-1 ring-ink/10 hover:bg-foam"><ArrowDownUp className="size-4" aria-hidden="true" /></button>}
           </div>
 
-          <div className="relative mt-0 rounded-full bg-[#eef3f3] py-1.5 pl-4 pr-1.5 ring-1 ring-transparent focus-within:ring-2 focus-within:ring-tide lg:mt-3 lg:rounded-xl lg:bg-foam lg:py-1.5 lg:pl-4 lg:ring-tide/60">
+          <div className="relative mt-2 rounded-full bg-[#eef3f3] py-1.5 pl-4 pr-1.5 ring-1 ring-transparent focus-within:ring-2 focus-within:ring-tide lg:mt-3 lg:rounded-xl lg:bg-foam lg:py-1.5 lg:pl-4 lg:ring-tide/60">
             <PlaceField id="dropoff" label="Where to?" placeholder="Where to?" value={dropoffLabel} onChange={typeDropoff} onPick={pickDropoff} near={pickupPoint || cityPoint} onFocus={fieldFocus} required disabled={formLocked} quick={dropoffQuick}
               leading={<MapPin className="size-5 shrink-0 fill-signal text-signal lg:size-6 [&>circle]:fill-white [&>circle]:stroke-white" aria-hidden="true" />}
-              inputClassName={`h-10 min-w-0 flex-1 bg-transparent font-semibold tracking-[-0.02em] text-ink outline-none placeholder:text-ink lg:h-11 ${dropoffLabel ? "text-lg lg:text-xl" : "text-[1.4375rem] lg:text-[2.125rem]"}`}>
+              inputClassName={`h-10 min-w-0 flex-1 bg-transparent font-semibold tracking-[-0.02em] text-ink outline-none placeholder:text-ink lg:h-11 ${dropoffLabel ? "text-lg lg:text-xl" : "text-[1.375rem] lg:text-[1.75rem]"}`}>
               {dropoffLabel && <button type="button" aria-label="Clear destination" onClick={() => typeDropoff('')} className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-white hover:text-ink"><X className="size-4" aria-hidden="true" /></button>}
               {!dropoffPoint && <button type="button" aria-label="Find destination" disabled={!dropoffLabel.trim() || formLocked} onClick={() => chooseDropoff(dropoffLabel.trim())} className="grid size-10 shrink-0 place-items-center rounded-full bg-signal text-white lg:size-11 transition-colors hover:bg-signal-deep disabled:opacity-60"><ArrowRight className="size-5 lg:size-6" aria-hidden="true" /></button>}
             </PlaceField>
           </div>
-
-          {!isDesktop && <div className="mt-1.5 flex items-center gap-3 border-b border-border px-2 py-2 lg:hidden">
-            <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-[#eef3f3]"><span className="size-3 rounded-full bg-ink" /></span>
-            <div className="min-w-0 flex-1">
-              <PlaceField id="pickup-phone" label="Pickup" placeholder={pickupHint} value={pickupLabel} onChange={typePickup} onPick={pickPickup} near={cityPoint} onFocus={fieldFocus} disabled={formLocked} quick={pickupQuick}
-                inputClassName="block w-full min-w-0 bg-transparent text-base font-medium text-ink outline-none placeholder:text-ink">
-                {pickupLabel && <button type="button" aria-label="Clear pickup" onClick={() => typePickup('')} className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-foam hover:text-ink"><X className="size-4" aria-hidden="true" /></button>}
-              </PlaceField>
-              <span className="block text-[0.8125rem] text-muted-foreground">Pickup{pickupPoint ? ' · drag the pin to adjust' : selectedService?.fleet.publicCity ? ` · ${selectedService.fleet.publicCity}` : ''}</span>
-            </div>
-            {dropoffLabel.trim() && <button type="button" aria-label="Swap pickup and destination" onClick={swapPlaces} className="grid size-10 shrink-0 place-items-center rounded-full bg-[#eef3f3] text-ink hover:bg-foam"><ArrowDownUp className="size-4" aria-hidden="true" /></button>}
-          </div>}
 
           {!routeKnown && <div className="mt-1 lg:mt-1 lg:rounded-xl lg:bg-white lg:shadow-[0_6px_20px_-12px_rgba(11,43,46,0.35)] lg:ring-1 lg:ring-ink/5">
             <p className="px-1 pb-0.5 pt-3 text-xs font-medium text-muted-foreground lg:sr-only">Suggestions</p>
@@ -794,13 +806,14 @@ function ServiceList({ services, serviceId, disabled, onChange, loading, name, e
         </span>
         {(() => {
           const price = estimates?.get(service.id)
-          // The trip's own price once the route is known; the minimum fare before.
+          // The trip's own price once the route is known.
           if (price) {
             const arrive = durationSeconds !== null && (!service.advanceBookingMinutes || scheduledFor) ? new Date((scheduledFor ? new Date(scheduledFor).getTime() : Date.now()) + durationSeconds * 1000) : null
             return <span className="shrink-0 text-right"><span className="block text-[1.0625rem] font-semibold tabular-nums text-ink">{formatMoney(price.totalMinor, price.currencyCode)}</span><span className="mt-0.5 block whitespace-nowrap text-xs text-muted-foreground lg:text-[0.8125rem]">{arrive ? `Drop-off ${arrive.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : service.advanceBookingMinutes ? `Book ${shortLead(service.advanceBookingMinutes)} ahead` : 'Now'}</span></span>
           }
           if (pricing) return <span aria-label="Pricing" className="h-5 w-14 shrink-0 animate-pulse rounded-md bg-lane motion-reduce:animate-none" />
-          return service.startingFareMinor !== null && <span className="shrink-0 text-right"><span className="block whitespace-nowrap text-xs text-muted-foreground lg:text-[0.8125rem] lg:text-ink">{service.advanceBookingMinutes ? `Book ${shortLead(service.advanceBookingMinutes)} ahead` : 'from'}</span><span className="mt-0.5 block text-[1.0625rem] font-semibold tabular-nums text-ink lg:mt-1">{formatMoney(service.startingFareMinor, service.currencyCode)}</span></span>
+          // No price until there's a trip to price: just how far ahead it books.
+          return service.advanceBookingMinutes > 0 && <span className="shrink-0 whitespace-nowrap text-right text-xs text-muted-foreground lg:text-[0.8125rem]">Book {shortLead(service.advanceBookingMinutes)} ahead</span>
         })()}
       </label>
     })}

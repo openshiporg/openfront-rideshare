@@ -56,7 +56,7 @@ export function PlaceKindIcon({ kind, label, className }: { kind?: string; label
  * next arrive). Quick rows (current location, set on map, recent places) show at once. Typing frees the
  * field; choosing a suggestion pins its point on the map.
  */
-export function PlaceField({ id, value, onChange, onPick, near, placeholder, label, inputClassName, className, onFocus, children, leading, disabled, required, autoFocus, quick = [] }: {
+export function PlaceField({ id, value, onChange, onPick, near, placeholder, label, inputClassName, className, onFocus, onBlur, children, leading, disabled, required, autoFocus, quick = [] }: {
   id: string
   value: string
   onChange: (value: string) => void
@@ -67,6 +67,7 @@ export function PlaceField({ id, value, onChange, onPick, near, placeholder, lab
   inputClassName?: string
   className?: string
   onFocus?: () => void
+  onBlur?: () => void
   children?: React.ReactNode
   leading?: React.ReactNode
   disabled?: boolean
@@ -181,6 +182,7 @@ export function PlaceField({ id, value, onChange, onPick, near, placeholder, lab
           setOpen(true); setTyping(false); onFocus?.()
           warm(near)
         }}
+        onBlur={onBlur}
         onChange={event => { typed.current = true; setTyping(true); setOpen(true); onChange(event.target.value) }}
         onKeyDown={event => {
           if (!showList) return
