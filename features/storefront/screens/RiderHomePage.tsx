@@ -617,17 +617,20 @@ export default function RiderHomePage({ initialServiceId = '' }: { initialServic
         <fieldset disabled={formLocked} className="min-w-0 disabled:opacity-70">
           <legend className="sr-only">Plan a ride</legend>
           <div className="flex min-h-[3.75rem] items-center gap-3 rounded-2xl bg-[#f2f5f5] py-1.5 pl-3 pr-1.5 focus-within:ring-2 focus-within:ring-tide lg:rounded-xl lg:pl-4">
+            {pickupEditing ? <PlaceField id="pickup" label="Pickup" placeholder="Search pickup" value={pickupIsCurrent ? '' : pickupLabel} onChange={typePickup} onPick={pickPickup} near={currentPlace?.point || cityPoint} onFocus={fieldFocus} onBlur={() => setPickupEditing(false)} autoFocus disabled={formLocked} quick={pickupQuick} className="min-w-0 flex-1"
+                leading={<span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-white"><span className="size-3 rounded-full bg-ink" /></span>}
+                inputClassName="block h-11 w-full min-w-0 flex-1 bg-transparent text-base font-medium text-ink outline-none placeholder:text-muted-foreground">
+                {pickupLabel && !pickupIsCurrent && <button type="button" aria-label="Clear pickup" onMouseDown={event => event.preventDefault()} onClick={() => typePickup('')} className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-white hover:text-ink"><X className="size-4" aria-hidden="true" /></button>}
+              </PlaceField>
+            : <>
             <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-white"><span className="size-3 rounded-full bg-ink" /></span>
             <div className="min-w-0 flex-1">
-              {pickupEditing ? <PlaceField id="pickup" label="Pickup" placeholder="Search pickup" value={pickupIsCurrent ? '' : pickupLabel} onChange={typePickup} onPick={pickPickup} near={currentPlace?.point || cityPoint} onFocus={fieldFocus} onBlur={() => setPickupEditing(false)} autoFocus disabled={formLocked} quick={pickupQuick}
-                inputClassName="block h-11 w-full min-w-0 flex-1 bg-transparent text-base font-medium text-ink outline-none placeholder:text-muted-foreground">
-                {pickupLabel && !pickupIsCurrent && <button type="button" aria-label="Clear pickup" onPointerDown={event => event.preventDefault()} onClick={() => typePickup('')} className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-white hover:text-ink"><X className="size-4" aria-hidden="true" /></button>}
-              </PlaceField>
-              : <button type="button" id="pickup-row" aria-label={`Pickup: ${pickupTitle}${pickupIsCurrent && currentPlace?.label ? `, ${currentPlace.label}` : ''}. Change pickup`} onClick={() => { if (!formLocked) setPickupEditing(true) }} className="block w-full min-w-0 py-0.5 text-left focus-visible:outline-none">
+              <button type="button" id="pickup-row" aria-label={`Pickup: ${pickupTitle}${pickupIsCurrent && currentPlace?.label ? `, ${currentPlace.label}` : ''}. Change pickup`} onClick={() => { if (!formLocked) setPickupEditing(true) }} className="block w-full min-w-0 py-0.5 text-left focus-visible:outline-none">
                 <span className="block truncate text-base font-semibold leading-snug text-ink">{pickupTitle}</span>
                 <span className="block truncate text-[0.8125rem] text-muted-foreground">{pickupDetail}</span>
-              </button>}
+              </button>
             </div>
+            </>}
             {!pickupEditing && offerLocate && <button type="button" onClick={useCurrentLocation} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-white px-3 text-[0.8125rem] font-medium text-ink ring-1 ring-ink/10 hover:bg-foam"><Navigation className="size-3.5 fill-current text-signal" aria-hidden="true" />Use my location</button>}
             {!pickupEditing && locatingPickup && <LoaderCircle className="mr-2 size-4 shrink-0 animate-spin text-muted-foreground motion-reduce:animate-none" aria-label="Finding your location" />}
             {!pickupEditing && dropoffLabel.trim() && <button type="button" aria-label="Swap pickup and destination" onClick={swapPlaces} className="grid size-10 shrink-0 place-items-center rounded-full bg-white text-ink ring-1 ring-ink/10 hover:bg-foam"><ArrowDownUp className="size-4" aria-hidden="true" /></button>}

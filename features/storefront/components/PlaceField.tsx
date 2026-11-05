@@ -198,7 +198,7 @@ export function PlaceField({ id, value, onChange, onPick, near, placeholder, lab
     {showList && <div className="absolute inset-x-0 top-full z-50 mt-2 overflow-hidden rounded-2xl bg-white shadow-[0_18px_50px_-18px_rgba(11,43,46,0.5)] ring-1 ring-ink/10">
       <ul id={listId} role="listbox" aria-label={`${label} suggestions`} className="max-h-[min(20rem,45dvh)] divide-y divide-border overflow-y-auto overscroll-contain" data-sheet-no-drag>
         {rows.map((row, index) => <li key={row.quick ? `q:${row.quick.key}` : `${row.place.label}:${index}`} id={`${listId}-${index}`} role="option" aria-selected={index === active}
-          onPointerDown={event => event.preventDefault()}
+          onMouseDown={event => event.preventDefault()}
           onClick={() => choose(row)}
           className="flex min-h-14 cursor-pointer items-center gap-3 px-3 py-2.5 aria-selected:bg-foam hover:bg-foam">
           <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-[#eef3f3] text-ink">{row.quick ? row.quick.icon : <PlaceKindIcon kind={row.place.kind} label={row.place.name} className="size-4" />}</span>
