@@ -378,8 +378,9 @@ function RideTiles({ count, children }: { count: number; children: React.ReactNo
     const list = ref.current
     if (!list) return
     const measure = () => {
-      const bottom = list.getBoundingClientRect().bottom - 2
-      setHidden(Array.from(list.children).filter(item => item.getBoundingClientRect().top > bottom - 24).length)
+      // Tiles cut by the list's edge count as hidden, even when partly in view.
+      const bottom = list.getBoundingClientRect().bottom + 2
+      setHidden(Array.from(list.children).filter(item => item.getBoundingClientRect().bottom > bottom).length)
     }
     measure()
     const observer = new ResizeObserver(measure)
