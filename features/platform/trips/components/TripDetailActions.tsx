@@ -36,14 +36,15 @@ export function ConfirmPaymentTrack({ paymentId }: { paymentId: string }) {
   </div>
 }
 
-export function RefundSheet({ paymentId, currency, remainingMinor }: { paymentId: string; currency: string; remainingMinor: number }) {
-  return <SetupSheet trigger="Refund" tone="default" title="Refund" submitLabel="Record refund" onSubmit={values => {
+/** Card payments are refunded to the rider's card through the payment provider; manual tenders record a refund paid back another way. */
+export function RefundSheet({ paymentId, currency, remainingMinor, toCard = false, cardLabel }: { paymentId: string; currency: string; remainingMinor: number; toCard?: boolean; cardLabel?: string | null }) {
+  return <SetupSheet trigger="Refund" tone="default" title={toCard ? `Refund to ${cardLabel || 'the rider’s card'}` : 'Record a refund'} submitLabel={toCard ? 'Refund to card' : 'Record refund'} onSubmit={values => {
     if (!values.amountMinor || values.amountMinor > remainingMinor) throw new Error(`Refund between 0.01 and ${(remainingMinor / 100).toFixed(2)} ${currency}.`)
     return ops.refund(paymentId, values.amountMinor, values.reason)
   }} fields={[
     { name: 'amountMinor', label: 'Amount', type: 'money', currency, required: true, defaultValue: remainingMinor },
     { name: 'reason', label: 'Reason', type: 'text', maxLength: 500 },
-  ]} />
+  ]} description={toCard ? 'The money goes back to the card the rider paid with. Banks usually show it within 5–10 business days.' : 'Use this when you paid the rider back yourself, for example in cash.'} />
 }
 
 export function ConfirmRefundTrack({ refundId }: { refundId: string }) {

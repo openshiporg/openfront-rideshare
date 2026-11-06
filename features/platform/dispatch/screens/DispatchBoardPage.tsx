@@ -9,6 +9,7 @@ import { keystoneClient } from '@/features/dashboard/lib/keystoneClient'
 import { OperationsBoard } from '@/features/platform/components/OperationsBoard'
 import { operationsEnabled } from '@/features/keystone/domain/operationalReadiness'
 import { DispatchOfferControl } from '../components/DispatchOfferControl'
+import { NewRideSheet } from '../components/NewRideSheet'
 import { dispatchBoardQuery } from '../domain/dispatchBoardQuery'
 import {
   DISPATCH_MAX_PAGE,
@@ -69,8 +70,12 @@ export async function DispatchBoardPage({ searchParams }: { searchParams?: Promi
   const available = drivers.filter(driver => driver.dispatchStatus === 'available')
   const createdTimes: string[] = (items as Array<{ createdAt?: string | null }>).map(item => item.createdAt ?? '').filter(Boolean)
   const oldest = createdTimes.length ? createdTimes.reduce((first, value) => (value < first ? value : first)) : null
+  // Services this dispatcher can book phone rides on (operator-scoped read of active services).
+  const servicesResponse = await keystoneClient(`query PhoneBookingServices { rideServices(where: { status: { equals: "active" }, fleet: { status: { equals: "active" } } }, orderBy: { name: asc }, take: 50) { id name passengerCapacity wheelchairAccessible fleet { name } } }`)
+  const phoneServices = servicesResponse.success && Array.isArray(servicesResponse.data?.rideServices) ? servicesResponse.data.rideServices.map((service: any) => ({ id: service.id, name: service.name, fleetName: service.fleet?.name || '', passengerCapacity: service.passengerCapacity || 4, wheelchairAccessible: service.wheelchairAccessible === true })) : []
   return <OperationsBoard
     title="Dispatch"
+    actions={loaded ? <NewRideSheet services={phoneServices} /> : undefined}
     meta={loaded ? <span className="tabular-nums">{total} {['cancelled', 'expired'].includes(selection.status) ? selection.status : 'waiting'}</span> : null}
     searchLabel="Request number"
     items={items}

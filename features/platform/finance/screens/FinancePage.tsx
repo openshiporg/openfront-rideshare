@@ -6,6 +6,7 @@ import { QueueIssues, QueuePagination } from '@/features/platform/components/Que
 import { StatusTitle } from '@/features/platform/components/StatusTitle'
 import { statusLabel, statusTone, formatWhen } from '@/features/platform/lib/statusTone'
 import { financeQueueQuery } from '../domain/financeQueueQuery'
+import { DriverEarningsSection } from '../components/DriverEarningsSection'
 import {
   FINANCE_MAX_PAGE,
   FINANCE_PAGE_SIZE,
@@ -17,7 +18,7 @@ import {
   reconcileFinancePage,
 } from '../domain/pagination'
 
-type FinanceSearchParams = { q?: string | string[]; status?: string | string[]; page?: string | string[] }
+type FinanceSearchParams = { q?: string | string[]; status?: string | string[]; page?: string | string[]; from?: string | string[]; to?: string | string[] }
 
 export async function FinancePage({ searchParams }: { searchParams?: Promise<FinanceSearchParams> } = {}) {
   const rawParams = searchParams ? await searchParams : {}
@@ -80,7 +81,7 @@ export async function FinancePage({ searchParams }: { searchParams?: Promise<Fin
       { key: 'cancelled', label: 'Cancelled' },
     ]}
     empty="No payments yet"
-    before={<QueueIssues issues={selection.issues} href={queueSearchHref(financePageHref(selection.page, selection.status), query)} />}
+    before={<>{hasScope && <div className="mb-6"><DriverEarningsSection from={typeof rawParams.from === 'string' ? rawParams.from : undefined} to={typeof rawParams.to === 'string' ? rawParams.to : undefined} /></div>}<QueueIssues issues={selection.issues} href={queueSearchHref(financePageHref(selection.page, selection.status), query)} /></>}
     after={loaded && pageState ? <QueuePagination label="Finance pagination" noun="payments" page={selection.page} total={total} pageCount={pageState.pageCount} maxPage={FINANCE_MAX_PAGE} firstItem={pageState.firstItem} lastItem={pageState.lastItem} staleReason={pageState.staleReason} exceedsPageLimit={pageState.exceedsPageLimit} hrefFor={page => queueSearchHref(financePageHref(page, selection.status), query)} /> : null}
     render={item => <div className="flex items-start justify-between gap-4">
       <div className="min-w-0 space-y-1">

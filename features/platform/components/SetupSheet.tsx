@@ -25,9 +25,10 @@ export async function platformGraphql<T = any>(query: string, variables: Record<
 const input = 'h-10 w-full min-w-0 rounded-[6px] border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring'
 
 /** A right-hand drawer with a validated form. `onSubmit` receives typed values (money in minor units). */
-export function SetupSheet({ trigger, title, fields, submitLabel, onSubmit, tone = 'primary' }: {
+export function SetupSheet({ trigger, title, fields, submitLabel, onSubmit, tone = 'primary', description }: {
   trigger: string | ReactNode
   title: string
+  description?: string
   fields: SetupField[]
   submitLabel: string
   onSubmit: (values: Record<string, any>) => Promise<unknown>
@@ -60,7 +61,7 @@ export function SetupSheet({ trigger, title, fields, submitLabel, onSubmit, tone
     <ActionTrack><TrackButton tone={tone} onClick={() => { setError(''); setOpen(true) }}>{trigger}</TrackButton></ActionTrack>
     <Sheet open={open} onOpenChange={value => { if (!busy) setOpen(value) }}>
       <SheetContent className="flex w-full flex-col gap-0 overflow-y-auto p-0 sm:max-w-md">
-        <SheetHeader className="border-b p-5"><SheetTitle>{title}</SheetTitle></SheetHeader>
+        <SheetHeader className="border-b p-5"><SheetTitle>{title}</SheetTitle>{description ? <p className="text-sm text-muted-foreground">{description}</p> : null}</SheetHeader>
         <form onSubmit={submit} className="flex flex-1 flex-col" data-unsaved={open ? 'true' : undefined}>
           <fieldset disabled={busy} className="flex-1 space-y-4 p-5">
             {fields.map(field => <div key={field.name} className="space-y-1.5">
