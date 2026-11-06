@@ -23,7 +23,14 @@ export async function DriverEarningsSection({ from, to }: { from?: string; to?: 
     </form>
     {error ? <p role="alert" className="text-sm text-destructive">{/access|authentication/i.test(error) ? 'Finance access is required to see driver earnings.' : error}</p>
       : !report || !report.drivers.length ? <PlatformEmpty>No completed trips in this period</PlatformEmpty>
-      : <div className="overflow-x-auto rounded-[6px] border">
+      : <>
+      <ul className="divide-y rounded-[6px] border sm:hidden">{report.drivers.map(row => <li key={`${row.driverId}:${row.currencyCode}`} className="space-y-2 p-3 text-sm tabular-nums">
+        <div className="flex items-baseline justify-between gap-3"><span className="font-medium">{row.driverName}</span><span className="text-muted-foreground">{row.trips} {row.trips === 1 ? 'trip' : 'trips'} · {hours(row.onTripSeconds)}</span></div>
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-1">
+          {([['Fares', row.faresMinor], ['Fees', row.feesMinor], ['Charged', row.collectedMinor], ['Refunded', row.refundedMinor], ['Net received', Math.max(0, row.collectedMinor - row.refundedMinor)], ['Outstanding', row.uncollectedMinor]] as const).map(([label, value]) => <div key={label} className="flex justify-between gap-2"><dt className="text-muted-foreground">{label}</dt><dd>{formatPaymentAmount(value, row.currencyCode)}</dd></div>)}
+        </dl>
+      </li>)}</ul>
+      <div className="hidden overflow-x-auto rounded-[6px] border sm:block">
         <table className="w-full text-sm">
           <thead className="bg-muted/40 text-left text-xs text-muted-foreground"><tr>
             <th className="px-3 py-2 font-medium">Driver</th><th className="px-3 py-2 text-right font-medium">Trips</th><th className="px-3 py-2 text-right font-medium">On trip</th>
@@ -38,6 +45,8 @@ export async function DriverEarningsSection({ from, to }: { from?: string; to?: 
           </tr>)}</tbody>
           {totals && <tfoot className="border-t text-xs text-muted-foreground"><tr><td className="px-3 py-2" colSpan={9}>{totals.trips} completed {totals.trips === 1 ? 'trip' : 'trips'} · {formatPaymentAmount(totals.gross, currency)} gross{report.truncated ? ' · showing the first 5,000 trips; narrow the range' : ''}. Charged includes card and recorded payments, also prepaid fares on rides later cancelled. Outstanding is cash in the driver’s hand or still owed.</td></tr></tfoot>}
         </table>
-      </div>}
+      </div>
+      {totals && <p className="text-xs text-muted-foreground sm:hidden">{totals.trips} completed {totals.trips === 1 ? 'trip' : 'trips'} · {formatPaymentAmount(totals.gross, currency)} gross{report.truncated ? ' · showing the first 5,000 trips; narrow the range' : ''}. Charged includes card and recorded payments, also prepaid fares on rides later cancelled. Outstanding is cash in the driver’s hand or still owed.</p>}
+      </>}
   </PlatformSection>
 }
