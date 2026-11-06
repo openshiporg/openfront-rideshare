@@ -3,6 +3,7 @@ import { humanSessionId } from '../access'
 import { authorizedTripHeader } from '../domain/tripAuthority'
 import { retrieveCheckoutSession, stripeSecretKey, type StripeCheckoutSession } from '../../integrations/payment/stripe'
 import { initiateTripPayment, moneySnapshot } from './finance'
+import { savedCardFare } from './savedCards'
 
 // Rider card payment through Stripe Checkout. A fleet turns it on by installing the `pp_stripe` provider (all
 // functions `stripe`) with STRIPE_SECRET_KEY on the service. The attempt itself goes through initiateTripPayment,
@@ -13,7 +14,7 @@ const STRIPE_CODE = 'pp_stripe'
 const PAYABLE = ['driver_assigned', 'driver_en_route', 'driver_arrived', 'in_progress', 'completed']
 const ACTIVE = ['pending', 'authorized', 'captured', 'partially_refunded']
 
-type CardPaymentView = { enabled: boolean; payable: boolean; status: string | null; amountMinor: number | null; currencyCode: string | null; url: string | null }
+type CardPaymentView = { enabled: boolean; payable: boolean; status: string | null; amountMinor: number | null; currencyCode: string | null; url: string | null; savedCard?: { brand: string; last4: string; expMonth: number | null; expYear: number | null } | null; failure?: string | null }
 
 async function stripeProvider(context: any) {
   const provider = await context.sudo().query.PaymentProvider.findOne({ where: { code: STRIPE_CODE }, query: 'id isInstalled createPaymentFunction' })
@@ -24,16 +25,16 @@ async function riderTrip(context: any, tripId: string) {
   if (!humanSessionId(context.session)) throw new Error('Sign in to pay for this ride.')
   const authority = await authorizedTripHeader(context.prisma, context.session, tripId, 'riderOrOperator', 'finance')
   if (!authority) throw new Error('Trip not found.')
-  const trip = await context.prisma.trip.findUnique({ where: { id: tripId }, select: { id: true, status: true, confirmationCode: true, bookingSnapshot: true } })
+  const trip = await context.prisma.trip.findUnique({ where: { id: tripId }, select: { id: true, status: true, confirmationCode: true, bookingSnapshot: true, riderId: true } })
   if (!trip) throw new Error('Trip not found.')
   return { trip, bound: authority.bound }
 }
 
 function activePayment(context: any, tripId: string) {
   return context.prisma.payment.findFirst({
-    where: { tripId, status: { in: ACTIVE } },
+    where: { tripId, purpose: 'fare', status: { in: ACTIVE } },
     orderBy: { createdAt: 'desc' },
-    select: { id: true, status: true, amountMinor: true, currencyCode: true, providerReference: true, tripId: true, provider: { select: { code: true } } },
+    select: { id: true, status: true, amountMinor: true, currencyCode: true, providerReference: true, providerEvidence: true, tripId: true, provider: { select: { code: true } } },
   })
 }
 
@@ -86,8 +87,14 @@ export async function tripCardPayment(_root: unknown, args: { tripId: string }, 
   const fare = money(trip)
   const enabled = Boolean(await stripeProvider(context))
   const payment = await activePayment(context, trip.id)
+  const saved = await savedCardFare(context.prisma, trip.id, trip.riderId)
+  // A saved card pays the fare by itself at drop-off, so the rider isn't asked to pay before then; a declined
+  // charge (or a ride with no card on file) falls back to paying through Checkout.
+  const autoPays = Boolean(saved.savedCard) && !saved.failure && trip.status !== 'completed'
+  const settlingOnCard = payment?.status === 'pending' && (payment as any).providerEvidence?.source === 'saved_card'
   return {
-    enabled, payable: enabled && bound && PAYABLE.includes(trip.status || '') && Boolean(fare) && (!payment || (payment.provider?.code === STRIPE_CODE && payment.status === 'pending')),
+    savedCard: saved.savedCard, failure: saved.failure,
+    enabled, payable: enabled && bound && !autoPays && !settlingOnCard && PAYABLE.includes(trip.status || '') && Boolean(fare) && (!payment || (payment.provider?.code === STRIPE_CODE && payment.status === 'pending')),
     status: payment?.status ?? null, amountMinor: payment?.amountMinor ?? fare?.amount ?? null, currencyCode: payment?.currencyCode ?? fare?.currency ?? null, url: null,
   }
 }
@@ -98,6 +105,7 @@ export async function startTripCardPayment(_root: unknown, args: { tripId: strin
   const existing = await activePayment(context, trip.id)
   if (existing && existing.status !== 'pending') throw new Error('This ride is already paid.')
   if (existing && existing.provider?.code !== STRIPE_CODE) throw new Error('The fleet is collecting this fare directly.')
+  if (existing && (existing.providerEvidence as any)?.source === 'saved_card') throw new Error('Your saved card is being charged for this ride.')
   if (existing) {
     const settled = await settle(context, trip, existing)
     if (settled.status === 'captured') return { enabled: true, payable: false, status: 'captured', amountMinor: existing.amountMinor, currencyCode: existing.currencyCode, url: null }
@@ -114,7 +122,7 @@ export async function confirmTripCardPayment(_root: unknown, args: { tripId: str
   const { trip } = await riderTrip(context, args.tripId)
   const payment = await activePayment(context, trip.id)
   const view = (status: string | null) => ({ enabled: true, payable: status === 'pending', status, amountMinor: payment?.amountMinor ?? null, currencyCode: payment?.currencyCode ?? null, url: null })
-  if (!payment || payment.provider?.code !== STRIPE_CODE || payment.status !== 'pending') return view(payment?.status ?? null)
+  if (!payment || payment.provider?.code !== STRIPE_CODE || payment.status !== 'pending' || (payment.providerEvidence as any)?.source === 'saved_card') return view(payment?.status ?? null)
   if (!stripeSecretKey()) throw new Error('Card payment isn’t available for this ride.')
   const settled = await settle(context, trip, payment)
   return view(settled.status)

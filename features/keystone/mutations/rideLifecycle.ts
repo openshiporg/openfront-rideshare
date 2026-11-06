@@ -45,12 +45,28 @@ export async function offerRideToDriver(_root: unknown, args: { requestId: strin
     const maintenance = await expireRideOffers(null, { fleetId: visibleRequest.fleetId, driverId: args.driverId, vehicleId: args.vehicleId }, context)
     if (maintenance.hasMore) throw new Error('More expired reservations require release before new dispatch.')
   }
+  return placeRideOffer(prisma, args, {
+    actorId,
+    authorize: async (tx, fleetId) => {
+      await fenceHumanAuthority(tx, context.session, fleetId)
+      return canAccessFleet({ prisma: tx }, context.session, fleetId, 'operations')
+    },
+  })
+}
+
+/** The offer itself, shared by an operator's manual offer and auto-dispatch. Every eligibility, schedule and
+ * reservation check runs here under the driver/request/vehicle locks; only who may ask differs. With
+ * `onlyOffer`, it refuses when the request already has a live offer (auto-dispatch offers one driver at a time). */
+export async function placeRideOffer(prisma: PrismaClient, args: { requestId: string; driverId: string; vehicleId: string; expiresInSeconds?: number | null; idempotencyKey: string }, authority: { actorId: string; authorize: (tx: Prisma.TransactionClient, fleetId: string) => Promise<boolean>; onlyOffer?: boolean }) {
+  const visibleRequest = await prisma.rideRequest.findUnique({ where: { id: args.requestId }, select: { id: true, fleetId: true } })
+  if (!visibleRequest?.fleetId) throw new Error('Ride request was not found.')
+  const actorId = authority.actorId
   return prisma.$transaction(async tx => {
     const lockKeys = [`driver:${args.driverId}`, `request:${args.requestId}`, `vehicle:${args.vehicleId}`].sort()
     for (const key of lockKeys) await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))::text IS NOT NULL`
-    await fenceHumanAuthority(tx, context.session, visibleRequest.fleetId)
+    if (!await authority.authorize(tx, visibleRequest.fleetId!)) throw new Error('Ride request was not found.')
     const header = await tx.rideRequest.findUnique({ where: { id: args.requestId }, select: { id: true, fleetId: true } })
-    if (!header || header.fleetId !== visibleRequest.fleetId || !await canAccessFleet({ prisma: tx }, context.session, header.fleetId, 'operations')) throw new Error('Ride request was not found.')
+    if (!header?.fleetId || header.fleetId !== visibleRequest.fleetId) throw new Error('Ride request was not found.')
     const driverHeader = await tx.driverProfile.findUnique({ where: { id: args.driverId }, select: { id: true, fleetId: true } })
     const vehicleHeader = await tx.vehicle.findUnique({ where: { id: args.vehicleId }, select: { id: true, fleetId: true } })
     if (driverHeader?.fleetId !== header.fleetId || vehicleHeader?.fleetId !== header.fleetId) throw new Error('Driver or vehicle lacks current fleet-bound eligibility evidence.')
@@ -70,6 +86,7 @@ export async function offerRideToDriver(_root: unknown, args: { requestId: strin
     ])
     if (!request) throw new Error('Ride request was not found.')
     if (!['requested', 'matching'].includes(request.status || '')) throw new Error('Ride request is not matchable.')
+    if (authority.onlyOffer && await tx.matchOffer.findFirst({ where: { requestId: request.id, OR: [{ status: 'accepted' }, { status: 'offered', expiresAt: { gt: new Date() }, reservationReleasedAt: null }] }, select: { id: true } })) throw new Error('This request already has a live offer.')
     await requireServiceReadiness(tx, request.quote?.serviceId || null, request.fleetId)
     const service = request.quote?.service
     if (!service || service.status !== 'active') throw new Error('The quoted service is no longer active.')

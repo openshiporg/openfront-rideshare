@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'r
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { gql, QUOTE_FIELDS, SERVICE_FIELDS, whoAmI, type Estimates, type Identity, type LngLat, type Place, type Quote, type Service } from '../lib/api'
-import { cityPoint, drivingRoute, locate, placeAt, recentPlaces, rememberPlace, type RoutePath } from '../lib/places'
+import { cityPoint, drivingRoute, locate, placeAt, rememberPlace, useRecentPlaces, type RoutePath } from '../lib/places'
 import { clock, formatMoney, minutes } from '../lib/format'
 import { storeLogoMark, storeWordmark } from '../lib/store-mark'
 import { vehicleArt } from '@/features/lib/vehicles'
@@ -17,6 +17,7 @@ import { PlanRide } from '../components/PlanRide'
 import { RidePanel, type RideInfo } from '../components/RidePanel'
 import { RiderMenu } from '../components/RiderMenu'
 import { WhenPanel, WhenSwitch } from '../components/WhenPanel'
+import { cardName, useSavedCard } from '../components/SavedCard'
 import { Button, DropoffMark, Icon, MapButton, PickupMark, Sheet, Spinner, VehicleArt, cx } from '../components/ui'
 
 type Binding = QuoteBinding<Quote>
@@ -43,6 +44,8 @@ export default function RiderApp({ initialRide, initialServiceId }: { initialRid
   const [pendingBinding, setPendingBinding] = useState<Binding | null>(null)
   const [resolving, setResolving] = useState(false)
   const inFlight = useRef(false)
+  const recents = useRecentPlaces()
+  const saved = useSavedCard(Boolean(identity))
 
   const fleet = services?.find(s => s.fleet)?.fleet || null
   const fleetName = fleet?.name || 'Rideshare'
@@ -286,8 +289,8 @@ export default function RiderApp({ initialRide, initialServiceId }: { initialRid
           </button>
         </div>
         <WhenSwitch className="mt-3" when={flow.when} onNow={() => dispatch({ type: 'setWhen', when: null })} onSchedule={() => setWhenOpen(true)} />
-        {recentPlaces().length > 0 && <ul className="mt-2">
-          {recentPlaces().slice(0, 3).map(place => <li key={place.label}>
+        {recents.length > 0 && <ul className="mt-2">
+          {recents.slice(0, 3).map(place => <li key={place.label}>
             <button type="button" onClick={() => dispatch({ type: 'pick', field: 'dropoff', place })} className="press flex min-h-14 w-full items-center gap-3 rounded-[14px] px-1 py-1.5 text-left outline-none hover:bg-white focus-visible:bg-white">
               <span className="grid size-10 shrink-0 place-items-center rounded-[12px] bg-tide-soft text-tide"><Icon.history className="size-[18px]" /></span>
               <span className="min-w-0"><span className="block truncate text-[15px] font-semibold">{place.name}</span><span className="block truncate text-[13px] text-ink-3">{place.detail}</span></span>
@@ -343,7 +346,7 @@ export default function RiderApp({ initialRide, initialServiceId }: { initialRid
       </ul>
       <div className="mt-2 px-4 pt-1">
         <WhenSwitch when={flow.when} onNow={() => dispatch({ type: 'setWhen', when: null })} onSchedule={() => setWhenOpen(true)} />
-        <p className="mt-2 flex min-h-6 items-center gap-2 text-[13px] text-ink-2"><Icon.card className="size-4 shrink-0" /><span className="truncate">{identity ? 'Card, after your driver is assigned' : 'Pay after your driver is assigned'}</span></p>
+        <p className="mt-2 flex min-h-6 items-center gap-2 text-[13px] text-ink-2"><Icon.card className="size-4 shrink-0" /><span className="truncate">{saved.card ? `${cardName(saved.card)} · charged after the ride` : identity ? 'Card, after your driver is assigned' : 'Pay after your driver is assigned'}</span></p>
         {flow.error && <p role="alert" className="pb-1 text-[14px] text-alert">{flow.error}</p>}
         <Button size="lg" className="mt-2 w-full" disabled={!selected || phase === 'requesting' || !selected.readiness?.bookingEnabled} onClick={() => void request()}>
           {phase === 'requesting' ? <><Spinner className="size-5" />Requesting…</> : <span className="truncate">{`${flow.when ? 'Schedule' : 'Request'} ${selected?.title || 'ride'}`}</span>}

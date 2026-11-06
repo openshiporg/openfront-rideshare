@@ -85,7 +85,8 @@ export async function FinancePage({ searchParams }: { searchParams?: Promise<Fin
     render={item => <div className="flex items-start justify-between gap-4">
       <div className="min-w-0 space-y-1">
         <StatusTitle tone={statusTone(item.status)} status={statusLabel(item.status)} className="font-mono text-sm font-semibold">{item.trip ? <Link href={`/dashboard/platform/trips/${item.trip.id}`} className="hover:underline">{item.trip.confirmationCode}</Link> : String(item.id).slice(-10)}</StatusTitle>
-        <p className="text-xs text-muted-foreground">{formatWhen(item.createdAt)}{item.refundsCount ? ` · ${item.refundsCount} refund${item.refundsCount === 1 ? '' : 's'}` : ''}</p>
+        <p className="text-xs text-muted-foreground">{item.purpose && item.purpose !== 'fare' ? `${statusLabel(item.purpose)} · ` : ''}{formatWhen(item.createdAt)}{item.attempts > 1 ? ` · ${item.attempts} tries` : ''}{item.refundsCount ? ` · ${item.refundsCount} refund${item.refundsCount === 1 ? '' : 's'}` : ''}</p>
+        {item.status === 'failed' && item.failureMessage && <p className="text-xs text-destructive">{item.failureMessage}</p>}
       </div>
       <p className="shrink-0 text-lg font-semibold tabular-nums">{formatPaymentAmount(item.amountMinor, item.currencyCode)}</p>
     </div>}

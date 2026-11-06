@@ -53,7 +53,7 @@ export function FleetOperationsSettings() {
     {fleets === null ? <div className="h-28 animate-pulse rounded-[6px] bg-muted motion-reduce:animate-none" aria-label="Loading fleets" />
       : !fleets.length && !error ? <PlatformEmpty>No fleets yet</PlatformEmpty>
       : <ul className="space-y-3">{fleets.map(fleet => {
-        const open = fleet.status === 'active' && fleet.operationsMode === 'manual'
+        const open = fleet.status === 'active' && ['manual', 'auto'].includes(fleet.operationsMode)
         const checks = [
           { label: 'Active service', done: fleet.servicesCount > 0, href: '/dashboard/platform/services' },
           { label: 'Active service area', done: fleet.serviceAreasCount > 0, href: '/dashboard/platform/services' },
@@ -63,13 +63,13 @@ export function FleetOperationsSettings() {
         const ready = checks.every(check => check.done)
         const live = open && ready
         return <li key={fleet.id} className="space-y-4 rounded-[6px] border bg-card p-4 md:p-5" data-command-pending={busy === fleet.id ? 'true' : undefined}>
-          <StatusTitle as="h3" tone={live ? 'green' : 'amber'} pulse={live} status={live ? 'Taking rides' : fleet.status !== 'active' ? 'Fleet not active' : fleet.operationsMode !== 'manual' ? 'Manual dispatch off' : 'Setup incomplete'} className="font-semibold">{fleet.name}</StatusTitle>
+          <StatusTitle as="h3" tone={live ? 'green' : 'amber'} pulse={live} status={live ? 'Taking rides' : fleet.status !== 'active' ? 'Fleet not active' : !['manual', 'auto'].includes(fleet.operationsMode) ? 'Dispatch off' : 'Setup incomplete'} className="font-semibold">{fleet.name}</StatusTitle>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             <div className="space-y-1.5"><p className="text-xs font-medium text-muted-foreground">Fleet status</p>
               <PillTrack label={`${fleet.name} status`}>{(['setup', 'active', 'paused'] as const).map(value => <PillButton key={value} active={fleet.status === value} disabled={Boolean(busy)} onClick={() => { if (fleet.status !== value && (value !== 'paused' || window.confirm(`Pause ${fleet.name}? Riders can't book and drivers get no new offers until it is active again.`))) void update(fleet, { status: value }) }}>{value === 'setup' ? 'Setup' : value === 'active' ? 'Active' : 'Paused'}</PillButton>)}</PillTrack>
             </div>
             <div className="space-y-1.5"><p className="text-xs font-medium text-muted-foreground">Dispatch</p>
-              <PillTrack label={`${fleet.name} dispatch`}>{(['off', 'manual'] as const).map(value => <PillButton key={value} active={fleet.operationsMode === value} disabled={Boolean(busy)} onClick={() => { if (fleet.operationsMode !== value && (value !== 'off' || window.confirm(`Turn dispatch off for ${fleet.name}? Open requests stop getting driver offers.`))) void update(fleet, { operationsMode: value }) }}>{value === 'off' ? 'Off' : 'Manual dispatch'}</PillButton>)}</PillTrack>
+              <PillTrack label={`${fleet.name} dispatch`}>{(['off', 'manual', 'auto'] as const).map(value => <PillButton key={value} active={fleet.operationsMode === value} disabled={Boolean(busy)} onClick={() => { if (fleet.operationsMode !== value && (value !== 'off' || window.confirm(`Turn dispatch off for ${fleet.name}? Open requests stop getting driver offers.`))) void update(fleet, { operationsMode: value }) }}>{value === 'off' ? 'Off' : value === 'manual' ? 'Manual' : 'Auto'}</PillButton>)}</PillTrack>
             </div>
             <div className="space-y-1.5"><p className="text-xs font-medium text-muted-foreground">Rider accounts</p>
               <PillTrack label={`${fleet.name} rider accounts`}>{(['closed', 'open'] as const).map(value => <PillButton key={value} active={fleet.riderAccounts === value} disabled={Boolean(busy)} onClick={() => { if (fleet.riderAccounts !== value && (value !== 'closed' || window.confirm(`Close rider accounts for ${fleet.name}? New riders can't sign up or book.`))) void update(fleet, { riderAccounts: value }) }}>{value === 'closed' ? 'Closed' : 'Open'}</PillButton>)}</PillTrack>

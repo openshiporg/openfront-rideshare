@@ -150,3 +150,28 @@ export function OfferCountdown({ expiresAt }: { expiresAt: string }) {
 export function DriverTripActions({ tripId, status, actorId, acceptedOfferId }: { tripId: string; status: string; actorId: string; acceptedOfferId: string }) {
   return <TripOperatorActions tripId={tripId} status={status} actorId={actorId} acceptedOfferId={acceptedOfferId} actionsEnabled driverMode />
 }
+
+/** While online, reports the driver's position (rounded server-side) every minute so auto-dispatch can offer
+ * them the nearest rides. Asks the browser once; without permission the driver still gets offers, just later. */
+export function DriverLocationBeacon({ online }: { online: boolean }) {
+  const [state, setState] = useState<'idle' | 'sharing' | 'denied' | 'unavailable'>('idle')
+  useEffect(() => {
+    if (!online) return
+    if (typeof navigator === 'undefined' || !navigator.geolocation) { setState('unavailable'); return }
+    let stopped = false
+    const send = () => navigator.geolocation.getCurrentPosition(
+      position => {
+        if (stopped) return
+        setState('sharing')
+        void fetch('/api/graphql', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ query: 'mutation Where($lng: Float!, $lat: Float!, $accuracy: Float) { reportDriverLocation(lng: $lng, lat: $lat, accuracyMeters: $accuracy) }', variables: { lng: position.coords.longitude, lat: position.coords.latitude, accuracy: position.coords.accuracy } }) }).catch(() => {})
+      },
+      error => { if (!stopped) setState(error.code === error.PERMISSION_DENIED ? 'denied' : 'unavailable') },
+      { enableHighAccuracy: false, maximumAge: 30_000, timeout: 15_000 },
+    )
+    send()
+    const timer = window.setInterval(send, 60_000)
+    return () => { stopped = true; window.clearInterval(timer) }
+  }, [online])
+  if (!online || state === 'idle') return null
+  return <p role="status" className="text-xs text-muted-foreground">{state === 'sharing' ? 'Sharing your location so nearby rides come to you' : state === 'denied' ? 'Location is off. Turn it on to get the nearest rides first.' : 'Location unavailable'}</p>
+}

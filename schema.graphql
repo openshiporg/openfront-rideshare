@@ -947,6 +947,9 @@ type DriverProfile {
   photo: ImageFieldOutput
   status: String
   dispatchStatus: String
+  lastLocationLng: Float
+  lastLocationLat: Float
+  lastLocationAt: DateTime
   acceptsScheduled: Boolean
   languages: JSON
   accessibilityTrainingEvidence: String
@@ -985,6 +988,9 @@ input DriverProfileWhereInput {
   publicPhotoUrl: StringFilter
   status: StringNullableFilter
   dispatchStatus: StringNullableFilter
+  lastLocationLng: FloatNullableFilter
+  lastLocationLat: FloatNullableFilter
+  lastLocationAt: DateTimeNullableFilter
   acceptsScheduled: BooleanFilter
   accessibilityTrainingEvidence: StringFilter
   documents: ComplianceDocumentManyRelationFilter
@@ -996,6 +1002,17 @@ input DriverProfileWhereInput {
   trips: TripManyRelationFilter
   createdAt: DateTimeNullableFilter
   updatedAt: DateTimeNullableFilter
+}
+
+input FloatNullableFilter {
+  equals: Float
+  in: [Float!]
+  notIn: [Float!]
+  lt: Float
+  lte: Float
+  gt: Float
+  gte: Float
+  not: FloatNullableFilter
 }
 
 input ComplianceDocumentManyRelationFilter {
@@ -1035,6 +1052,9 @@ input DriverProfileOrderByInput {
   publicPhotoUrl: OrderDirection
   status: OrderDirection
   dispatchStatus: OrderDirection
+  lastLocationLng: OrderDirection
+  lastLocationLat: OrderDirection
+  lastLocationAt: OrderDirection
   acceptsScheduled: OrderDirection
   accessibilityTrainingEvidence: OrderDirection
   createdAt: OrderDirection
@@ -1050,6 +1070,9 @@ input DriverProfileUpdateInput {
   photo: ImageFieldInput
   status: String
   dispatchStatus: String
+  lastLocationLng: Float
+  lastLocationLat: Float
+  lastLocationAt: DateTime
   acceptsScheduled: Boolean
   languages: JSON
   accessibilityTrainingEvidence: String
@@ -1113,6 +1136,9 @@ input DriverProfileCreateInput {
   photo: ImageFieldInput
   status: String
   dispatchStatus: String
+  lastLocationLng: Float
+  lastLocationLat: Float
+  lastLocationAt: DateTime
   acceptsScheduled: Boolean
   languages: JSON
   accessibilityTrainingEvidence: String
@@ -1161,6 +1187,13 @@ type RiderProfile {
   accessibilityPreferences: JSON
   communicationPreferences: JSON
   emergencyContactEncryptedRef: String
+  stripeCustomerId: String
+  cardPaymentMethodId: String
+  cardBrand: String
+  cardLast4: String
+  cardExpMonth: Int
+  cardExpYear: Int
+  cardSavedAt: DateTime
   createdAt: DateTime
   updatedAt: DateTime
 }
@@ -1179,14 +1212,39 @@ input RiderProfileWhereInput {
   homeFleet: FleetWhereInput
   displayName: StringFilter
   emergencyContactEncryptedRef: StringFilter
+  stripeCustomerId: StringFilter
+  cardPaymentMethodId: StringFilter
+  cardBrand: StringFilter
+  cardLast4: StringFilter
+  cardExpMonth: IntNullableFilter
+  cardExpYear: IntNullableFilter
+  cardSavedAt: DateTimeNullableFilter
   createdAt: DateTimeNullableFilter
   updatedAt: DateTimeNullableFilter
+}
+
+input IntNullableFilter {
+  equals: Int
+  in: [Int!]
+  notIn: [Int!]
+  lt: Int
+  lte: Int
+  gt: Int
+  gte: Int
+  not: IntNullableFilter
 }
 
 input RiderProfileOrderByInput {
   id: OrderDirection
   displayName: OrderDirection
   emergencyContactEncryptedRef: OrderDirection
+  stripeCustomerId: OrderDirection
+  cardPaymentMethodId: OrderDirection
+  cardBrand: OrderDirection
+  cardLast4: OrderDirection
+  cardExpMonth: OrderDirection
+  cardExpYear: OrderDirection
+  cardSavedAt: OrderDirection
   createdAt: OrderDirection
   updatedAt: OrderDirection
 }
@@ -1199,6 +1257,13 @@ input RiderProfileUpdateInput {
   accessibilityPreferences: JSON
   communicationPreferences: JSON
   emergencyContactEncryptedRef: String
+  stripeCustomerId: String
+  cardPaymentMethodId: String
+  cardBrand: String
+  cardLast4: String
+  cardExpMonth: Int
+  cardExpYear: Int
+  cardSavedAt: DateTime
   createdAt: DateTime
   updatedAt: DateTime
 }
@@ -1216,6 +1281,13 @@ input RiderProfileCreateInput {
   accessibilityPreferences: JSON
   communicationPreferences: JSON
   emergencyContactEncryptedRef: String
+  stripeCustomerId: String
+  cardPaymentMethodId: String
+  cardBrand: String
+  cardLast4: String
+  cardExpMonth: Int
+  cardExpYear: Int
+  cardSavedAt: DateTime
   createdAt: DateTime
   updatedAt: DateTime
 }
@@ -1273,17 +1345,6 @@ input VehicleWhereInput {
   trips: TripManyRelationFilter
   createdAt: DateTimeNullableFilter
   updatedAt: DateTimeNullableFilter
-}
-
-input IntNullableFilter {
-  equals: Int
-  in: [Int!]
-  notIn: [Int!]
-  lt: Int
-  lte: Int
-  gt: Int
-  gte: Int
-  not: IntNullableFilter
 }
 
 input VehicleOrderByInput {
@@ -3823,6 +3884,11 @@ type Payment {
   idempotencyKey: String
   providerEvidence: JSON
   capturedAt: DateTime
+  purpose: String
+  attempts: Int
+  lastAttemptAt: DateTime
+  failureCode: String
+  failureMessage: String
   refunds(where: RefundWhereInput! = {}, orderBy: [RefundOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: RefundWhereUniqueInput): [Refund!]
   refundsCount(where: RefundWhereInput! = {}): Int
   ledgerEntries(where: LedgerEntryWhereInput! = {}, orderBy: [LedgerEntryOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: LedgerEntryWhereUniqueInput): [LedgerEntry!]
@@ -3849,6 +3915,11 @@ input PaymentWhereInput {
   providerReference: StringFilter
   idempotencyKey: StringFilter
   capturedAt: DateTimeNullableFilter
+  purpose: StringNullableFilter
+  attempts: IntNullableFilter
+  lastAttemptAt: DateTimeNullableFilter
+  failureCode: StringFilter
+  failureMessage: StringFilter
   refunds: RefundManyRelationFilter
   ledgerEntries: LedgerEntryManyRelationFilter
   createdAt: DateTimeNullableFilter
@@ -3863,6 +3934,11 @@ input PaymentOrderByInput {
   providerReference: OrderDirection
   idempotencyKey: OrderDirection
   capturedAt: OrderDirection
+  purpose: OrderDirection
+  attempts: OrderDirection
+  lastAttemptAt: OrderDirection
+  failureCode: OrderDirection
+  failureMessage: OrderDirection
   createdAt: OrderDirection
   updatedAt: OrderDirection
 }
@@ -3877,6 +3953,11 @@ input PaymentUpdateInput {
   idempotencyKey: String
   providerEvidence: JSON
   capturedAt: DateTime
+  purpose: String
+  attempts: Int
+  lastAttemptAt: DateTime
+  failureCode: String
+  failureMessage: String
   refunds: RefundRelateToManyForUpdateInput
   ledgerEntries: LedgerEntryRelateToManyForUpdateInput
   createdAt: DateTime
@@ -3904,6 +3985,11 @@ input PaymentCreateInput {
   idempotencyKey: String
   providerEvidence: JSON
   capturedAt: DateTime
+  purpose: String
+  attempts: Int
+  lastAttemptAt: DateTime
+  failureCode: String
+  failureMessage: String
   refunds: RefundRelateToManyForCreateInput
   ledgerEntries: LedgerEntryRelateToManyForCreateInput
   createdAt: DateTime
@@ -4717,6 +4803,11 @@ type Mutation {
   requestTripRefund(paymentId: ID!, amountMinor: Int!, reason: String, idempotencyKey: String!): Refund!
   startTripCardPayment(tripId: ID!): TripCardPayment!
   confirmTripCardPayment(tripId: ID!): TripCardPayment!
+  startRiderCardSetup(returnTo: String): JSON!
+  confirmRiderCardSetup(sessionId: String!): RiderCardSetupResult!
+  removeRiderCard: JSON!
+  retryTripCharge(paymentId: ID!): JSON!
+  reportDriverLocation(lng: Float!, lat: Float!, accuracyMeters: Float): JSON!
   saveFleetBranding(fleetId: ID!, expectedUpdatedAt: DateTime!, logoIcon: String!, logoColor: String!, name: String, idempotencyKey: String!, expectedActorId: ID!): JSON!
   dismissRideshareOnboarding: Boolean!
   bootstrapRideshare(mode: String!): RideshareBootstrapResult!
@@ -4916,6 +5007,7 @@ type Query {
   dispatchCandidatePage(requestId: ID!, cursor: String, query: String): JSON
   dispatchQueueScope: Boolean!
   tripCardPayment(tripId: ID!): TripCardPayment!
+  riderSavedCard: RiderSavedCard!
 }
 
 union AuthenticatedItem = User
@@ -5258,6 +5350,25 @@ type TripCardPayment {
   amountMinor: Int
   currencyCode: String
   url: String
+  savedCard: SavedCard
+  failure: String
+}
+
+type SavedCard {
+  brand: String!
+  last4: String!
+  expMonth: Int
+  expYear: Int
+}
+
+type RiderSavedCard {
+  enabled: Boolean!
+  card: SavedCard
+}
+
+type RiderCardSetupResult {
+  saved: Boolean!
+  card: SavedCard
 }
 
 type PublicTripPayment {

@@ -1,3 +1,4 @@
+import { useSyncExternalStore } from 'react'
 import type { LngLat, Place } from './api'
 
 /** Open map data (Photon via /api/places, OSRM via /api/route). No keys, no fake places. */
@@ -55,6 +56,28 @@ export function recentPlaces(): Place[] {
 }
 export function rememberPlace(place: Place) {
   try { localStorage.setItem(RECENT_KEY, JSON.stringify([place, ...recentPlaces().filter(p => p.label !== place.label)].slice(0, 8))) } catch { /* optional */ }
+  recentListeners.forEach(listener => listener())
+}
+
+// Recent places for rendering. The server (and the first client render) has none, so the page
+// hydrates identically; the device's list appears right after (React #418 otherwise).
+const recentListeners = new Set<() => void>()
+let recentCache: { raw: string | null; places: Place[] } = { raw: null, places: [] }
+const NO_PLACES: Place[] = []
+function recentSnapshot(): Place[] {
+  let raw: string | null = null
+  try { raw = localStorage.getItem(RECENT_KEY) } catch { return NO_PLACES }
+  if (raw !== recentCache.raw) recentCache = { raw, places: recentPlaces() }
+  return recentCache.places
+}
+function subscribeRecent(listener: () => void) {
+  recentListeners.add(listener)
+  const onStorage = (event: StorageEvent) => { if (event.key === RECENT_KEY) listener() }
+  window.addEventListener('storage', onStorage)
+  return () => { recentListeners.delete(listener); window.removeEventListener('storage', onStorage) }
+}
+export function useRecentPlaces(): Place[] {
+  return useSyncExternalStore(subscribeRecent, recentSnapshot, () => NO_PLACES)
 }
 
 /** The rider's position, once, if they allow it. */

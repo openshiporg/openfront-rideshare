@@ -5,13 +5,21 @@ import { refreshDriverPresentDispatchStatus } from '../domain/driverDispatchPres
 /** An independent transaction: releasing an elapsed, UNCONSUMED reservation
  * must not roll back because a subsequent new offer fails eligibility. */
 export async function expireRideOffers(_root: unknown, args: { fleetId: string; driverId?: string; vehicleId?: string }, context: any) {
-  return context.prisma.$transaction(async (tx: any) => {
+  return releaseElapsedOffers(context.prisma, args, async (tx: any) => {
     await fenceHumanAuthority(tx, context.session, args.fleetId)
     if (!await canAccessFleet({ prisma: tx }, context.session, args.fleetId, 'operations')) throw new Error('Fleet is unavailable.')
+  })
+}
+
+/** The release itself. Operators reach it through expireRideOffers; auto-dispatch calls it as the system. */
+export async function releaseElapsedOffers(prisma: any, args: { fleetId: string; driverId?: string; vehicleId?: string; requestId?: string }, authorize?: (tx: any) => Promise<void>) {
+  return prisma.$transaction(async (tx: any) => {
+    if (authorize) await authorize(tx)
     const now = new Date()
     const rows = await tx.matchOffer.findMany({
       where: { status: 'offered', expiresAt: { lte: now }, reservationReleasedAt: null,
         request: { is: { fleetId: args.fleetId } }, driver: { is: { fleetId: args.fleetId } }, vehicle: { is: { fleetId: args.fleetId } },
+        ...(args.requestId ? { requestId: args.requestId } : {}),
         ...(args.driverId || args.vehicleId ? { OR: [...(args.driverId ? [{ driverId: args.driverId }] : []), ...(args.vehicleId ? [{ vehicleId: args.vehicleId }] : [])] } : {}),
       }, orderBy: [{ expiresAt: 'asc' }, { id: 'asc' }], take: 51,
       select: { id: true, driverId: true, requestId: true, vehicleId: true },

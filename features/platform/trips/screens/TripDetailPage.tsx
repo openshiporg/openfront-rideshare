@@ -12,7 +12,7 @@ import { formatMoney } from '@/features/lib/currency'
 import { operationsEnabled } from '@/features/keystone/domain/operationalReadiness'
 import { IncidentActions, SupportCaseActions } from '@/features/platform/safety/components/CaseActions'
 import { TripOperatorActions } from '../components/TripOperatorActions'
-import { ConfirmPaymentTrack, ConfirmRefundTrack, MessageComposer, RecordPaymentTrack, RefundSheet } from '../components/TripDetailActions'
+import { ConfirmPaymentTrack, ConfirmRefundTrack, MessageComposer, RecordPaymentTrack, RefundSheet, RetryChargeTrack } from '../components/TripDetailActions'
 
 const TRIP_QUERY = `query TripDetail($id: ID!) {
   authenticatedItem { ... on User { id } }
@@ -26,7 +26,7 @@ const TRIP_QUERY = `query TripDetail($id: ID!) {
     vehicle { id label plateMasked }
     events(orderBy: [{ occurredAt: desc }], take: 50) { id eventType toStatus actorType occurredAt }
     cancellations(take: 10) { id actorType reasonCode reason feeMinor currencyCode refundRequired createdAt }
-    payments(take: 10) { id status amountMinor currencyCode createdAt capturedAt provider { code name } refunds(take: 20) { id amountMinor currencyCode status reason createdAt } }
+    payments(take: 10) { id status purpose attempts lastAttemptAt failureCode failureMessage providerEvidence amountMinor currencyCode createdAt capturedAt provider { code name } refunds(take: 20) { id amountMinor currencyCode status reason createdAt } }
     incidents(take: 10) { id caseNumber status severity summary assignedTo { id } }
     supportCases(take: 10) { id caseNumber status subject assignedTo { id } }
     reviews(take: 5) { id rating body status direction }
@@ -37,6 +37,7 @@ const TRIP_QUERY = `query TripDetail($id: ID!) {
 const money = (minor: unknown, currency: unknown) => typeof minor === 'number' && typeof currency === 'string' && currency ? formatMoney(minor, currency) : '—'
 // Side events (messages, reviews, money) keep the trip's status, so name them by what happened.
 const EVENT_LABELS: Record<string, string> = { 'trip.message_submitted': 'Message', 'trip.support_submitted': 'Help requested', 'trip.review_submitted': 'Reviewed', 'trip.incident_submitted': 'Safety report', 'finance.refund_reserved': 'Refund started' }
+const PURPOSE: Record<string, string> = { fare: 'Fare', cancellation_fee: 'Cancellation fee', no_show_fee: 'No-show fee' }
 const eventLabel = (event: any) => EVENT_LABELS[event.eventType] || (event.toStatus ? statusLabel(event.toStatus) : statusLabel(String(event.eventType).replace(/^(trip|finance)\./, '')))
 
 export async function TripDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -74,15 +75,20 @@ export async function TripDetailPage({ params }: { params: Promise<{ id: string 
           </dl>
         </div>
 
-        <PlatformSection id="payments" title="Payments" meta={trip.payments.length || undefined} actions={payable && !trip.payments.some((payment: any) => !['failed', 'cancelled'].includes(payment.status)) ? <RecordPaymentTrack tripId={trip.id} /> : undefined}>
+        <PlatformSection id="payments" title="Payments" meta={trip.payments.length || undefined} actions={payable && !trip.payments.some((payment: any) => payment.purpose === 'fare' && !['failed', 'cancelled'].includes(payment.status)) ? <RecordPaymentTrack tripId={trip.id} /> : undefined}>
           {trip.payments.length ? <ul className="space-y-3">{trip.payments.map((payment: any) => {
             const refunded = payment.refunds.filter((refund: any) => ['requested', 'processing', 'succeeded'].includes(refund.status)).reduce((sum: number, refund: any) => sum + (refund.amountMinor || 0), 0)
             const remaining = Math.max(0, (payment.amountMinor || 0) - refunded)
             const manual = payment.provider?.code === 'pp_manual'
+            const savedCard = payment.providerEvidence?.source === 'saved_card'
+            const card = payment.providerEvidence?.card
+            const purpose = PURPOSE[payment.purpose] || 'Fare'
             return <li key={payment.id} className="space-y-3 rounded-[6px] border bg-card p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0"><StatusTitle as="p" tone={statusTone(payment.status)} status={statusLabel(payment.status)} className="text-lg font-semibold tabular-nums">{money(payment.amountMinor, payment.currencyCode)}</StatusTitle><p className="text-xs text-muted-foreground">{payment.provider?.name || 'Provider'} · {payment.capturedAt ? <>Paid {formatWhen(payment.capturedAt)}</> : <>Recorded {formatWhen(payment.createdAt)}</>}</p></div>
-                <div className="flex flex-wrap gap-2">{manual && ['pending', 'authorized'].includes(payment.status) && <ConfirmPaymentTrack paymentId={payment.id} />}{['captured', 'partially_refunded'].includes(payment.status) && remaining > 0 && <RefundSheet paymentId={payment.id} currency={payment.currencyCode} remainingMinor={remaining} />}</div>
+                <div className="min-w-0"><StatusTitle as="p" tone={statusTone(payment.status)} status={statusLabel(payment.status)} className="text-lg font-semibold tabular-nums">{money(payment.amountMinor, payment.currencyCode)}</StatusTitle><p className="text-xs text-muted-foreground">{purpose} · {savedCard ? `Saved card${card?.last4 ? ` •••• ${card.last4}` : ''}` : payment.provider?.name || 'Provider'} · {payment.capturedAt ? <>Paid {formatWhen(payment.capturedAt)}</> : <>Recorded {formatWhen(payment.createdAt)}</>}{savedCard && payment.attempts > 0 ? ` · ${payment.attempts} ${payment.attempts === 1 ? 'try' : 'tries'}` : ''}</p>
+                  {payment.status === 'failed' && <p role="alert" className="mt-1.5 text-sm text-destructive">Declined{payment.failureCode ? ` (${statusLabel(payment.failureCode)})` : ''}: {payment.failureMessage || 'The card was not charged.'}{payment.lastAttemptAt ? <> · last tried {formatWhen(payment.lastAttemptAt)}</> : null}</p>}
+                  {savedCard && payment.status === 'pending' && <p role="status" className="mt-1.5 text-sm text-amber-700 dark:text-amber-300">Waiting for Stripe’s answer. Check the charge to read it.</p>}</div>
+                <div className="flex flex-wrap gap-2">{savedCard && ['failed', 'pending'].includes(payment.status) && <RetryChargeTrack paymentId={payment.id} pending={payment.status === 'pending'} />}{manual && ['pending', 'authorized'].includes(payment.status) && <ConfirmPaymentTrack paymentId={payment.id} />}{['captured', 'partially_refunded'].includes(payment.status) && remaining > 0 && <RefundSheet paymentId={payment.id} currency={payment.currencyCode} remainingMinor={remaining} />}</div>
               </div>
               {payment.refunds.length > 0 && <ul className="divide-y rounded-[4px] border">{payment.refunds.map((refund: any) => <li key={refund.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm"><StatusTitle as="span" tone={statusTone(refund.status === 'succeeded' ? 'completed' : refund.status === 'failed' ? 'failed' : 'pending')} status={statusLabel(refund.status === 'succeeded' ? 'refunded' : refund.status)} className="tabular-nums">Refund {money(refund.amountMinor, refund.currencyCode)}</StatusTitle><span className="flex items-center gap-2 text-xs text-muted-foreground">{refund.reason}{manual && ['requested', 'processing'].includes(refund.status) && <ConfirmRefundTrack refundId={refund.id} />}</span></li>)}</ul>}
             </li>

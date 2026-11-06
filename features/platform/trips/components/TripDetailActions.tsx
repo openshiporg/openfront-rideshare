@@ -6,6 +6,15 @@ import { ActionTrack, TrackButton } from '@/features/platform/components/PillTab
 import { SetupSheet, TransitionTrack } from '@/features/platform/components/SetupSheet'
 import { ops } from '@/features/platform/setup/setupMutations'
 
+/** Charges a declined (or unanswered) saved-card payment again. */
+export function RetryChargeTrack({ paymentId, pending }: { paymentId: string; pending?: boolean }) {
+  return <TransitionTrack label="Card charge" actions={[{ label: pending ? 'Check charge' : 'Retry charge', tone: 'primary', run: async () => {
+    const result: any = await ops.retryCharge(paymentId)
+    const status = result?.retryTripCharge?.status ?? result?.data?.retryTripCharge?.status
+    if (status === 'failed') throw new Error('Declined again. Ask the rider to update their card, or record the payment another way.')
+  } }]} />
+}
+
 export function RecordPaymentTrack({ tripId }: { tripId: string }) {
   return <TransitionTrack label="Payment" actions={[{ label: 'Record charge', tone: 'primary', run: () => ops.recordPayment(tripId) }]} />
 }

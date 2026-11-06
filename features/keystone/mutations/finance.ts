@@ -74,7 +74,7 @@ export async function initiateTripPayment(_root: unknown, args: { tripId: string
       if (replay.tripId !== trip.id || replay.providerId !== provider.id || replay.amountMinor !== amount || replay.currencyCode !== currency || !isDeepStrictEqual(evidence?.command, command)) throw new Error('Idempotency key belongs to a different payment intent or original binding is unavailable.')
       return { payment: replay, shouldExecute: false }
     }
-    const active = await tx.payment.findFirst({ where: { tripId: trip.id, status: { in: ['pending', 'authorized', 'captured', 'partially_refunded'] } } })
+    const active = await tx.payment.findFirst({ where: { tripId: trip.id, purpose: 'fare', status: { in: ['pending', 'authorized', 'captured', 'partially_refunded'] } } })
     if (active) throw new Error('A payment attempt already exists for this trip. Reconciliation is required before another attempt.')
     const payment = await tx.payment.create({ data: {
       tripId: trip.id, providerId: provider.id, amountMinor: amount, currencyCode: currency, status: 'pending',

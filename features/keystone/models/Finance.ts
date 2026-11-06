@@ -23,6 +23,10 @@ export const Payment = list({
     trip: relationship({ ref: 'Trip.payments', access: { create: () => false, update: () => false } }), provider: relationship({ ref: 'PaymentProvider.payments', access: { create: () => false, update: () => false } }), amountMinor: integer({ validation: { min: 0 } }), currencyCode: text(),
     status: select({ options: ['pending', 'authorized', 'captured', 'failed', 'partially_refunded', 'refunded', 'cancelled'].map(value => ({ label: value, value })), defaultValue: 'pending' }),
     providerReference: text(), idempotencyKey: text({ isIndexed: 'unique', access: { read: denyAll } }), providerEvidence: json({ defaultValue: {}, access: { read: permissions.canManageFinance } }), capturedAt: timestamp(),
+    // What the charge is for, and for saved-card charges how many tries it took and why the last one failed.
+    purpose: select({ options: [{ label: 'Fare', value: 'fare' }, { label: 'Cancellation fee', value: 'cancellation_fee' }, { label: 'No-show fee', value: 'no_show_fee' }], defaultValue: 'fare', access: { create: () => false, update: () => false } }),
+    attempts: integer({ defaultValue: 0, access: { create: () => false, update: () => false } }), lastAttemptAt: timestamp({ access: { create: () => false, update: () => false } }),
+    failureCode: text({ access: { create: () => false, update: () => false } }), failureMessage: text({ access: { create: () => false, update: () => false } }),
     refunds: relationship({ ref: 'Refund.payment', many: true, access: { create: () => false, update: () => false } }), ledgerEntries: relationship({ ref: 'LedgerEntry.payment', many: true, access: { create: () => false, update: () => false } }), ...trackingFields,
   },
 })

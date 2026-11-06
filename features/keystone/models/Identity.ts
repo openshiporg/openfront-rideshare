@@ -1,5 +1,6 @@
 import { list } from '@keystone-6/core'
-import { checkbox, image, json, relationship, select, text, timestamp } from '@keystone-6/core/fields'
+import { checkbox, float, image, integer, json, relationship, select, text, timestamp } from '@keystone-6/core/fields'
+import { denyAll } from '@keystone-6/core/access'
 import { fleetScopedAccess, lockedOperationalAccess, permissions } from '../access'
 import { trackingFields } from './trackingFields'
 import { labels } from './labels'
@@ -28,7 +29,7 @@ export const Fleet = list({
     } }),
     logoColor: text({ defaultValue: DEFAULT_STORE_LOGO_COLOR, hooks: { resolveInput: ({ resolvedData, fieldKey }) => resolvedData[fieldKey] === undefined ? undefined : normalizeStoreLogoColor(resolvedData[fieldKey]) } }),
     riderAccounts: select({ options: [{ label: 'Closed', value: 'closed' }, { label: 'Open', value: 'open' }], defaultValue: 'closed', validation: { isRequired: true } }),
-    operationsMode: select({ options: [{ label: 'Off', value: 'off' }, { label: 'Manual dispatch', value: 'manual' }], defaultValue: 'off', validation: { isRequired: true } }),
+    operationsMode: select({ options: [{ label: 'Off', value: 'off' }, { label: 'Manual dispatch', value: 'manual' }, { label: 'Auto dispatch', value: 'auto' }], defaultValue: 'off', validation: { isRequired: true }, ui: { description: 'Auto dispatch offers each new ride to the nearest available driver, one at a time; operators can still offer rides by hand.' } }),
     preciseLocationRetentionDays: text({ defaultValue: '30' }),
     memberships: relationship({ ref: 'FleetMembership.fleet', many: true, access: { create: () => false, update: () => false } }), drivers: relationship({ ref: 'DriverProfile.fleet', many: true, access: { create: () => false, update: () => false } }),
     riders: relationship({ ref: 'RiderProfile.homeFleet', many: true, access: { create: () => false, update: () => false } }), vehicles: relationship({ ref: 'Vehicle.fleet', many: true, access: { create: () => false, update: () => false } }),
@@ -62,6 +63,8 @@ export const DriverProfile = list({
     photo: image({ storage: 'my_images', label: 'Driver’s own photo', ui: { description: 'A photo the driver uploaded of themselves, shown to their rider on the trip card.' } }),
     status: select({ options: ['applicant', 'pending_review', 'active', 'paused', 'ineligible', 'offboarded'].map(value => ({ label: value, value })), defaultValue: 'applicant', access: { create: () => false, update: () => false } }),
     dispatchStatus: select({ options: ['offline', 'available', 'offered', 'assigned', 'on_trip'].map(value => ({ label: value, value })), defaultValue: 'offline', access: { create: () => false, update: () => false } }),
+    // Where the driver last was while online, rounded to about 100 m. Auto-dispatch ranks drivers by it.
+    lastLocationLng: float({ access: { create: () => false, update: () => false } }), lastLocationLat: float({ access: { create: () => false, update: () => false } }), lastLocationAt: timestamp({ access: { create: () => false, update: () => false } }),
     acceptsScheduled: checkbox({ defaultValue: true }), languages: json({ defaultValue: [] }), accessibilityTrainingEvidence: text(),
     documents: relationship({ ref: 'ComplianceDocument.driver', many: true, access: { create: () => false, update: () => false } }), vehicles: relationship({ ref: 'Vehicle.drivers', many: true, access: { create: () => false, update: () => false } }),
     availabilityRules: relationship({ ref: 'AvailabilityRule.driver', many: true, access: { create: () => false, update: () => false } }), availabilityExceptions: relationship({ ref: 'AvailabilityException.driver', many: true, access: { create: () => false, update: () => false } }),
@@ -78,6 +81,10 @@ export const RiderProfile = list({
     savedPlaces: json({ defaultValue: [], access: { read: permissions.canManagePeople, update: permissions.canManagePeople } }),
     accessibilityPreferences: json({ defaultValue: {} }), communicationPreferences: json({ defaultValue: {} }),
     emergencyContactEncryptedRef: text({ access: { read: permissions.canManageSafety, update: permissions.canManageSafety } }),
+    // The rider's saved card (Stripe). Only the brand, last four and expiry are readable; the ids stay server-side.
+    stripeCustomerId: text({ access: { read: denyAll, create: () => false, update: () => false } }), cardPaymentMethodId: text({ access: { read: denyAll, create: () => false, update: () => false } }),
+    cardBrand: text({ access: { create: () => false, update: () => false } }), cardLast4: text({ access: { create: () => false, update: () => false } }),
+    cardExpMonth: integer({ access: { create: () => false, update: () => false } }), cardExpYear: integer({ access: { create: () => false, update: () => false } }), cardSavedAt: timestamp({ access: { create: () => false, update: () => false } }),
     ...trackingFields,
   },
 })

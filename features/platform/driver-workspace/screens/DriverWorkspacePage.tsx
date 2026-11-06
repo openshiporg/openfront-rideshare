@@ -10,7 +10,7 @@ import { RouteLine } from '@/features/platform/components/RouteLine'
 import { TripStageRail } from '@/features/platform/components/TripStageRail'
 import { statusLabel, statusTone, formatWhen } from '@/features/platform/lib/statusTone'
 import { OnlineTrack } from '@/features/platform/drivers/components/DriverSetupActions'
-import { DriverOfferActions, DriverResponseRecovery, DriverTripActions, OfferCountdown } from '../components/DriverActions'
+import { DriverLocationBeacon, DriverOfferActions, DriverResponseRecovery, DriverTripActions, OfferCountdown } from '../components/DriverActions'
 
 type DriverWorkspaceData = {
   actorId: string
@@ -60,6 +60,7 @@ export async function DriverWorkspacePage({ searchParams }: { searchParams?: Pro
       {response.success && !driver && <PlatformEmpty>This account has no driver profile</PlatformEmpty>}
       {response.success && workspace && driver && <>
         {!workspace.actionsEnabled && <p role="status" className="rounded-[6px] border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-200">{workspace.actionsBlockedReason || 'Driver actions are off'}</p>}
+        <DriverLocationBeacon online={driver.status === 'active' && Boolean(driver.dispatchStatus) && driver.dispatchStatus !== 'offline'} />
         <CommandRecovery actorId={workspace.actorId} />
         <DriverResponseRecovery enabled={workspace.actionsEnabled && driver.status === 'active'} />
         <PlatformSection id="offers" title="Ride offers" meta={workspace.offers.length || undefined}>

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { LngLat, Place } from '../lib/api'
-import { milesBetween, recentPlaces, searchPlaces } from '../lib/places'
+import { milesBetween, useRecentPlaces, searchPlaces } from '../lib/places'
 import type { Field } from '../domain/riderFlow'
 import { WhenSwitch } from './WhenPanel'
 import { DropoffMark, Icon, PickupMark, Spinner, cx } from './ui'
@@ -51,7 +51,7 @@ export function PlanRide({ field, pickup, pickupIsGps, dropoff, near, when, onNo
     return () => { controller.abort(); window.clearTimeout(timer) }
   }, [query, near?.[0], near?.[1]]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const recents = recentPlaces().filter(place => place.label !== pickup?.label && place.label !== dropoff?.label)
+  const recents = useRecentPlaces().filter(place => place.label !== pickup?.label && place.label !== dropoff?.label)
   const typing = query.trim().length >= 2
   const rows = typing ? results : recents
   const pick = (place: Place) => { setText(current => ({ ...current, [field]: '' })); onPick(field, place) }

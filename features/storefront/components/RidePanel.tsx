@@ -7,6 +7,7 @@ import { formatMoney, initials, shortPlace, vehicleName, dayAndTime } from '../l
 import { rideStage, type RideStage } from '../domain/riderFlow'
 import type { RiderReceipt } from '../domain/riderReceiptStorage'
 import { Button, Icon, RouteMarks, Spinner, cx } from './ui'
+import { SAVED_CARD_FIELDS, SavedCardRow, cardName, finishCardSetup, useSavedCard, type SavedCard } from './SavedCard'
 
 type Snapshot = { quote?: { currencyCode?: string | null; totalMinor?: number | null; routeEvidence?: { pickup?: LngLat | null; dropoff?: LngLat | null } }; service?: { name?: string | null }; vehicle?: TripVehicle } | null
 type RideView = {
@@ -15,8 +16,8 @@ type RideView = {
   trip: { id: string; confirmationCode: string; status: string; bookingSnapshot: Snapshot; finalFareSnapshot: { currencyCode?: string | null; totalMinor?: number | null } | null } | null
 }
 type Driver = { publicName: string; photoUrl: string | null; rating: number | null; ratingCount: number | null }
-type Card = { enabled: boolean; payable: boolean; status: string | null; amountMinor: number | null; currencyCode: string | null; url: string | null }
-const CARD = 'enabled payable status amountMinor currencyCode url'
+type Card = { enabled: boolean; payable: boolean; status: string | null; amountMinor: number | null; currencyCode: string | null; url: string | null; savedCard: SavedCard | null; failure: string | null }
+const CARD = `enabled payable status amountMinor currencyCode url failure savedCard { ${SAVED_CARD_FIELDS} }`
 const LIVE: RideStage[] = ['finding', 'reassigning', 'assigned', 'arrived', 'onTrip', 'scheduled']
 
 export type RideInfo = { stage: RideStage; pickup: LngLat | null; dropoff: LngLat | null; pickupLabel: string | null; dropoffLabel: string | null; tripCode: string | null }
@@ -75,6 +76,14 @@ export function RidePanel({ requestId, receipt, identity, fleetName, onInfo, onD
     return () => { active = false }
   }, [tripCode, requestId, proof])
 
+  // Card on file: asked for while the first ride looks for a driver, so the fare can be charged at drop-off.
+  const saved = useSavedCard(Boolean(identity))
+  useEffect(() => {
+    if (!identity) return
+    void finishCardSetup().then(result => { if (result) { setNotice(result.message); saved.reload(); setTick(t => t + 1) } })
+  }, [identity]) // eslint-disable-line react-hooks/exhaustive-deps
+  const returnTo = typeof window === 'undefined' ? '/' : window.location.pathname + window.location.search
+
   // Card payment (Stripe Checkout) for a signed-in rider's trip; settles a return from Checkout.
   useEffect(() => {
     if (!tripId || !identity) { setCard(null); return }
@@ -92,7 +101,7 @@ export function RidePanel({ requestId, receipt, identity, fleetName, onInfo, onD
       } catch { if (active) setCard(null) }
     })()
     return () => { active = false }
-  }, [tripId, identity, view?.trip?.status, requestId])
+  }, [tripId, identity, view?.trip?.status, requestId, saved.card?.last4])
 
   const evidence = view?.trip?.bookingSnapshot?.quote?.routeEvidence
   const infoKey = [stage, evidence?.pickup?.join(), evidence?.dropoff?.join(), view?.pickupLabel, view?.dropoffLabel, tripCode].join('|')
@@ -161,9 +170,16 @@ export function RidePanel({ requestId, receipt, identity, fleetName, onInfo, onD
       <span className="shrink-0 font-semibold tabular-nums">{fareText || '—'}</span>
     </div>
 
-    {card?.enabled && (card.payable || card.status === 'captured') && <div className="mt-3 flex items-center justify-between gap-3 rounded-[16px] bg-white ring-1 ring-rule px-4 py-3">
-      <span className="flex items-center gap-2 text-[15px]"><Icon.card className="size-5" />{card.status === 'captured' ? 'Paid by card' : 'Pay by card'}</span>
-      {card.payable && card.status !== 'captured' && <PayButton tripId={tripId!} onError={setNotice} />}
+    {card?.enabled && card.status === 'captured' && <div className="mt-3 flex items-center gap-2 rounded-[16px] bg-white px-4 py-3 text-[15px] ring-1 ring-rule"><Icon.check className="size-5 text-tide" />{card.savedCard ? `Paid · ${cardName(card.savedCard)}` : 'Paid by card'}</div>}
+    {card?.enabled && card.status !== 'captured' && card.failure && <p role="alert" className="mt-3 rounded-[16px] bg-[#fbeceb] px-4 py-3 text-[14px] text-alert">Your card was declined: {card.failure} Pay below, or add another card.</p>}
+    {card?.enabled && card.status !== 'captured' && card.savedCard && !card.failure && !['cancelled'].includes(stage) && <div className="mt-3 flex items-center gap-2 rounded-[16px] bg-white px-4 py-3 text-[15px] ring-1 ring-rule"><Icon.card className="size-5 shrink-0" /><span className="truncate">{stage === 'completed' ? `Charging ${cardName(card.savedCard)}…` : `${cardName(card.savedCard)} is charged after the ride`}</span></div>}
+    {card?.enabled && card.payable && card.status !== 'captured' && <div className="mt-3 flex items-center justify-between gap-3 rounded-[16px] bg-white ring-1 ring-rule px-4 py-3">
+      <span className="flex items-center gap-2 text-[15px]"><Icon.card className="size-5" />Pay by card</span>
+      <PayButton tripId={tripId!} onError={setNotice} />
+    </div>}
+    {identity && saved.enabled && saved.loaded && (!saved.card || card?.failure) && LIVE.includes(stage) && <div className="mt-3">
+      {!saved.card && <p className="mb-2 text-[14px] text-ink-2">Save a card and {fleetName} charges the fare when you arrive. No paying at the end.</p>}
+      <SavedCardRow card={saved.card} returnTo={returnTo} label="Save a card" onError={setNotice} />
     </div>}
     {notice && <p role="status" className="mt-3 text-[14px] text-ink-2">{notice}</p>}
 

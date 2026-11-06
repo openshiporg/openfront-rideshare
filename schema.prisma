@@ -165,6 +165,9 @@ model DriverProfile {
   photo_extension               String?
   status                        String?                 @default("applicant")
   dispatchStatus                String?                 @default("offline")
+  lastLocationLng               Float?
+  lastLocationLat               Float?
+  lastLocationAt                DateTime?
   acceptsScheduled              Boolean                 @default(true)
   languages                     Json?                   @default("[]")
   accessibilityTrainingEvidence String                  @default("")
@@ -195,6 +198,13 @@ model RiderProfile {
   accessibilityPreferences     Json?     @default("{}")
   communicationPreferences     Json?     @default("{}")
   emergencyContactEncryptedRef String    @default("")
+  stripeCustomerId             String    @default("")
+  cardPaymentMethodId          String    @default("")
+  cardBrand                    String    @default("")
+  cardLast4                    String    @default("")
+  cardExpMonth                 Int?
+  cardExpYear                  Int?
+  cardSavedAt                  DateTime?
   createdAt                    DateTime? @default(now())
   updatedAt                    DateTime? @updatedAt
 
@@ -807,6 +817,11 @@ model Payment {
   idempotencyKey                  String               @unique @default("")
   providerEvidence                Json?                @default("{}")
   capturedAt                      DateTime?
+  purpose                         String?              @default("fare")
+  attempts                        Int?                 @default(0)
+  lastAttemptAt                   DateTime?
+  failureCode                     String               @default("")
+  failureMessage                  String               @default("")
   refunds                         Refund[]             @relation("Refund_payment")
   ledgerEntries                   LedgerEntry[]        @relation("LedgerEntry_payment")
   createdAt                       DateTime?            @default(now())

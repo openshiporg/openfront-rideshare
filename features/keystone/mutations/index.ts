@@ -10,6 +10,9 @@ import { offerRideToDriver, publicRideshareTrip, respondToRideOffer, transitionT
 import { cancelRide, cancelRideRequest, openSupportCase, recordTripLocation, reportSafetyIncident, sendTripMessage, submitTripReview, tripCancellationPreview, riderRequestCancellationPreview } from './tripOperations'
 import { initiateTripPayment, requestTripRefund } from './finance'
 import { confirmTripCardPayment, startTripCardPayment, tripCardPayment } from './cardPayments'
+import { autoDispatchAfter, chargeAfterCancel, chargeAfterTransition, dispatchOnDriverRead, dispatchOnPoll } from './paymentTriggers'
+import { confirmRiderCardSetup, removeRiderCard, retryTripCharge, riderSavedCard, startRiderCardSetup } from './savedCards'
+import { reportDriverLocation } from './autoDispatch'
 import { bootstrapRideshare, dismissRideshareOnboarding } from './onboarding'
 import { myDriverWorkspace, myRideshareTrips } from './accountViews'
 import { myRideshareRequests, riderRequestStatus } from './riderReceipts'
@@ -44,7 +47,10 @@ export const typeDefs = graphql`
     type RideOfferResponse { accepted: Boolean!, requestId: ID!, tripId: ID, confirmationCode: String, tripToken: String }
     type RideshareBootstrapResult { fleetId: ID!, created: Boolean!, summary: JSON! }
     type PublicTripEvent { eventType: String!, fromStatus: String, toStatus: String, occurredAt: DateTime! }
-    type TripCardPayment { enabled: Boolean!, payable: Boolean!, status: String, amountMinor: Int, currencyCode: String, url: String }
+    type TripCardPayment { enabled: Boolean!, payable: Boolean!, status: String, amountMinor: Int, currencyCode: String, url: String, savedCard: SavedCard, failure: String }
+    type SavedCard { brand: String!, last4: String!, expMonth: Int, expYear: Int }
+    type RiderSavedCard { enabled: Boolean!, card: SavedCard }
+    type RiderCardSetupResult { saved: Boolean!, card: SavedCard }
     type PublicTripPayment { amountMinor: Int, currencyCode: String, status: String }
     type PublicTripDriver { publicName: String!, photoUrl: String, rating: Float, ratingCount: Int }
     type PublicTripReview { direction: String, rating: Int, body: String, status: String, submittedAt: DateTime }
@@ -82,6 +88,7 @@ export const typeDefs = graphql`
       dispatchCandidatePage(requestId: ID!, cursor: String, query: String): JSON
       dispatchQueueScope: Boolean!
       tripCardPayment(tripId: ID!): TripCardPayment!
+      riderSavedCard: RiderSavedCard!
     }
     type Mutation {
       marketplaceRideshareQuote(serviceId: ID!, pickupLabel: String!, dropoffLabel: String!, pickupPoint: JSON, dropoffPoint: JSON, scheduledFor: DateTime, passengerCount: Int, wheelchairAccessible: Boolean, handoffId: String): MarketplaceRideQuote!
@@ -101,6 +108,11 @@ export const typeDefs = graphql`
       requestTripRefund(paymentId: ID!, amountMinor: Int!, reason: String, idempotencyKey: String!): Refund!
       startTripCardPayment(tripId: ID!): TripCardPayment!
       confirmTripCardPayment(tripId: ID!): TripCardPayment!
+      startRiderCardSetup(returnTo: String): JSON!
+      confirmRiderCardSetup(sessionId: String!): RiderCardSetupResult!
+      removeRiderCard: JSON!
+      retryTripCharge(paymentId: ID!): JSON!
+      reportDriverLocation(lng: Float!, lat: Float!, accuracyMeters: Float): JSON!
       saveFleetBranding(fleetId: ID!, expectedUpdatedAt: DateTime!, logoIcon: String!, logoColor: String!, name: String, idempotencyKey: String!, expectedActorId: ID!): JSON!
       dismissRideshareOnboarding: Boolean!
       bootstrapRideshare(mode: String!): RideshareBootstrapResult!
@@ -135,14 +147,14 @@ export function extendGraphqlSchema(baseSchema: GraphQLSchema) {
   return mergeSchemas({ schemas: [baseSchema], typeDefs, resolvers: {
     ...dateTimeFieldResolvers(typeDefs),
     Query: {
-      redirectToInit, marketplaceRideshareServices, marketplaceRideshareService, marketplaceRideshareServiceAreas, marketplaceRidesharePopularPlaces, marketplaceRideshareEstimates, publicRideshareTrip, publicRideshareRequest, myDriverWorkspace, myRideshareTrips, riderRequestStatus, myRideshareRequests, operatorTripHandoff,
+      redirectToInit, marketplaceRideshareServices, marketplaceRideshareService, marketplaceRideshareServiceAreas, marketplaceRidesharePopularPlaces, marketplaceRideshareEstimates, publicRideshareTrip, publicRideshareRequest, myDriverWorkspace: dispatchOnDriverRead(myDriverWorkspace), myRideshareTrips, riderRequestStatus: dispatchOnPoll(riderRequestStatus), myRideshareRequests, operatorTripHandoff,
       safetyQueueScope: (_root, _args, context) => hasAnyFleetScope(context, context.session, 'safety'),
       financeQueueScope: (_root, _args, context) => hasAnyFleetScope(context, context.session, 'finance'),
       rideshareCapabilities: async (_root, _args, context) => Object.fromEntries(await Promise.all((['operations', 'drivers', 'finance', 'safety', 'fleetAdmin'] as const).map(async capability => [capability, await hasAnyFleetScope(context, context.session, capability)]))),
-      tripCardPayment, tripCancellationPreview, riderRequestCancellationPreview, riderTripHistory, fleetBranding, dispatchCandidatePage,
+      tripCardPayment, riderSavedCard, tripCancellationPreview, riderRequestCancellationPreview, riderTripHistory, fleetBranding, dispatchCandidatePage,
       dispatchQueueScope: (_root, _args, context) => hasAnyFleetScope(context, context.session, 'operations'),
       riderAccountOptions: async (_root, _args, context) => ({ registrationEnabled: await riderSignupsOpen(context.prisma) }),
     },
-    Mutation: { startTripCardPayment, confirmTripCardPayment, addFleetMember, updateFleetMember, addDriverTimeOff, removeDriverTimeOff, triageSafetyIncident: updateSafetyIncident, triageSupportCase: updateSupportCase, moderateReview, confirmManualPayment, confirmManualRefund, setupFleet: createFleet, addFleetDriver, addFleetVehicle, assignVehicleDrivers, addComplianceDocument, reviewComplianceDocument, reviewDriver, reviewVehicle, setDriverAvailability, setDriverOnline, setupServiceArea: createServiceArea, setupRideService: createRideService, setupFareRule: createFareRule, saveFleetBranding, marketplaceRideshareQuote, requestRide, resolveRideRequestIntent, offerRideToDriver, respondToRideOffer, transitionTrip, cancelRideRequest, cancelRide, recordTripLocation, submitTripReview, reportSafetyIncident, openSupportCase, sendTripMessage, initiateTripPayment, requestTripRefund, bootstrapRideshare, dismissRideshareOnboarding, expireRideOffers, expireRequestFleetOffers },
+    Mutation: { startTripCardPayment, confirmTripCardPayment, startRiderCardSetup, confirmRiderCardSetup, removeRiderCard, retryTripCharge, reportDriverLocation, addFleetMember, updateFleetMember, addDriverTimeOff, removeDriverTimeOff, triageSafetyIncident: updateSafetyIncident, triageSupportCase: updateSupportCase, moderateReview, confirmManualPayment, confirmManualRefund, setupFleet: createFleet, addFleetDriver, addFleetVehicle, assignVehicleDrivers, addComplianceDocument, reviewComplianceDocument, reviewDriver, reviewVehicle, setDriverAvailability, setDriverOnline: autoDispatchAfter(setDriverOnline, 'online'), setupServiceArea: createServiceArea, setupRideService: createRideService, setupFareRule: createFareRule, saveFleetBranding, marketplaceRideshareQuote, requestRide: autoDispatchAfter(requestRide, 'request'), resolveRideRequestIntent, offerRideToDriver, respondToRideOffer: autoDispatchAfter(respondToRideOffer, 'response'), transitionTrip: chargeAfterTransition(transitionTrip), cancelRideRequest, cancelRide: chargeAfterCancel(cancelRide), recordTripLocation, submitTripReview, reportSafetyIncident, openSupportCase, sendTripMessage, initiateTripPayment, requestTripRefund, bootstrapRideshare, dismissRideshareOnboarding, expireRideOffers, expireRequestFleetOffers },
   } })
 }
