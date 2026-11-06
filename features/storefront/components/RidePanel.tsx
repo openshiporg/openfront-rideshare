@@ -171,7 +171,7 @@ export function RidePanel({ requestId, receipt, identity, fleetName, onInfo, onD
     </div>
 
     {card?.enabled && card.status === 'captured' && <div className="mt-3 flex items-center gap-2 rounded-[16px] bg-white px-4 py-3 text-[15px] ring-1 ring-rule"><Icon.check className="size-5 text-tide" />{card.savedCard ? `Paid · ${cardName(card.savedCard)}` : 'Paid by card'}</div>}
-    {card?.enabled && card.status !== 'captured' && card.failure && <p role="alert" className="mt-3 rounded-[16px] bg-[#fbeceb] px-4 py-3 text-[14px] text-alert">{card.savedCard ? `${cardName(card.savedCard)} was declined.` : 'Your card was declined.'}{card.failure && !/^your card was declined\.?$/i.test(card.failure) ? ` ${card.failure}` : ''} Pay now, or save a different card and we’ll charge it.</p>}
+    {card?.enabled && card.status !== 'captured' && card.failure && <p role="alert" className="mt-3 rounded-[16px] bg-[#fbeceb] px-4 py-3 text-[14px] text-alert">Your card was declined.{declineReason(card.failure) ? ` ${declineReason(card.failure)}` : ''} Pay below, or add another card.</p>}
     {card?.enabled && card.status !== 'captured' && card.savedCard && !card.failure && !['cancelled'].includes(stage) && <div className="mt-3 flex items-center gap-2 rounded-[16px] bg-white px-4 py-3 text-[15px] ring-1 ring-rule"><Icon.card className="size-5 shrink-0" /><span className="truncate">{stage === 'completed' ? `Charging ${cardName(card.savedCard)}…` : `${cardName(card.savedCard)} is charged after the ride`}</span></div>}
     {card?.enabled && card.payable && card.status !== 'captured' && <div className="mt-3 flex items-center justify-between gap-3 rounded-[16px] bg-white ring-1 ring-rule px-4 py-3">
       <span className="flex items-center gap-2 text-[15px]"><Icon.card className="size-5" />Pay by card</span>
@@ -198,6 +198,14 @@ export function RidePanel({ requestId, receipt, identity, fleetName, onInfo, onD
 
     {confirming && <CancelConfirm requestId={requestId} proof={proof} tripId={canCancelTrip && signedInOwner ? tripId : null} requestCancellable={canCancelRequest} onClose={() => setConfirming(false)} onCancelled={() => { setConfirming(false); setTick(t => t + 1) }} />}
   </div>
+}
+
+/** Stripe's decline text, only when it says more than "Your card was declined." */
+function declineReason(message: string | null) {
+  const text = (message || '').trim()
+  const plain = (value: string) => value.toLowerCase().replace(/[^a-z]/g, '')
+  if (!text || plain(text) === plain('Your card was declined.') || plain(text) === plain('The card was declined.') || plain(text) === plain('The card was not charged.')) return ''
+  return /[.!?]$/.test(text) ? text : `${text}.`
 }
 
 const firstName = (name: string) => name.split(/\s+/)[0] || name
