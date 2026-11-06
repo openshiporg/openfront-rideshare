@@ -45,7 +45,7 @@ export async function initiateTripPayment(_root: unknown, args: { tripId: string
   const preflight = await prisma.$transaction(async tx => {
     const authority = await authorizedTripHeader(tx, context.session, args.tripId, 'riderOrOperator', 'finance')
     if (!authority?.bound) throw new Error('Trip not found.')
-    const trip = await tx.trip.findFirst({ where: tripAuthorityWhere(authority.header), select: { id: true, status: true, confirmationCode: true, rider: { select: { id: true } }, fleet: { select: { id: true } }, bookingSnapshot: true } })
+    const trip = await tx.trip.findFirst({ where: tripAuthorityWhere(authority.header), select: { id: true, status: true, confirmationCode: true, rider: { select: { id: true, email: true } }, fleet: { select: { id: true } }, bookingSnapshot: true } })
     if (!trip) throw new Error('Trip not found.')
     return { trip, header: authority.header }
   }, { isolationLevel: 'RepeatableRead' })

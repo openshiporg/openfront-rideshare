@@ -63,6 +63,8 @@ export async function createPaymentFunction({ trip, amount, currency, idempotenc
     body: form({
       mode: 'payment',
       client_reference_id: trip.id,
+      // Riders shouldn't retype the email they booked with.
+      customer_email: typeof trip.rider?.email === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trip.rider.email) ? trip.rider.email : undefined,
       'metadata[tripId]': trip.id,
       'metadata[confirmationCode]': trip.confirmationCode,
       'payment_intent_data[metadata][tripId]': trip.id,

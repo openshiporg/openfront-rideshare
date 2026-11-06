@@ -35,7 +35,9 @@ const TRIP_QUERY = `query TripDetail($id: ID!) {
 }`
 
 const money = (minor: unknown, currency: unknown) => typeof minor === 'number' && typeof currency === 'string' && currency ? formatMoney(minor, currency) : '—'
-const eventLabel = (event: any) => event.toStatus ? statusLabel(event.toStatus) : ({ 'trip.message_submitted': 'Message', 'trip.support_submitted': 'Help requested', 'trip.review_submitted': 'Reviewed', 'trip.incident_submitted': 'Safety report' } as Record<string, string>)[event.eventType] || statusLabel(event.eventType.replace(/^trip\./, ''))
+// Side events (messages, reviews, money) keep the trip's status, so name them by what happened.
+const EVENT_LABELS: Record<string, string> = { 'trip.message_submitted': 'Message', 'trip.support_submitted': 'Help requested', 'trip.review_submitted': 'Reviewed', 'trip.incident_submitted': 'Safety report', 'finance.refund_reserved': 'Refund started' }
+const eventLabel = (event: any) => EVENT_LABELS[event.eventType] || (event.toStatus ? statusLabel(event.toStatus) : statusLabel(String(event.eventType).replace(/^(trip|finance)\./, '')))
 
 export async function TripDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params

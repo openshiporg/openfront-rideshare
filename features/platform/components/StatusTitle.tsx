@@ -5,7 +5,7 @@ export type StatusTone = "blue" | "indigo" | "emerald" | "amber" | "orange" | "g
 
 const DOT: Record<StatusTone, string> = {
   blue: "bg-blue-500",
-  indigo: "bg-indigo-500",
+  indigo: "bg-sky-600",
   emerald: "bg-emerald-500",
   amber: "bg-amber-500",
   orange: "bg-orange-500",
