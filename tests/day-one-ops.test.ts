@@ -69,6 +69,6 @@ test('driver earnings CSV totals per driver and neutralises formulas', () => {
     { driverId: 'd1', driverName: '=Maya, R.', currencyCode: 'USD', trips: 3, onTripSeconds: 5400, faresMinor: 4560, feesMinor: 500, collectedMinor: 3040, refundedMinor: 1520, uncollectedMinor: 2020 },
   ] })
   const [header, row] = csv.trim().split('\r\n')
-  assert.match(header, /^Driver,Currency,Completed trips/)
+  assert.match(header, /^Driver,Currency,Completed trips.*Outstanding/)
   assert.equal(row, `"'=Maya, R.",USD,3,1.50,45.60,5.00,50.60,30.40,15.20,15.20,20.20`)
 })

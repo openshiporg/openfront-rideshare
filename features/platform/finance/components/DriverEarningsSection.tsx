@@ -27,16 +27,16 @@ export async function DriverEarningsSection({ from, to }: { from?: string; to?: 
         <table className="w-full text-sm">
           <thead className="bg-muted/40 text-left text-xs text-muted-foreground"><tr>
             <th className="px-3 py-2 font-medium">Driver</th><th className="px-3 py-2 text-right font-medium">Trips</th><th className="px-3 py-2 text-right font-medium">On trip</th>
-            <th className="px-3 py-2 text-right font-medium">Fares</th><th className="px-3 py-2 text-right font-medium">Fees</th><th className="px-3 py-2 text-right font-medium">Card collected</th>
-            <th className="px-3 py-2 text-right font-medium">Refunded</th><th className="px-3 py-2 text-right font-medium">Not collected</th>
+            <th className="px-3 py-2 text-right font-medium">Fares</th><th className="px-3 py-2 text-right font-medium">Fees</th><th className="px-3 py-2 text-right font-medium">Charged</th>
+            <th className="px-3 py-2 text-right font-medium">Refunded</th><th className="px-3 py-2 text-right font-medium">Net received</th><th className="px-3 py-2 text-right font-medium">Outstanding</th>
           </tr></thead>
           <tbody className="divide-y">{report.drivers.map(row => <tr key={`${row.driverId}:${row.currencyCode}`} className="tabular-nums">
             <td className="px-3 py-2 font-medium">{row.driverName}</td><td className="px-3 py-2 text-right">{row.trips}</td><td className="px-3 py-2 text-right">{hours(row.onTripSeconds)}</td>
             <td className="px-3 py-2 text-right">{formatPaymentAmount(row.faresMinor, row.currencyCode)}</td><td className="px-3 py-2 text-right">{formatPaymentAmount(row.feesMinor, row.currencyCode)}</td>
-            <td className="px-3 py-2 text-right">{formatPaymentAmount(row.collectedMinor, row.currencyCode)}</td><td className="px-3 py-2 text-right">{formatPaymentAmount(row.refundedMinor, row.currencyCode)}</td>
+            <td className="px-3 py-2 text-right">{formatPaymentAmount(row.collectedMinor, row.currencyCode)}</td><td className="px-3 py-2 text-right">{formatPaymentAmount(row.refundedMinor, row.currencyCode)}</td><td className="px-3 py-2 text-right">{formatPaymentAmount(Math.max(0, row.collectedMinor - row.refundedMinor), row.currencyCode)}</td>
             <td className="px-3 py-2 text-right">{formatPaymentAmount(row.uncollectedMinor, row.currencyCode)}</td>
           </tr>)}</tbody>
-          {totals && <tfoot className="border-t text-xs text-muted-foreground"><tr><td className="px-3 py-2" colSpan={8}>{totals.trips} completed {totals.trips === 1 ? 'trip' : 'trips'} · {formatPaymentAmount(totals.gross, currency)} gross{report.truncated ? ' · showing the first 5,000 trips; narrow the range' : ''}. Not collected by card means cash or still owed.</td></tr></tfoot>}
+          {totals && <tfoot className="border-t text-xs text-muted-foreground"><tr><td className="px-3 py-2" colSpan={9}>{totals.trips} completed {totals.trips === 1 ? 'trip' : 'trips'} · {formatPaymentAmount(totals.gross, currency)} gross{report.truncated ? ' · showing the first 5,000 trips; narrow the range' : ''}. Charged includes card and recorded payments, also prepaid fares on rides later cancelled. Outstanding is cash in the driver’s hand or still owed.</td></tr></tfoot>}
         </table>
       </div>}
   </PlatformSection>

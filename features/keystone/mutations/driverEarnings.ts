@@ -2,8 +2,8 @@ import { fleetIdsFor, humanSessionId, isGlobalAdministrator } from '../access'
 import { moneySnapshot } from './finance'
 
 // Driver earnings report (taxi-dispatch / Uber Fleet "earnings statement"): per driver over a period,
-// completed trips, gross fares, card collected, card refunds, cancellation/no-show fees and the
-// net still to settle in cash. Finance-scoped; read-only. No payout policy is applied (none is
+// completed trips, fares, cancellation/no-show fees, payments charged (card or recorded), refunds,
+// net held and what is still outstanding (cash in hand or owed). Finance-scoped; read-only. No payout policy is applied (none is
 // configured), so this is gross trip revenue attributed to the driver who drove the trip.
 
 type Row = {
@@ -64,13 +64,16 @@ export async function driverEarningsReport(_root: unknown, args: { from?: string
     row.feesMinor += fees
     const due = (completed ? fare?.amount || 0 : 0) + fees
     let collected = 0
+    let refunded = 0
     for (const payment of trip.payments || []) {
       if (!PAID.includes(payment.status || '') || (payment.currencyCode && payment.currencyCode !== currency)) continue
       collected += payment.amountMinor || 0
-      row.refundedMinor += (payment.refunds || []).reduce((sum: number, r: any) => sum + (r.amountMinor || 0), 0)
+      refunded += (payment.refunds || []).reduce((sum: number, r: any) => sum + (r.amountMinor || 0), 0)
     }
     row.collectedMinor += collected
-    row.uncollectedMinor += Math.max(0, due - collected)
+    row.refundedMinor += refunded
+    // Outstanding: what the trip earned that is not held as net payment (cash in the driver's hand, or owed).
+    row.uncollectedMinor += Math.max(0, due - (collected - refunded))
     rows.set(key, row)
   }
   const drivers = [...rows.values()].sort((a, b) => b.faresMinor + b.feesMinor - (a.faresMinor + a.feesMinor) || a.driverName.localeCompare(b.driverName))

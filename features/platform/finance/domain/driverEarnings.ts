@@ -12,7 +12,7 @@ export function driverEarningsCsv(report: DriverEarningsReport) {
     return /[",\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe
   }
   const minor = (value: number) => (value / 100).toFixed(2)
-  const header = ['Driver', 'Currency', 'Completed trips', 'Hours on trip', 'Fares', 'Cancellation and no-show fees', 'Gross', 'Collected by card', 'Refunded', 'Net collected', 'Not collected by card']
+  const header = ['Driver', 'Currency', 'Completed trips', 'Hours on trip', 'Fares', 'Cancellation and no-show fees', 'Gross', 'Charged', 'Refunded', 'Net received', 'Outstanding (cash or owed)']
   const lines = report.drivers.map(row => [
     row.driverName, row.currencyCode, row.trips, (row.onTripSeconds / 3600).toFixed(2), minor(row.faresMinor), minor(row.feesMinor), minor(row.faresMinor + row.feesMinor),
     minor(row.collectedMinor), minor(row.refundedMinor), minor(row.collectedMinor - row.refundedMinor), minor(row.uncollectedMinor),
