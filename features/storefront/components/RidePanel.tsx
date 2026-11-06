@@ -102,8 +102,8 @@ export function RidePanel({ requestId, receipt, identity, fleetName, onInfo, onD
 
   if (!view) return <div className="px-4 pb-4 pt-3">
     {failed ? <div className="space-y-4">
-      <h2 className="text-[22px] font-bold">Ride not available</h2>
-      <p className="text-[15px] text-[#5e5e5e]">Sign in with the account you booked with, or open it in the browser you booked in.</p>
+      <h2 className="display text-[22px] font-bold">Ride not available</h2>
+      <p className="text-[15px] text-ink-2">Sign in with the account you booked with, or open it in the browser you booked in.</p>
       <div className="grid grid-cols-2 gap-2"><Button tone="secondary" onClick={onDone}>Book a ride</Button><ButtonLinkPrimary href="/account/signin">Sign in</ButtonLinkPrimary></div>
     </div> : <div className="flex items-center gap-3 py-6 text-[16px]"><Spinner />Loading your ride…</div>}
   </div>
@@ -133,39 +133,39 @@ export function RidePanel({ requestId, receipt, identity, fleetName, onInfo, onD
   return <div className="flex min-h-0 flex-col overflow-y-auto px-4 pb-2 pt-2">
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
-        <h2 className="text-[22px] font-bold leading-7" aria-live="polite">{headline[stage]}</h2>
-        {sub[stage] && <p className="mt-1 text-[15px] text-[#5e5e5e]">{sub[stage]}</p>}
+        <h2 className="display text-[22px] font-bold leading-7" aria-live="polite">{headline[stage]}</h2>
+        {sub[stage] && <p className="mt-1 text-[15px] text-ink-2">{sub[stage]}</p>}
       </div>
-      {stage === 'arrived' && <span className="mt-0.5 shrink-0 rounded-md bg-black px-2 py-1 text-[14px] font-semibold text-white">Now</span>}
+      {stage === 'arrived' && <span className="mt-0.5 shrink-0 rounded-md bg-signal px-2 py-1 text-[14px] font-semibold text-white">Now</span>}
     </div>
     {(stage === 'finding' || stage === 'reassigning') && <div className="progress mt-4" role="progressbar" aria-label="Finding a driver"><span /></div>}
 
-    {view.trip && (driver || vehicle) && !['completed', 'cancelled'].includes(stage) && <div className="mt-4 flex items-center gap-3 border-t border-[#eeeeee] pt-4">
-      {driver?.photoUrl ? <img src={driver.photoUrl} alt="" className="size-14 shrink-0 rounded-full object-cover" /> : <span aria-hidden="true" className="grid size-14 shrink-0 place-items-center rounded-full bg-[#eeeeee] text-[18px] font-semibold">{driver ? initials(driver.publicName) : <Icon.person className="size-6" />}</span>}
+    {view.trip && (driver || vehicle) && !['completed', 'cancelled'].includes(stage) && <div className="mt-4 flex items-center gap-3 border-t border-rule pt-4">
+      {driver?.photoUrl ? <img src={driver.photoUrl} alt="" className="size-14 shrink-0 rounded-full object-cover" /> : <span aria-hidden="true" className="grid size-14 shrink-0 place-items-center rounded-full bg-tide-soft text-tide text-[18px] font-semibold">{driver ? initials(driver.publicName) : <Icon.person className="size-6" />}</span>}
       <div className="min-w-0 flex-1">
         <p className="truncate text-[17px] font-semibold">{driver?.publicName || 'Your driver'}{driver?.rating != null && <span className="ml-2 inline-flex items-center gap-0.5 text-[14px] font-medium"><Icon.star className="size-3.5" />{driver.rating.toFixed(2)}</span>}</p>
-        <p className="truncate text-[14px] text-[#5e5e5e]">{vehicleName(vehicle) || serviceName}</p>
+        <p className="truncate text-[14px] text-ink-2">{vehicleName(vehicle) || serviceName}</p>
       </div>
-      {vehicle?.plateMasked && <span className="shrink-0 rounded-md bg-[#eeeeee] px-2.5 py-1.5 font-mono text-[16px] font-bold tracking-wide">{vehicle.plateMasked}</span>}
+      {vehicle?.plateMasked && <span className="shrink-0 rounded-md bg-tide-soft px-2.5 py-1.5 font-mono text-[16px] font-bold tracking-wide">{vehicle.plateMasked}</span>}
     </div>}
 
-    <div className="mt-4 flex gap-3 border-t border-[#eeeeee] pt-4">
+    <div className="mt-4 flex gap-3 border-t border-rule pt-4">
       <RouteMarks className="py-[7px]" />
       <div className="min-w-0 flex-1 space-y-3 text-[15px]">
         <p className="truncate">{view.pickupLabel || 'Pickup'}</p>
         <p className="truncate">{view.dropoffLabel || 'Destination'}</p>
       </div>
     </div>
-    <div className="mt-4 flex items-center justify-between gap-3 border-t border-[#eeeeee] pt-4 text-[15px]">
+    <div className="mt-4 flex items-center justify-between gap-3 border-t border-rule pt-4 text-[15px]">
       <span className="min-w-0 truncate">{stage === 'completed' ? (serviceName ? `${serviceName} · fare` : 'Fare') : serviceName ? `${serviceName} · estimate` : 'Fare estimate'}</span>
       <span className="shrink-0 font-semibold tabular-nums">{fareText || '—'}</span>
     </div>
 
-    {card?.enabled && (card.payable || card.status === 'captured') && <div className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-[#f6f6f6] px-4 py-3">
+    {card?.enabled && (card.payable || card.status === 'captured') && <div className="mt-3 flex items-center justify-between gap-3 rounded-[16px] bg-white ring-1 ring-rule px-4 py-3">
       <span className="flex items-center gap-2 text-[15px]"><Icon.card className="size-5" />{card.status === 'captured' ? 'Paid by card' : 'Pay by card'}</span>
       {card.payable && card.status !== 'captured' && <PayButton tripId={tripId!} onError={setNotice} />}
     </div>}
-    {notice && <p role="status" className="mt-3 text-[14px] text-[#5e5e5e]">{notice}</p>}
+    {notice && <p role="status" className="mt-3 text-[14px] text-ink-2">{notice}</p>}
 
     {stage === 'completed' && tripId && <RateRide tripId={tripId} signedIn={signedInOwner} driverName={driver ? firstName(driver.publicName) : null} />}
 
@@ -177,8 +177,8 @@ export function RidePanel({ requestId, receipt, identity, fleetName, onInfo, onD
       </div>}
       {!live && <Button size="lg" className="w-full" onClick={onDone}>{stage === 'completed' ? 'Done' : 'Book another ride'}</Button>}
     </div>
-    {canCancelTrip && !signedInOwner && <p className="mt-3 text-[13px] text-[#5e5e5e]">To cancel after a driver is assigned, <Link href="/account/signin" className="font-semibold underline underline-offset-2">sign in</Link> with the account you booked with, or contact {fleetName}.</p>}
-    <p className="mt-3 text-center font-mono text-[12px] text-[#8a8a8a]">{tripCode || view.requestNumber}</p>
+    {canCancelTrip && !signedInOwner && <p className="mt-3 text-[13px] text-ink-2">To cancel after a driver is assigned, <Link href="/account/signin" className="font-semibold underline underline-offset-2">sign in</Link> with the account you booked with, or contact {fleetName}.</p>}
+    <p className="mt-3 text-center font-mono text-[12px] text-ink-3">{tripCode || view.requestNumber}</p>
 
     {confirming && <CancelConfirm requestId={requestId} proof={proof} tripId={canCancelTrip && signedInOwner ? tripId : null} requestCancellable={canCancelRequest} onClose={() => setConfirming(false)} onCancelled={() => { setConfirming(false); setTick(t => t + 1) }} />}
   </div>
@@ -186,7 +186,7 @@ export function RidePanel({ requestId, receipt, identity, fleetName, onInfo, onD
 
 const firstName = (name: string) => name.split(/\s+/)[0] || name
 function ButtonLinkPrimary({ href, children }: { href: string; children: React.ReactNode }) {
-  return <Link href={href} className="press inline-flex h-12 items-center justify-center rounded-xl bg-black px-5 text-[16px] font-semibold text-white">{children}</Link>
+  return <Link href={href} className="press inline-flex h-12 items-center justify-center rounded-[16px] bg-tide px-5 text-[16px] font-semibold text-white">{children}</Link>
 }
 
 function ShareButton({ requestId, code }: { requestId: string; code: string | null }) {
@@ -228,10 +228,10 @@ function MessageButton({ tripId }: { tripId: string }) {
   return <>
     <Button tone="secondary" onClick={() => { setOpen(true); setState('idle') }}><Icon.message className="size-[18px]" />Message</Button>
     {open && <Overlay label="Message your driver" onClose={() => setOpen(false)}>
-      <h3 className="text-[20px] font-bold">Message your driver</h3>
-      <textarea value={text} onChange={event => setText(event.target.value)} rows={3} maxLength={2000} placeholder="I’m by the main entrance" className="mt-3 w-full rounded-xl bg-[#f3f3f3] px-4 py-3 text-[16px] outline-none focus-visible:ring-2 focus-visible:ring-black" />
+      <h3 className="display text-[20px] font-bold">Message your driver</h3>
+      <textarea value={text} onChange={event => setText(event.target.value)} rows={3} maxLength={2000} placeholder="I’m by the main entrance" className="mt-3 w-full rounded-[16px] bg-white ring-1 ring-inset ring-rule px-4 py-3 text-[16px] outline-none focus-visible:ring-2 focus-visible:ring-tide" />
       {state === 'sent' && <p role="status" className="mt-2 text-[14px]">Sent.</p>}
-      {state === 'failed' && <p role="alert" className="mt-2 text-[14px] text-[#c4160d]">Not sent. Try again.</p>}
+      {state === 'failed' && <p role="alert" className="mt-2 text-[14px] text-alert">Not sent. Try again.</p>}
       <div className="mt-3 grid grid-cols-2 gap-2"><Button tone="secondary" onClick={() => setOpen(false)}>Close</Button><Button disabled={state === 'sending' || !text.trim()} onClick={() => void send()}>{state === 'sending' ? 'Sending…' : 'Send'}</Button></div>
     </Overlay>}
   </>
@@ -240,19 +240,19 @@ function MessageButton({ tripId }: { tripId: string }) {
 function RateRide({ tripId, signedIn, driverName }: { tripId: string; signedIn: boolean; driverName: string | null }) {
   const [rating, setRating] = useState(0)
   const [state, setState] = useState<'idle' | 'sending' | 'sent' | 'failed'>('idle')
-  if (!signedIn) return <p className="mt-4 text-[14px] text-[#5e5e5e]"><Link href="/account/signin" className="font-semibold text-black underline underline-offset-2">Sign in</Link> to rate this ride.</p>
+  if (!signedIn) return <p className="mt-4 text-[14px] text-ink-2"><Link href="/account/signin" className="font-semibold text-ink underline underline-offset-2">Sign in</Link> to rate this ride.</p>
   async function send(value: number) {
     setRating(value); setState('sending')
     try { await gql('mutation Rate($tripId: ID!, $rating: Int!, $key: String!) { submitTripReview(tripId: $tripId, rating: $rating, idempotencyKey: $key) { id } }', { tripId, rating: value, key: idempotencyKey('review') }); setState('sent') }
     catch { setState('failed') }
   }
-  return <div className="mt-4 border-t border-[#eeeeee] pt-4 text-center">
+  return <div className="mt-4 border-t border-rule pt-4 text-center">
     <p className="text-[16px] font-semibold">{state === 'sent' ? 'Thanks for rating' : `How was your ride${driverName ? ` with ${driverName}` : ''}?`}</p>
     <div role="radiogroup" aria-label="Rating" className="mt-2 flex justify-center gap-1">
       {[1, 2, 3, 4, 5].map(value => <button key={value} type="button" role="radio" aria-checked={rating === value} aria-label={`${value} star${value === 1 ? '' : 's'}`} disabled={state === 'sending' || state === 'sent'} onClick={() => void send(value)}
-        className="press grid size-11 place-items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-black"><Icon.star className={cx('size-8', value <= rating ? 'text-black' : 'text-[#d6d6d6]')} /></button>)}
+        className="press grid size-11 place-items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-tide"><Icon.star className={cx('size-8', value <= rating ? 'text-signal' : 'text-[#cfcabd]')} /></button>)}
     </div>
-    {state === 'failed' && <p role="alert" className="text-[14px] text-[#c4160d]">Rating not sent. Each ride can be rated once.</p>}
+    {state === 'failed' && <p role="alert" className="text-[14px] text-alert">Rating not sent. Each ride can be rated once.</p>}
   </div>
 }
 
@@ -307,9 +307,9 @@ function CancelConfirm({ requestId, proof, tripId, requestCancellable, onClose, 
   }
   const fee = preview?.kind === 'trip' && preview.feeMinor > 0 ? formatMoney(preview.feeMinor, preview.currencyCode) : null
   return <Overlay label="Cancel ride" onClose={state === 'sending' ? () => {} : onClose}>
-    <h3 className="text-[20px] font-bold">Cancel your ride?</h3>
-    <p className="mt-2 text-[15px] text-[#5e5e5e]">{state === 'loading' ? 'Checking…' : state === 'unavailable' ? 'This ride can’t be cancelled here any more. It may already have a driver.' : fee ? `Your driver is already on the way, so a ${fee} cancellation fee applies.` : 'You won’t be charged.'}</p>
-    {state === 'failed' && <p role="alert" className="mt-2 text-[14px] text-[#c4160d]">We couldn’t confirm the cancellation. Try again.</p>}
+    <h3 className="display text-[20px] font-bold">Cancel your ride?</h3>
+    <p className="mt-2 text-[15px] text-ink-2">{state === 'loading' ? 'Checking…' : state === 'unavailable' ? 'This ride can’t be cancelled here any more. It may already have a driver.' : fee ? `Your driver is already on the way, so a ${fee} cancellation fee applies.` : 'You won’t be charged.'}</p>
+    {state === 'failed' && <p role="alert" className="mt-2 text-[14px] text-alert">We couldn’t confirm the cancellation. Try again.</p>}
     <div className="mt-4 grid gap-2">
       <Button size="lg" disabled={!preview || state === 'loading' || state === 'sending' || state === 'unavailable'} onClick={() => void confirm()}>{state === 'sending' ? <><Spinner className="size-4" />Cancelling…</> : state === 'failed' ? 'Try again' : 'Cancel ride'}</Button>
       <Button tone="secondary" size="lg" disabled={state === 'sending'} onClick={onClose}>Keep ride</Button>
@@ -334,7 +334,7 @@ function Overlay({ label, onClose, children }: { label: string; onClose: () => v
     box.current?.querySelector<HTMLElement>('textarea, button')?.focus({ preventScroll: true })
     return () => window.removeEventListener('keydown', key)
   }, [])
-  return <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 fade-in lg:items-center" onPointerDown={event => { if (event.target === event.currentTarget) close.current() }}>
-    <div ref={box} role="dialog" aria-modal="true" aria-label={label} className="sheet-in w-full max-w-[440px] rounded-t-[20px] bg-white p-5 pb-[max(env(safe-area-inset-bottom),20px)] lg:rounded-2xl">{children}</div>
+  return <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 fade-in lg:items-center" onPointerDown={event => { if (event.target === event.currentTarget) close.current() }}>
+    <div ref={box} role="dialog" aria-modal="true" aria-label={label} className="sheet-in w-full max-w-[460px] rounded-t-[28px] bg-paper p-5 pb-[max(env(safe-area-inset-bottom),20px)] lg:rounded-2xl">{children}</div>
   </div>
 }

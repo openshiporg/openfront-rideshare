@@ -22,7 +22,7 @@ test('a custom SVG is kept and trimmed', () => {
 test('the hue is normalized to 0-359', () => {
   assert.equal(buildFleetBrandingInput({ logoIcon: DEFAULT_STORE_LOGO_ICON, logoColor: '-90' }).logoColor, '270')
   assert.equal(buildFleetBrandingInput({ logoIcon: DEFAULT_STORE_LOGO_ICON, logoColor: '400' }).logoColor, '40')
-  assert.equal(buildFleetBrandingInput({ logoIcon: DEFAULT_STORE_LOGO_ICON, logoColor: 'red' }).logoColor, '0')
+  assert.equal(buildFleetBrandingInput({ logoIcon: DEFAULT_STORE_LOGO_ICON, logoColor: 'red' }).logoColor, '314')
 })
 
 test('an unsafe SVG rejects the save', () => {

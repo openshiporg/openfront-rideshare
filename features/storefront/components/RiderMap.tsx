@@ -6,9 +6,9 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import type { LngLat } from '../lib/api'
 
 /**
- * The one map under every rider screen (MapLibre + OpenFreeMap, OpenStreetMap data). Black-and-white
- * street map, the rider's blue location dot, a black route, a round pickup and a square drop-off,
- * as Uber draws them. `bottom` is how much of the map the sheet covers, so the trip is framed in
+ * The one map under every rider screen (MapLibre + OpenFreeMap, OpenStreetMap data). A warm, quiet
+ * street map; the trip is the only colour on it: a teal route with a soft halo, a ringed pickup and
+ * an amber drop-off pin. `bottom` is how much of the map the sheet covers, so the trip is framed in
  * the open part. In `pin` mode the map pans under a fixed centre pin and reports where it settles.
  */
 export type MapPin = { point: LngLat; label?: string | null }
@@ -50,8 +50,8 @@ export function RiderMap({ user, pickup, dropoff, route, bottom, top = 72, pin, 
         if (instance.getSource('ride-route')) return
         try {
           instance.addSource('ride-route', { type: 'geojson', data: line(routeRef.current) })
-          instance.addLayer({ id: 'ride-route-casing', type: 'line', source: 'ride-route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#ffffff', 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 7, 16, 12] } })
-          instance.addLayer({ id: 'ride-route-line', type: 'line', source: 'ride-route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#000000', 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 3.5, 16, 6] } })
+          instance.addLayer({ id: 'ride-route-casing', type: 'line', source: 'ride-route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#0f5c55', 'line-opacity': 0.18, 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 10, 16, 18] } })
+          instance.addLayer({ id: 'ride-route-line', type: 'line', source: 'ride-route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#0f5c55', 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 3.5, 16, 6] } })
         } catch { /* retried on the next styledata */ }
       }
       instance.on('style.load', () => { monochrome(instance); addRoute(); setReady(true) })
@@ -76,7 +76,7 @@ export function RiderMap({ user, pickup, dropoff, route, bottom, top = 72, pin, 
     if (!ready || !instance || !maplibre) return
     const place = (key: string, point: LngLat | null | undefined, element: () => HTMLElement) => {
       markers.current[key]?.remove(); delete markers.current[key]
-      if (point) markers.current[key] = new maplibre.Marker({ element: element(), anchor: 'center' }).setLngLat(point).addTo(instance)
+      if (point) markers.current[key] = new maplibre.Marker({ element: element(), anchor: key === 'dropoff' ? 'bottom' : 'center' }).setLngLat(point).addTo(instance)
     }
     const sameAsPickup = user && pickup && Math.abs(user[0] - pickup.point[0]) < 1e-4 && Math.abs(user[1] - pickup.point[1]) < 1e-4
     place('user', sameAsPickup && dropoff ? null : user, () => markerElement('user'))
@@ -117,13 +117,13 @@ export function RiderMap({ user, pickup, dropoff, route, bottom, top = 72, pin, 
     instance.fitBounds(bounds, { padding: { top: top + pad, bottom: bottom + pad, left: Math.min(48, w / 8) + side, right: Math.min(48, w / 8) }, maxZoom: 15.5, duration })
   }, [ready, frameKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  return <div className="absolute inset-0 bg-[#f2f2f2]" style={{ ['--sheet' as string]: `${bottom}px` }}>
+  return <div className="absolute inset-0 bg-[#eeece6]" style={{ ['--sheet' as string]: `${bottom}px` }}>
     <div ref={box} className="rider-map" style={{ position: 'absolute', inset: 0 }} aria-label="Map" role="region" />
     {pin && <div aria-hidden="true" className="pointer-events-none absolute left-1/2 z-10" style={{ top: top + Math.max(0, (box.current?.clientHeight || 0) - top - bottom) / 2 }}>
-      <span className="absolute -left-[5px] -top-[2px] h-1 w-2.5 rounded-full bg-black/30" />
+      <span className="absolute -left-[5px] -top-[2px] h-1 w-2.5 rounded-full bg-ink/30" />
       <span className={`absolute -left-[9px] -top-[44px] flex flex-col items-center transition-transform duration-150 ease-out motion-reduce:transition-none ${moving ? '-translate-y-2' : ''}`}>
-        <span className={`block size-[18px] border-[5px] border-black bg-white ${pin === 'pickup' ? 'rounded-full' : ''}`} />
-        <span className="block h-6 w-[3px] bg-black" />
+        <span className={`block size-[18px] rounded-full border-[5px] bg-white ${pin === 'pickup' ? 'border-tide' : 'border-signal'}`} />
+        <span className={`block h-6 w-[3px] rounded-full ${pin === 'pickup' ? 'bg-tide' : 'bg-signal'}`} />
       </span>
     </div>}
     {failed && <p className="absolute left-1/2 top-1/3 -translate-x-1/2 rounded-full bg-white px-4 py-2 text-sm font-medium shadow">Map unavailable</p>}
@@ -139,29 +139,29 @@ function markerElement(kind: 'user' | 'pickup' | 'dropoff', pulse = false) {
   const element = document.createElement('div')
   element.setAttribute('aria-hidden', 'true')
   element.className = `rider-marker rider-marker-${kind}${pulse ? ' is-pulsing' : ''}`
-  element.innerHTML = '<span></span>'
+  element.innerHTML = kind === 'dropoff' ? '<span><span></span></span>' : '<span></span>'
   return element
 }
 
-/** Positron, pushed to greys so only the trip carries colour (the blue dot) and weight (the black route). */
+/** Positron, warmed to paper tones so only the trip carries colour. */
 function monochrome(instance: MapLibreMap) {
   const paint: Array<[string, string, unknown]> = [
-    ['background', 'background-color', '#f4f4f4'],
-    ['water', 'fill-color', '#d9dde1'],
-    ['waterway', 'line-color', '#d9dde1'],
-    ['park', 'fill-color', '#e6ebe4'],
+    ['background', 'background-color', '#efede7'],
+    ['water', 'fill-color', '#d3e1df'],
+    ['waterway', 'line-color', '#d3e1df'],
+    ['park', 'fill-color', '#e1e8dc'],
     ['landcover_wood', 'fill-color', '#e8ece6'],
-    ['landuse_residential', 'fill-color', '#f0f0f0'],
-    ['building', 'fill-color', '#e7e7e7'],
+    ['landuse_residential', 'fill-color', '#eceae3'],
+    ['building', 'fill-color', '#e4e1d9'],
     ['highway_minor', 'line-color', '#ffffff'],
     ['highway_major_inner', 'line-color', '#ffffff'],
     ['highway_major_subtle', 'line-color', '#ffffff'],
-    ['highway_major_casing', 'line-color', '#dcdcdc'],
+    ['highway_major_casing', 'line-color', '#dcd8ce'],
     ['highway_motorway_inner', 'line-color', '#ffffff'],
     ['highway_motorway_subtle', 'line-color', '#ffffff'],
-    ['highway_motorway_casing', 'line-color', '#d2d2d2'],
+    ['highway_motorway_casing', 'line-color', '#d3cfc4'],
     ['highway_motorway_bridge_inner', 'line-color', '#ffffff'],
-    ['highway_motorway_bridge_casing', 'line-color', '#d2d2d2'],
+    ['highway_motorway_bridge_casing', 'line-color', '#d3cfc4'],
     ['water_name_point_label', 'text-color', '#7a7f85'],
     ['water_name_line_label', 'text-color', '#7a7f85'],
     ['highway-name-minor', 'text-color', '#8a8a8a'],

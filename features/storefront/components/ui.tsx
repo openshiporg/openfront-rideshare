@@ -7,13 +7,13 @@ const cx = (...parts: Array<string | false | null | undefined>) => parts.filter(
 
 type Tone = 'primary' | 'secondary' | 'danger' | 'plain'
 const tones: Record<Tone, string> = {
-  primary: 'bg-black text-white hover:bg-[#222] disabled:bg-[#b5b5b5]',
-  secondary: 'bg-[#eeeeee] text-black hover:bg-[#e2e2e2] disabled:text-[#9a9a9a]',
-  danger: 'bg-[#eeeeee] text-[#c4160d] hover:bg-[#e2e2e2]',
-  plain: 'bg-transparent text-black hover:bg-black/5',
+  primary: 'bg-tide text-white hover:bg-tide-deep disabled:bg-[#a9bcb8]',
+  secondary: 'bg-white text-ink ring-1 ring-inset ring-rule hover:bg-tide-soft disabled:text-ink-3',
+  danger: 'bg-white text-alert ring-1 ring-inset ring-rule hover:bg-[#fbeceb]',
+  plain: 'bg-transparent text-ink hover:bg-ink/5',
 }
-const sizes = { lg: 'h-14 px-6 text-[17px] rounded-xl', md: 'h-12 px-5 text-[16px] rounded-xl', sm: 'h-11 px-4 text-[15px] rounded-full' }
-const base = 'press inline-flex select-none items-center justify-center gap-2 whitespace-nowrap font-semibold outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 disabled:cursor-not-allowed'
+const sizes = { lg: 'h-14 px-6 text-[17px] rounded-[18px]', md: 'h-12 px-5 text-[16px] rounded-[16px]', sm: 'h-11 px-4 text-[15px] rounded-[14px]' }
+const base = 'press inline-flex select-none items-center justify-center gap-2 whitespace-nowrap font-semibold outline-none focus-visible:ring-2 focus-visible:ring-tide focus-visible:ring-offset-2 disabled:cursor-not-allowed'
 
 export const Button = forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement> & { tone?: Tone; size?: keyof typeof sizes }>(
   function Button({ tone = 'primary', size = 'md', className, type = 'button', ...props }, ref) {
@@ -24,15 +24,15 @@ export function ButtonLink({ tone = 'primary', size = 'md', className, ...props 
   return <Link className={cx(base, tones[tone], sizes[size], className)} {...props} />
 }
 
-/** Round white map control (back, menu): 44pt, floating over the map. */
+/** Squircle map control (back, menu): 44pt, floating over the map. */
 export const MapButton = forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement>>(function MapButton({ className, type = 'button', ...props }, ref) {
-  return <button ref={ref} type={type} className={cx('press grid size-11 place-items-center rounded-full bg-white text-black shadow-[0_2px_10px_rgba(0,0,0,0.18)] outline-none focus-visible:ring-2 focus-visible:ring-black', className)} {...props} />
+  return <button ref={ref} type={type} className={cx('press grid size-11 place-items-center rounded-[14px] bg-white text-ink shadow-[0_1px_0_rgba(16,35,31,0.06),0_6px_16px_-6px_rgba(16,35,31,0.35)] outline-none focus-visible:ring-2 focus-visible:ring-tide', className)} {...props} />
 })
 
 /**
- * The bottom sheet over the map. Its height is its content (each state sets its own size, like Uber's
- * detents), it rises in with an ease-out, and it reports its covered height so the map frames the
- * trip above it. On wide screens it becomes Uber web's left-hand panel.
+ * The paper sheet over the map. Its height is its content (each state sets its own size), it rises in
+ * with an ease-out, and it reports its covered height so the map frames the trip above it. On wide
+ * screens it becomes a floating left-hand panel.
  */
 export function Sheet({ children, onHeight, label, className }: { children: React.ReactNode; onHeight: (px: number) => void; label: string; className?: string }) {
   const ref = useRef<HTMLElement>(null)
@@ -49,10 +49,10 @@ export function Sheet({ children, onHeight, label, className }: { children: Reac
     return () => { observer.disconnect(); window.removeEventListener('resize', measure) }
   }, [])
   return <section ref={ref} aria-label={label} className={cx(
-    'sheet-in absolute inset-x-0 bottom-0 z-20 flex max-h-[calc(100dvh-88px)] flex-col rounded-t-[20px] bg-white pb-[max(env(safe-area-inset-bottom),12px)] shadow-[0_-8px_30px_-10px_rgba(0,0,0,0.28)]',
-    'lg:bottom-auto lg:left-6 lg:right-auto lg:top-[84px] lg:max-h-[calc(100dvh-108px)] lg:w-[400px] lg:rounded-2xl lg:pb-3 lg:shadow-[0_8px_40px_-12px_rgba(0,0,0,0.3)]',
+    'sheet-in absolute inset-x-0 bottom-0 z-20 flex max-h-[calc(100dvh-88px)] flex-col rounded-t-[28px] bg-paper pb-[max(env(safe-area-inset-bottom),12px)] shadow-[0_-10px_30px_-12px_rgba(16,35,31,0.35)]',
+    'lg:bottom-auto lg:left-6 lg:right-auto lg:top-[84px] lg:max-h-[calc(100dvh-108px)] lg:w-[420px] lg:rounded-[28px] lg:pb-3 lg:shadow-[0_12px_40px_-12px_rgba(16,35,31,0.4)]',
     className)}>
-    <span aria-hidden="true" className="mx-auto mt-2 mb-1 block h-1 w-9 shrink-0 rounded-full bg-[#d6d6d6] lg:hidden" />
+    <span aria-hidden="true" className="mx-auto mt-2.5 mb-1.5 block h-1 w-10 shrink-0 rounded-full bg-[#cfcabd] lg:hidden" />
     {children}
   </section>
 }
@@ -100,25 +100,24 @@ export const Icon = {
   wheelchair: (p: IconProps = {}) => svg(<><circle cx="11" cy="4.5" r="1.6" /><path d="M11 7.5v6h5.5l2.5 5" /><path d="M8 10.5a5.5 5.5 0 1 0 6.6 7" /></>, p),
 }
 
-/** Pickup is a round dot, drop-off a square: the two marks used on the map and in every list. */
+/** Pickup is a teal ring, drop-off an amber dot: the two marks used on the map and in every list. */
+export function PickupMark({ className }: { className?: string }) {
+  return <span aria-hidden="true" className={cx('grid size-3 shrink-0 place-items-center rounded-full bg-white ring-[2.5px] ring-tide', className)} />
+}
+export function DropoffMark({ className }: { className?: string }) {
+  return <span aria-hidden="true" className={cx('block size-3 shrink-0 rounded-full bg-signal', className)} />
+}
 export function RouteMarks({ className }: { className?: string }) {
   return <span aria-hidden="true" className={cx('flex w-3 shrink-0 flex-col items-center', className)}>
-    <span className="size-2.5 rounded-full bg-black" />
-    <span className="my-1 w-px flex-1 bg-[#cfcfcf]" />
-    <span className="size-2.5 bg-black" />
+    <PickupMark />
+    <span className="my-1 w-0 flex-1 border-l-2 border-dotted border-[#c9c4b6]" />
+    <DropoffMark />
   </span>
 }
 
-export function CarGlyph({ seats, className }: { seats: number; className?: string }) {
-  // A plain monochrome side view; bigger body for six seats. Decorative only.
-  const big = seats > 4
-  return <svg viewBox="0 0 96 48" aria-hidden="true" className={className}>
-    <ellipse cx="48" cy="42" rx="40" ry="3" fill="#000" opacity="0.08" />
-    <path d={big ? 'M14 20 L22 9 C23 7.5 25 7 27 7 L68 7 C71 7 73 8 75 10 L84 20 Z' : 'M20 20 C26 12 33 9 44 9 L56 9 C64 9 69 13 76 20 Z'} fill="#e9e9e9" />
-    <path d="M6 32 C6 25 10 21 18 20 L80 20 C88 21 92 25 92 30 L92 33 C92 35 91 36 89 36 L9 36 C7 36 6 35 6 33 Z" fill="#1a1a1a" />
-    <path d={big ? 'M24 19 L28 11 L46 11 L46 19 Z M50 11 L68 11 C70 11 72 12 73 14 L76 19 L50 19 Z' : 'M28 19 C32 14 37 12 44 12 L47 12 L47 19 Z M51 12 L56 12 C62 12 66 15 70 19 L51 19 Z'} fill="#9aa3a8" />
-    {[24, 74].map(x => <g key={x}><circle cx={x} cy="36" r="6.5" fill="#111" /><circle cx={x} cy="36" r="2.8" fill="#bdbdbd" /></g>)}
-  </svg>
+/** The ride's vehicle drawing (one free line set, public/vehicles), in the surrounding text colour. */
+export function VehicleArt({ src, className }: { src: string; className?: string }) {
+  return <span aria-hidden="true" className={cx('vehicle block shrink-0', className)} style={{ ['--art' as string]: `url("${src}")` }} />
 }
 
 export { cx }

@@ -11,6 +11,8 @@ export type LngLat = [number, number]
 export type Place = { label: string; name: string; detail: string; point: LngLat; kind: string }
 export type RoutedPath = { distanceMeters: number; durationSeconds: number; coordinates: LngLat[]; provider: 'osrm' | 'straight-line' }
 
+import { formatPlace } from './address'
+
 const USER_AGENT = 'openfront-rideshare/1.0 (+https://github.com/openshiporg/openfront-rideshare)'
 const photonBase = () => (process.env.PHOTON_URL || 'https://photon.komoot.io').replace(/\/+$/, '')
 const osrmBase = () => (process.env.OSRM_URL || 'https://router.project-osrm.org').replace(/\/+$/, '')
@@ -64,20 +66,15 @@ export function validPoint(value: unknown): LngLat | null {
 
 const round = (value: number, digits = 5) => Math.round(value * 10 ** digits) / 10 ** digits
 
-function placeFrom(feature: any): Place | null {
+function placeFrom(feature: any, typed?: string): Place | null {
   const point = validPoint(feature?.geometry?.coordinates)
   const p = feature?.properties || {}
   if (!point) return null
-  const street = p.street ? [p.housenumber, p.street].filter(Boolean).join(' ') : ''
-  const name = String(p.name || street || p.district || p.city || '').trim()
-  if (!name) return null
-  const area = [p.district !== name ? p.district : null, p.city !== name ? p.city : null, p.state].filter(Boolean)
-  const detail = [street && street !== name ? street : null, ...area].filter(Boolean).filter((part, index, all) => all.indexOf(part) === index).slice(0, 3).join(', ')
-  const label = [name, street && street !== name ? street : p.city !== name ? p.city : null].filter(Boolean).join(', ').slice(0, 120)
-  return { label, name, detail, point, kind: String(p.osm_value || p.type || '') }
+  const formatted = formatPlace(p, typed)
+  return formatted ? { ...formatted, point, kind: String(p.osm_value || p.type || '') } : null
 }
 
-async function photon(path: string, params: URLSearchParams) {
+async function photon(path: string, params: URLSearchParams, typed?: string) {
   const key = `${path}?${params}`
   const cached = placeCache.get(key)
   if (cached) return cached
@@ -87,7 +84,7 @@ async function photon(path: string, params: URLSearchParams) {
     if (!response.ok) return []
     const payload = await response.json()
     const seen = new Set<string>()
-    const places = (Array.isArray(payload?.features) ? payload.features : []).map(placeFrom).filter((place: Place | null): place is Place => {
+    const places = (Array.isArray(payload?.features) ? payload.features : []).map((feature: any) => placeFrom(feature, typed)).filter((place: Place | null): place is Place => {
       if (!place || seen.has(place.label)) return false
       seen.add(place.label); return true
     })
@@ -107,12 +104,16 @@ export async function searchPlaces(query: string, near?: LngLat | null, options:
     if (options.within) params.set('bbox', [near[0] - options.within, near[1] - options.within, near[0] + options.within, near[1] + options.within].map(value => round(value, 3)).join(','))
   }
   if (options.kind === 'area') for (const layer of ['city', 'district', 'locality']) params.append('layer', layer)
-  return photon('/api/', params)
+  return photon('/api/', params, q)
 }
 
+/** The address at a point: the nearest house number within ~40 m, else the street or place there. */
 export async function reversePlace(point: LngLat) {
-  const params = new URLSearchParams({ lon: String(round(point[0], 4)), lat: String(round(point[1], 4)), limit: '1', lang: 'en' })
-  return (await photon('/reverse', params))[0] || null
+  const base = { lon: String(round(point[0], 5)), lat: String(round(point[1], 5)), lang: 'en' }
+  const houses = await photon('/reverse', new URLSearchParams({ ...base, limit: '3', layer: 'house', radius: '0.04' }))
+  const house = houses.find((place: Place) => /(^|, )\d+[a-z]? /i.test(place.label)) || null
+  if (house) return house
+  return (await photon('/reverse', new URLSearchParams({ ...base, lon: String(round(point[0], 4)), lat: String(round(point[1], 4)), limit: '1' })))[0] || null
 }
 
 const EARTH_RADIUS_METERS = 6_371_000

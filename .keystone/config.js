@@ -20,6 +20,139 @@ var __copyProps = (to, from, except, desc) => {
 };
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
+// features/keystone/lib/request-mail.ts
+var request_mail_exports = {};
+__export(request_mail_exports, {
+  sendRequestReceivedEmail: () => sendRequestReceivedEmail
+});
+function transport() {
+  const port = Number(process.env.SMTP_PORT);
+  if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASSWORD || !Number.isInteger(port) || port < 1 || port > 65535) throw new Error("Email delivery is not configured");
+  return (0, import_nodemailer.createTransport)({ host: process.env.SMTP_HOST, port, auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD } });
+}
+async function sendRequestReceivedEmail(mail) {
+  try {
+    const info = await transport().sendMail({
+      to: mail.to,
+      from: process.env.SMTP_FROM,
+      subject: `Ride request ${mail.requestNumber} received by ${mail.fleetName}`,
+      html: `<body style="font-family:Helvetica,Arial,sans-serif;color:#222;max-width:560px;margin:auto">
+        <h2>Thanks ${escapeHtml(mail.name)}, we received your ride request</h2>
+        <p>Request <strong>${escapeHtml(mail.requestNumber)}</strong> with ${escapeHtml(mail.fleetName)}.<br/>${escapeHtml(mail.whenLabel)}</p>
+        <p>From: ${escapeHtml(mail.pickup)}<br/>To: ${escapeHtml(mail.dropoff)}</p>
+        <p>We will show your driver once one accepts.</p>
+        <p><a href="${escapeHtml(mail.link)}">View your rides</a></p>
+      </body>`
+    });
+    return { sent: true, messageId: typeof info?.messageId === "string" ? info.messageId : void 0, response: typeof info?.response === "string" ? info.response : void 0 };
+  } catch (error) {
+    return { sent: false, error: error instanceof Error ? error.message : "send_failed" };
+  }
+}
+var import_nodemailer, escapeHtml;
+var init_request_mail = __esm({
+  "features/keystone/lib/request-mail.ts"() {
+    "use strict";
+    import_nodemailer = require("nodemailer");
+    escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
+  }
+});
+
+// features/keystone/lib/request-confirmation.ts
+var request_confirmation_exports = {};
+__export(request_confirmation_exports, {
+  deliverRequestReceived: () => deliverRequestReceived,
+  normalizeReceiptEmail: () => normalizeReceiptEmail,
+  requestConfirmationConfigured: () => requestConfirmationConfigured
+});
+function normalizeReceiptEmail(value) {
+  if (value == null) return null;
+  const invalid = () => new import_graphql.GraphQLError("Enter a valid email address.", { extensions: { code: "BAD_USER_INPUT" } });
+  if (typeof value !== "string") throw invalid();
+  const email = value.trim().toLowerCase();
+  if (!email) return null;
+  if (email.length > 254 || !EMAIL.test(email)) throw invalid();
+  return email;
+}
+function requestConfirmationConfigured() {
+  return Boolean(process.env.SMTP_HOST && process.env.SMTP_PORT && process.env.SMTP_USER && process.env.SMTP_PASSWORD && process.env.SMTP_STORE_LINK);
+}
+function receiptLink(request, extra) {
+  const base = String(process.env.SMTP_STORE_LINK).replace(/\/$/, "");
+  if (request.riderId || !extra.requestProof) return `${base}/account/rides`;
+  const hash = new URLSearchParams({ r: request.id, n: request.requestNumber, p: extra.requestProof });
+  return `${base}/#receipt=${hash.toString()}`;
+}
+async function deliverRequestReceived(prisma, requestId, send, extra = {}) {
+  try {
+    const request = await prisma.rideRequest.findUnique({
+      where: { id: requestId },
+      select: {
+        id: true,
+        riderId: true,
+        requestNumber: true,
+        requestedFor: true,
+        pickupLabel: true,
+        dropoffLabel: true,
+        fleet: { select: { name: true, timezone: true } },
+        rider: { select: { email: true, name: true } }
+      }
+    });
+    if (!request) return;
+    let row;
+    try {
+      row = await prisma.notification.create({
+        data: { recipientId: request.riderId || null, channel: "email", templateKey: "ride_request_received", status: "sending", payload: { requestId: request.id, requestNumber: request.requestNumber, ...extra.receiptEmail ? { receiptEmail: extra.receiptEmail } : {} }, idempotencyKey: `ride-request-received:${request.id}` },
+        select: { id: true }
+      });
+    } catch (error) {
+      if (error?.code === "P2002") return;
+      throw error;
+    }
+    const mark = (status, error, messageId, response) => prisma.notification.update({ where: { id: row.id }, data: { status, ...messageId ? { providerReference: messageId.slice(0, 200) } : {}, ...response ? { payload: { requestId: request.id, requestNumber: request.requestNumber, ...extra.receiptEmail ? { receiptEmail: extra.receiptEmail } : {}, smtpResponse: response.slice(0, 300) } } : {}, attemptCount: { increment: 1 }, ...status === "sent" ? { sentAt: /* @__PURE__ */ new Date() } : {}, ...error ? { lastError: error.slice(0, 200) } : {} } });
+    try {
+      const email = extra.receiptEmail || request.rider?.email;
+      if (!email) {
+        await mark("skipped_no_recipient");
+        return;
+      }
+      if (!requestConfirmationConfigured()) {
+        await mark("skipped_not_configured");
+        return;
+      }
+      const zone = request.fleet?.timezone || "UTC";
+      const whenLabel = request.requestedFor ? `Scheduled for ${new Intl.DateTimeFormat("en-US", { timeZone: zone, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short" }).format(new Date(request.requestedFor))}` : "As soon as a driver is available";
+      const sender = send || (await Promise.resolve().then(() => (init_request_mail(), request_mail_exports))).sendRequestReceivedEmail;
+      const result = await sender({
+        to: email,
+        fleetName: request.fleet?.name || "Your ride service",
+        requestNumber: request.requestNumber,
+        name: request.rider?.name || "there",
+        whenLabel,
+        pickup: request.pickupLabel,
+        dropoff: request.dropoffLabel,
+        link: receiptLink(request, extra)
+      });
+      await (result.sent ? mark("sent", void 0, result.messageId, result.response) : mark("failed", result.error || "send_failed"));
+    } catch (error) {
+      try {
+        await mark("failed", error instanceof Error ? error.message : "send_failed");
+      } catch {
+      }
+    }
+  } catch (error) {
+    console.error("Ride request confirmation bookkeeping failed:", error instanceof Error ? error.message : "unknown");
+  }
+}
+var import_graphql, EMAIL;
+var init_request_confirmation = __esm({
+  "features/keystone/lib/request-confirmation.ts"() {
+    "use strict";
+    import_graphql = require("graphql");
+    EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  }
+});
+
 // features/integrations/payment/manual.ts
 var manual_exports = {};
 __export(manual_exports, {
@@ -47,6 +180,102 @@ async function handleWebhookFunction() {
 var init_manual = __esm({
   "features/integrations/payment/manual.ts"() {
     "use strict";
+  }
+});
+
+// features/integrations/payment/stripe.ts
+var stripe_exports = {};
+__export(stripe_exports, {
+  capturePaymentFunction: () => capturePaymentFunction2,
+  createPaymentFunction: () => createPaymentFunction2,
+  getPaymentStatusFunction: () => getPaymentStatusFunction2,
+  handleWebhookFunction: () => handleWebhookFunction2,
+  refundPaymentFunction: () => refundPaymentFunction2,
+  retrieveCheckoutSession: () => retrieveCheckoutSession,
+  stripeSecretKey: () => stripeSecretKey
+});
+function stripeSecretKey() {
+  const key = String(process.env.STRIPE_SECRET_KEY || "").trim();
+  return /^(sk|rk)_(test|live)_[A-Za-z0-9]{10,}$/.test(key) ? key : null;
+}
+function requireKey() {
+  const key = stripeSecretKey();
+  if (!key) throw new Error("Stripe is not configured for this deployment.");
+  return key;
+}
+function form(values) {
+  const body = new URLSearchParams();
+  for (const [name, value] of Object.entries(values)) if (value !== void 0) body.append(name, String(value));
+  return body;
+}
+async function stripeRequest(path, init = {}) {
+  const response = await fetch(`${STRIPE_API}${path}`, {
+    method: init.method ?? "GET",
+    headers: {
+      authorization: `Bearer ${requireKey()}`,
+      ...init.body ? { "content-type": "application/x-www-form-urlencoded" } : {},
+      ...init.idempotencyKey ? { "idempotency-key": init.idempotencyKey } : {}
+    },
+    body: init.body,
+    signal: AbortSignal.timeout(2e4)
+  });
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(`Stripe request failed: ${payload?.error?.message ?? response.status}`);
+  return payload;
+}
+function retrieveCheckoutSession(sessionId) {
+  if (!/^cs_(test|live)_[A-Za-z0-9]+$/.test(sessionId)) throw new Error("Checkout session is invalid.");
+  return stripeRequest(`/checkout/sessions/${encodeURIComponent(sessionId)}?expand[]=payment_intent.latest_charge`);
+}
+async function createPaymentFunction2({ trip, amount, currency, idempotencyKey, origin }) {
+  if (!trip?.id || !trip.confirmationCode || !origin) throw new Error("Card payment needs the trip and the storefront origin.");
+  const code = encodeURIComponent(trip.confirmationCode);
+  const session2 = await stripeRequest("/checkout/sessions", {
+    method: "POST",
+    idempotencyKey: `trip-checkout:${idempotencyKey}`,
+    body: form({
+      mode: "payment",
+      client_reference_id: trip.id,
+      "metadata[tripId]": trip.id,
+      "metadata[confirmationCode]": trip.confirmationCode,
+      "payment_intent_data[metadata][tripId]": trip.id,
+      "line_items[0][quantity]": 1,
+      "line_items[0][price_data][currency]": String(currency).toLowerCase(),
+      "line_items[0][price_data][unit_amount]": amount,
+      "line_items[0][price_data][product_data][name]": `Ride ${trip.confirmationCode}`,
+      success_url: `${origin}/rides/${code}?checkout={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}/rides/${code}?checkout=cancelled`
+    })
+  });
+  return { status: "pending", externalId: session2.id, url: session2.url, amount, currency };
+}
+async function capturePaymentFunction2({ paymentId }) {
+  return getPaymentStatusFunction2({ paymentId });
+}
+async function getPaymentStatusFunction2({ paymentId }) {
+  const session2 = await retrieveCheckoutSession(String(paymentId || ""));
+  const status = session2.payment_status === "paid" ? "captured" : session2.status === "expired" ? "cancelled" : "pending";
+  return { status, externalId: session2.id, amount: session2.amount_total, currency: session2.currency?.toUpperCase() };
+}
+async function refundPaymentFunction2({ paymentId, amount, idempotencyKey }) {
+  const session2 = await retrieveCheckoutSession(String(paymentId || ""));
+  const intent = typeof session2.payment_intent === "string" ? session2.payment_intent : session2.payment_intent?.id;
+  if (!intent) throw new Error("This checkout has no payment to refund.");
+  const refund = await stripeRequest("/refunds", {
+    method: "POST",
+    idempotencyKey: `trip-refund:${idempotencyKey}`,
+    body: form({ payment_intent: intent, amount })
+  });
+  return { status: refund.status === "succeeded" ? "succeeded" : "processing", externalId: refund.id, amount };
+}
+async function handleWebhookFunction2() {
+  throw new Error("Stripe payments are confirmed from the Checkout session; webhooks are not accepted.");
+}
+var STRIPE_API;
+var init_stripe = __esm({
+  "features/integrations/payment/stripe.ts"() {
+    "use strict";
+    STRIPE_API = "https://api.stripe.com/v1";
   }
 });
 
@@ -435,8 +664,8 @@ var import_core7 = require("@keystone-6/core");
 var import_fields8 = require("@keystone-6/core/fields");
 
 // features/platform/settings/branding/store-logo.ts
-var DEFAULT_STORE_LOGO_ICON = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" height="100%" width="100%" viewBox="0 0 42 48"><path fill="#155eef" fill-rule="evenodd" d="m22.102 20.86 9.9-9.9L29.88 8.84l-7.339 7.339V3h-3v13.178l-7.339-7.34-2.121 2.122 9.9 9.9 1.06 1.06zm2.12 2.121 9.9-9.9 2.121 2.122-7.339 7.339H42v3H28.904l7.34 7.339L34.121 35l-9.9-9.899-1.06-1.06zM7.96 35.001l9.9-9.899 1.06-1.06-1.06-1.061-9.9-9.9-2.121 2.122 7.339 7.339H.002v3h13.176l-7.34 7.339zm12.02-7.777-9.9 9.9 2.122 2.12 7.339-7.338V45h3V31.906l7.339 7.338L32 37.124l-9.9-9.9-1.06-1.061z" clip-rule="evenodd"/></svg>';
-var DEFAULT_STORE_LOGO_COLOR = "0";
+var DEFAULT_STORE_LOGO_ICON = '<svg fill="none" height="100%" viewBox="0 0 42 48" width="100%" xmlns="http://www.w3.org/2000/svg"><g fill="#155eef"><path d="m14.1061 19.6565c5.499-2.6299 9.8025-7.0929 12.2731-12.67168-1.5939-1.67362-3.666-2.86907-5.8975-3.58634l-1.1954-.39848c-.0797.15939-.1594.39849-.1594.55788-1.9127 5.41936-5.8178 9.80262-11.07766 12.27322-3.66599 1.7533-6.37564 4.9412-7.650763 8.7666l-.398477 1.1955c.159391.0797.39848.1593.557871.1593 1.514209.5579 3.028419 1.2752 4.462939 2.1519 1.99238-3.5864 5.18019-6.6148 9.08529-8.4479z"/><path d="m37.2173 19.9753c-2.9487 4.463-7.0132 8.0494-12.034 10.4403-4.0645 1.9127-7.1726 5.499-8.6071 9.8026l-.3985 1.3549c1.5142 1.3548 3.3472 2.3909 5.3396 3.0284l1.1955.3985c.0796-.1594.1593-.3985.1593-.5579 1.9127-5.4193 5.8178-9.8026 11.0777-12.2732 3.666-1.7533 6.4553-4.9412 7.6507-8.7666l.3985-1.1954c-1.6736-.4782-3.2675-1.2752-4.7817-2.2316z" opacity=".6"/><path d="m12.9903 37.4284c1.9924-4.7818 5.6584-8.6869 10.3604-10.9184 4.3035-2.0721 7.8898-5.26 10.3604-9.1651-1.833-1.7533-3.3472-3.7458-4.463-6.1366-2.9487 5.4193-7.571 9.8026-13.2294 12.5123-3.2675 1.5142-5.8974 4.1442-7.49136 7.3321 1.75326 1.6736 3.18786 3.7457 4.30356 6.0569 0 0 .0797.1594.1594.3188z" opacity=".8"/></g></svg>';
+var DEFAULT_STORE_LOGO_COLOR = "314";
 function normalizeStoreLogoColor(value) {
   const numeric = Number.parseFloat(String(value ?? DEFAULT_STORE_LOGO_COLOR));
   if (!Number.isFinite(numeric)) return DEFAULT_STORE_LOGO_COLOR;
@@ -561,6 +790,7 @@ var Fleet = (0, import_core7.list)({
     slug: (0, import_fields8.text)({ validation: { isRequired: true }, isIndexed: "unique" }),
     status: (0, import_fields8.select)({ options: [{ label: "Setup", value: "setup" }, { label: "Active", value: "active" }, { label: "Paused", value: "paused" }], defaultValue: "setup" }),
     publicDescription: (0, import_fields8.text)({ ui: { displayMode: "textarea" } }),
+    heroImage: (0, import_fields8.image)({ storage: "my_images", label: "Hero image", ui: { description: "Shown behind the rider home screen. Leave empty to show the map only." } }),
     publicCity: (0, import_fields8.text)(),
     countryCode: (0, import_fields8.text)({ defaultValue: "US" }),
     currencyCode: (0, import_fields8.text)({ defaultValue: "USD" }),
@@ -618,6 +848,7 @@ var DriverProfile = (0, import_core7.list)({
     publicName: (0, import_fields8.text)({ validation: { isRequired: true } }),
     publicBio: (0, import_fields8.text)({ ui: { displayMode: "textarea" } }),
     publicPhotoUrl: (0, import_fields8.text)(),
+    photo: (0, import_fields8.image)({ storage: "my_images", label: "Driver\u2019s own photo", ui: { description: "A photo the driver uploaded of themselves, shown to their rider on the trip card." } }),
     status: (0, import_fields8.select)({ options: ["applicant", "pending_review", "active", "paused", "ineligible", "offboarded"].map((value) => ({ label: value, value })), defaultValue: "applicant", access: { create: () => false, update: () => false } }),
     dispatchStatus: (0, import_fields8.select)({ options: ["offline", "available", "offered", "assigned", "on_trip"].map((value) => ({ label: value, value })), defaultValue: "offline", access: { create: () => false, update: () => false } }),
     acceptsScheduled: (0, import_fields8.checkbox)({ defaultValue: true }),
@@ -767,6 +998,10 @@ function validMinor(value) {
 }
 
 // features/keystone/domain/fare.ts
+function fareRuleForValidation(item, resolvedData) {
+  const changed = Object.fromEntries(Object.entries(resolvedData).filter(([, value]) => value !== void 0));
+  return { ...item ?? {}, ...changed };
+}
 function validateFareRule(rule) {
   currencyDigits(rule.currencyCode);
   for (const key of ["baseFareMinor", "perDistanceUnitMinor", "perMinuteMinor", "bookingFeeMinor", "minimumFareMinor", "cancellationFeeMinor", "noShowFeeMinor"]) {
@@ -815,6 +1050,7 @@ var RideService = (0, import_core9.list)({
     fleet: (0, import_fields10.relationship)({ ref: "Fleet.services", access: { create: () => false, update: () => false } }),
     name: (0, import_fields10.text)({ validation: { isRequired: true } }),
     slug: (0, import_fields10.text)({ validation: { isRequired: true }, isIndexed: "unique" }),
+    photo: (0, import_fields10.image)({ storage: "my_images", label: "Vehicle photo", ui: { description: "For your records. Riders see the matching drawing from the built-in vehicle set (by category), so every ride option looks the same." } }),
     description: (0, import_fields10.text)({ ui: { displayMode: "textarea" } }),
     status: (0, import_fields10.select)({ options: ["draft", "active", "paused"].map((value) => ({ label: value, value })), defaultValue: "draft" }),
     category: (0, import_fields10.select)({ options: ["standard", "comfort", "xl", "accessible", "pet_friendly", "scheduled"].map((value) => ({ label: value, value })), defaultValue: "standard" }),
@@ -861,7 +1097,7 @@ var FareRule = (0, import_core9.list)({
   access: fleetScopedAccess("fleetAdmin"),
   hooks: { validateInput: ({ resolvedData, item, addValidationError }) => {
     try {
-      validateFareRule({ ...item, ...resolvedData });
+      validateFareRule(fareRuleForValidation(item, resolvedData));
     } catch {
       addValidationError("Check the fare currency, version, multiplier and non-negative minor-unit amounts.");
     }
@@ -1317,6 +1553,140 @@ var models = {
   MarketplaceRegistration
 };
 
+// features/keystone/ui-create-access.ts
+function createRule(access) {
+  if (typeof access === "function") return access;
+  const operation = access?.operation;
+  if (typeof operation === "function") return operation;
+  if (typeof operation?.create === "function") return operation.create;
+  return void 0;
+}
+async function createAllowed(listKey, list13, args) {
+  const rule = createRule(list13.access);
+  if (!rule) return true;
+  try {
+    return Boolean(await rule({ session: args.session, context: args.context, listKey, operation: "create" }));
+  } catch {
+    return false;
+  }
+}
+function withCreateAwareUi(lists) {
+  const out = {};
+  for (const [listKey, list13] of Object.entries(lists)) {
+    if (list13.ui?.hideCreate !== void 0 || !createRule(list13.access)) {
+      out[listKey] = list13;
+      continue;
+    }
+    out[listKey] = {
+      ...list13,
+      ui: {
+        ...list13.ui,
+        hideCreate: async (args) => !await createAllowed(listKey, list13, args)
+      }
+    };
+  }
+  return out;
+}
+function updateOperationRule(access) {
+  if (typeof access === "function") return access;
+  const rules = access?.operation;
+  if (typeof rules === "function") return rules;
+  if (typeof rules?.update === "function") return rules.update;
+  return void 0;
+}
+function updateFilterRule(access) {
+  const filter = access?.filter;
+  return typeof filter?.update === "function" ? filter.update : void 0;
+}
+var itemModeCache = /* @__PURE__ */ new WeakMap();
+async function itemUpdateAllowed(listKey, list13, args) {
+  const operation = updateOperationRule(list13.access);
+  if (operation) {
+    try {
+      if (!await operation({ session: args.session, context: args.context, listKey, operation: "update" })) return false;
+    } catch {
+      return false;
+    }
+  }
+  const filterRule = updateFilterRule(list13.access);
+  if (!filterRule || args.item?.id == null) return true;
+  try {
+    const filter = await filterRule({ session: args.session, context: args.context, listKey, operation: "update" });
+    if (filter === true) return true;
+    if (filter === false) return false;
+    if (!filter || typeof filter !== "object") return true;
+    const count = await args.context.sudo().db[listKey].count({ where: { AND: [{ id: { equals: String(args.item.id) } }, filter] } });
+    return count > 0;
+  } catch {
+    return true;
+  }
+}
+function withItemViewAwareUi(lists) {
+  const out = {};
+  for (const [listKey, list13] of Object.entries(lists)) {
+    const itemView = list13.ui?.itemView ?? {};
+    if (itemView.defaultFieldMode !== void 0 || !updateOperationRule(list13.access) && !updateFilterRule(list13.access)) {
+      out[listKey] = list13;
+      continue;
+    }
+    out[listKey] = {
+      ...list13,
+      ui: {
+        ...list13.ui,
+        itemView: {
+          ...itemView,
+          // Called once per field; one decision per request and item.
+          defaultFieldMode: (args) => {
+            const decide = () => itemUpdateAllowed(listKey, list13, args).then((ok) => ok ? "edit" : "read");
+            if (!args.context || typeof args.context !== "object") return decide();
+            const key = JSON.stringify([listKey, String(args.item?.id), String(args.session?.itemId ?? ""), String(args.session?.listKey ?? "")]);
+            const scope = args.context;
+            let cache2 = itemModeCache.get(scope);
+            if (!cache2) itemModeCache.set(scope, cache2 = /* @__PURE__ */ new Map());
+            let decision = cache2.get(key);
+            if (!decision) cache2.set(key, decision = decide());
+            return decision;
+          }
+        }
+      }
+    };
+  }
+  return out;
+}
+function deleteRule(access) {
+  if (typeof access === "function") return access;
+  const operation = access?.operation;
+  if (typeof operation === "function") return operation;
+  if (typeof operation?.delete === "function") return operation.delete;
+  return void 0;
+}
+async function deleteAllowed(listKey, list13, args) {
+  const rule = deleteRule(list13.access);
+  if (!rule) return true;
+  try {
+    return Boolean(await rule({ session: args.session, context: args.context, listKey, operation: "delete" }));
+  } catch {
+    return false;
+  }
+}
+function withDeleteAwareUi(lists) {
+  const out = {};
+  for (const [listKey, list13] of Object.entries(lists)) {
+    if (list13.ui?.hideDelete !== void 0 || !deleteRule(list13.access)) {
+      out[listKey] = list13;
+      continue;
+    }
+    out[listKey] = {
+      ...list13,
+      ui: {
+        ...list13.ui,
+        hideDelete: async (args) => !await deleteAllowed(listKey, list13, args)
+      }
+    };
+  }
+  return out;
+}
+
 // features/keystone/domain/authorityFence.ts
 async function fenceHumanAuthority(tx, session2, fleetId) {
   const actorId = humanSessionId(session2);
@@ -1352,6 +1722,27 @@ function requireCommandKey(value) {
   return value;
 }
 
+// features/keystone/domain/fleetBrandingInput.ts
+function buildFleetBrandingInput(args) {
+  const logoIcon = sanitizeStoreLogoSvg(args.logoIcon);
+  if (!logoIcon) throw new Error("Branding input is invalid.");
+  const logoColor = normalizeStoreLogoColor(args.logoColor);
+  if (args.name === void 0 || args.name === null) return { logoIcon, logoColor };
+  const name = args.name.trim();
+  if (!name || name.length > 120) throw new Error("Branding input is invalid.");
+  return { logoIcon, logoColor, name };
+}
+
+// features/keystone/domain/reviewedVersion.ts
+function reviewedIso(value) {
+  const date = value instanceof Date ? value : typeof value === "string" ? new Date(value) : null;
+  return date && Number.isFinite(date.getTime()) ? date.toISOString() : null;
+}
+function sameReviewedVersion(current, reviewed) {
+  const iso = reviewedIso(reviewed);
+  return iso !== null && current.toISOString() === iso;
+}
+
 // features/keystone/mutations/fleetBranding.ts
 async function fleetBranding(_root, args, context) {
   return context.prisma.$transaction(async (tx) => {
@@ -1363,22 +1754,23 @@ async function fleetBranding(_root, args, context) {
 }
 async function saveFleetBranding(_root, args, context) {
   const idempotencyKey = requireCommandKey(args.idempotencyKey);
-  const logoIcon = sanitizeStoreLogoSvg(args.logoIcon);
-  if (!logoIcon || !Number.isFinite(Date.parse(args.expectedUpdatedAt))) throw new Error("Branding input is invalid.");
-  const logoColor = normalizeStoreLogoColor(args.logoColor);
+  const reviewedAt = reviewedIso(args.expectedUpdatedAt);
+  if (!reviewedAt) throw new Error("Branding input is invalid.");
+  const input = buildFleetBrandingInput(args);
+  const { logoIcon, logoColor } = input;
   return context.prisma.$transaction(async (tx) => {
     const actor = await currentHumanActor(tx, context.session);
     if (!actor || actor.id !== args.expectedActorId) throw new Error("Fleet branding is unavailable.");
     for (const key of [`command:${idempotencyKey}`, `fleet-branding:${args.fleetId}`].sort()) await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))::text IS NOT NULL`;
     await fenceHumanAuthority(tx, context.session, args.fleetId);
     if (!await canAccessFleet({ prisma: tx }, context.session, args.fleetId, "fleetAdmin")) throw new Error("Fleet branding is unavailable.");
-    const command = { version: 1, purpose: "fleet_branding", actorId: actor.id, fleetId: args.fleetId, expectedUpdatedAt: args.expectedUpdatedAt, logoIcon, logoColor };
+    const command = { version: 1, purpose: "fleet_branding", actorId: actor.id, fleetId: args.fleetId, expectedUpdatedAt: reviewedAt, logoIcon, logoColor, ...input.name !== void 0 ? { name: input.name } : {} };
     const prior = await tx.fleetBrandingChange.findUnique({ where: { idempotencyKey } });
     if (prior) {
       if (!(0, import_node_util.isDeepStrictEqual)(prior.command, command)) throw new Error("Branding key belongs to another command.");
       return prior.result;
     }
-    const update = await tx.fleet.updateMany({ where: { id: args.fleetId, updatedAt: new Date(args.expectedUpdatedAt) }, data: { logoIcon, logoColor } });
+    const update = await tx.fleet.updateMany({ where: { id: args.fleetId, updatedAt: new Date(reviewedAt) }, data: { logoIcon, logoColor, ...input.name !== void 0 ? { name: input.name } : {} } });
     if (update.count !== 1) throw new Error("Branding changed. Read the current settings before saving again.");
     const row = await tx.fleet.findUnique({ where: { id: args.fleetId }, select: { id: true, name: true, logoIcon: true, logoColor: true, updatedAt: true } });
     const result = { actorId: actor.id, fleetId: row.id, name: row.name, logoIcon: row.logoIcon, logoColor: row.logoColor, updatedAt: row.updatedAt.toISOString() };
@@ -1468,6 +1860,9 @@ function verifyOwnershipProof(token, purpose, resourceId, expectedHash, now = Da
     return false;
   }
 }
+
+// features/keystone/mutations/marketplaceRideshare.ts
+init_request_confirmation();
 
 // features/keystone/domain/requestReceipt.ts
 var import_node_crypto3 = require("node:crypto");
@@ -1576,6 +1971,11 @@ function projectFleetBrand(fleet) {
 }
 
 // features/keystone/domain/riderTripProjection.ts
+function mapPoint(value) {
+  if (!Array.isArray(value) || value.length !== 2) return null;
+  const [lon, lat] = value.map(Number);
+  return Number.isFinite(lon) && Number.isFinite(lat) && Math.abs(lon) <= 180 && Math.abs(lat) <= 90 ? [lon, lat] : null;
+}
 function projectRiderTrip(trip) {
   const snapshot = trip.bookingSnapshot && typeof trip.bookingSnapshot === "object" ? trip.bookingSnapshot : {};
   const quote = snapshot.quote && typeof snapshot.quote === "object" ? snapshot.quote : {};
@@ -1591,7 +1991,7 @@ function projectRiderTrip(trip) {
     bookingFeeMinor: value.bookingFeeMinor ?? null,
     cancellationFeeMinor: value.cancellationFeeMinor ?? null,
     noShowFeeMinor: value.noShowFeeMinor ?? null,
-    routeEvidence: { provider: route.provider || "unavailable", authoritative: route.authoritative === true, disclosure: route.disclosure || "Route evidence unavailable." }
+    routeEvidence: { provider: route.provider || "unavailable", authoritative: route.authoritative === true, disclosure: route.disclosure || "Route evidence unavailable.", pickup: mapPoint(route.pickup), dropoff: mapPoint(route.dropoff) }
   });
   const events = Array.isArray(trip.events) ? trip.events : [];
   return {
@@ -1635,6 +2035,29 @@ function decodeKeyset(value, purpose, scope) {
   return { id: data.id, time: data.time };
 }
 
+// features/keystone/domain/publicMedia.ts
+var DRIVER_RATING_MIN_REVIEWS = 5;
+function driverRating(reviews, minimum = DRIVER_RATING_MIN_REVIEWS) {
+  const ratings = (reviews || []).filter((review) => review?.status === "published" && review.direction === "rider_to_driver").map((review) => review.rating).filter((rating) => Number.isInteger(rating) && rating >= 1 && rating <= 5);
+  if (ratings.length < minimum) return null;
+  const average = ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length;
+  return { average: Math.round(average * 100) / 100, count: ratings.length };
+}
+function imageSelect(prefix) {
+  return { [`${prefix}_id`]: true, [`${prefix}_extension`]: true };
+}
+var EXTENSIONS = /* @__PURE__ */ new Set(["jpg", "png", "webp", "gif"]);
+async function imageUrl(context, row, prefix) {
+  const id = row?.[`${prefix}_id`];
+  const extension = row?.[`${prefix}_extension`];
+  if (typeof id !== "string" || !id || !EXTENSIONS.has(extension)) return null;
+  try {
+    return await context.images("my_images").getUrl(id, extension);
+  } catch {
+    return null;
+  }
+}
+
 // features/keystone/mutations/riderReceipts.ts
 var requestInclude = {
   fleet: { select: fleetBrandSelect },
@@ -1644,7 +2067,8 @@ var requestInclude = {
     acceptedOffer: true,
     events: { orderBy: [{ occurredAt: "desc" }, { id: "desc" }], take: 101 },
     payments: { orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 20 },
-    reviews: { where: { status: "published" }, orderBy: [{ submittedAt: "desc" }, { id: "desc" }], take: 20 }
+    reviews: { where: { status: "published" }, orderBy: [{ submittedAt: "desc" }, { id: "desc" }], take: 20 },
+    driver: { select: { id: true, publicName: true, ...imageSelect("photo") } }
   } }
 };
 function projectRequest(request) {
@@ -1697,8 +2121,16 @@ async function riderTripStatus(_root, args, context) {
     if (!header) return null;
     const request = await tx.rideRequest.findFirst({ where: { ...requestOwnerWhere(header), trip: { is: { confirmationCode: args.confirmationCode } } }, include: requestInclude });
     if (!request || request.trip?.confirmationCode !== args.confirmationCode || !hasRequestTripBinding(request, request.trip)) return null;
-    return projectRiderTrip(request.trip);
-  }, { isolationLevel: "RepeatableRead" });
+    const driverId = request.trip.driver?.id;
+    const driverReviews = driverId ? await tx.review.findMany({ where: { status: "published", direction: "rider_to_driver", trip: { is: { driverId } } }, select: { rating: true, direction: true, status: true }, take: 5e3 }) : [];
+    return { trip: projectRiderTrip(request.trip), driver: request.trip.driver, driverReviews };
+  }, { isolationLevel: "RepeatableRead" }).then(async (found) => {
+    if (!found) return null;
+    const { trip, driver, driverReviews } = found;
+    if (!driver?.publicName) return { ...trip, driver: null };
+    const rating = driverRating(driverReviews);
+    return { ...trip, driver: { publicName: driver.publicName, photoUrl: await imageUrl(context, driver, "photo"), rating: rating?.average ?? null, ratingCount: rating?.count ?? null } };
+  });
 }
 
 // features/integrations/mapping/manual.ts
@@ -1715,8 +2147,88 @@ async function estimateRoute({ pickupLabel, dropoffLabel }) {
   };
 }
 
+// features/integrations/mapping/osm.ts
+var USER_AGENT = "openfront-rideshare/1.0 (+https://github.com/openshiporg/openfront-rideshare)";
+var osrmBase = () => (process.env.OSRM_URL || "https://router.project-osrm.org").replace(/\/+$/, "");
+function cache(max, ttlMs) {
+  const entries = /* @__PURE__ */ new Map();
+  return {
+    get(key) {
+      const hit = entries.get(key);
+      if (!hit) return void 0;
+      if (Date.now() - hit.at > ttlMs) {
+        entries.delete(key);
+        return void 0;
+      }
+      entries.delete(key);
+      entries.set(key, hit);
+      return hit.value;
+    },
+    set(key, value) {
+      entries.set(key, { at: Date.now(), value });
+      while (entries.size > max) entries.delete(entries.keys().next().value);
+    }
+  };
+}
+function gate(intervalMs, maxWaitMs) {
+  let next = 0;
+  return async () => {
+    const now = Date.now();
+    const at = Math.max(now, next);
+    if (at - now > maxWaitMs) return false;
+    next = at + intervalMs;
+    if (at > now) await new Promise((resolve) => setTimeout(resolve, at - now));
+    return true;
+  };
+}
+var placeCache = cache(500, 10 * 6e4);
+var routeCache = cache(500, 30 * 6e4);
+var photonGate = gate(350, 2500);
+var osrmGate = gate(1e3, 2500);
+function validPoint(value) {
+  const pair = Array.isArray(value) ? value : value && typeof value === "object" ? [value.lon ?? value.lng, value.lat] : null;
+  if (!pair || pair.length !== 2) return null;
+  const [lon, lat] = pair.map(Number);
+  if (!Number.isFinite(lon) || !Number.isFinite(lat) || Math.abs(lon) > 180 || Math.abs(lat) > 90) return null;
+  return [round(lon), round(lat)];
+}
+var round = (value, digits = 5) => Math.round(value * 10 ** digits) / 10 ** digits;
+var EARTH_RADIUS_METERS = 6371e3;
+function straightLine(from, to) {
+  const rad = (degrees) => degrees * Math.PI / 180;
+  const dLat = rad(to[1] - from[1]);
+  const dLon = rad(to[0] - from[0]);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(rad(from[1])) * Math.cos(rad(to[1])) * Math.sin(dLon / 2) ** 2;
+  const meters = 2 * EARTH_RADIUS_METERS * Math.asin(Math.sqrt(a));
+  const distanceMeters = Math.round(meters * 1.35);
+  return { distanceMeters, durationSeconds: Math.round(distanceMeters / (28e3 / 3600)), coordinates: [from, to], provider: "straight-line" };
+}
+async function routeBetween(from, to) {
+  const key = `${from.join(",")};${to.join(",")}`;
+  const cached = routeCache.get(key);
+  if (cached) return cached;
+  if (from[0] === to[0] && from[1] === to[1]) return straightLine(from, to);
+  if (await osrmGate()) {
+    try {
+      const response = await fetch(`${osrmBase()}/route/v1/driving/${key}?overview=full&geometries=geojson&alternatives=false&steps=false`, { headers: { "User-Agent": USER_AGENT }, signal: AbortSignal.timeout(6e3) });
+      const payload = response.ok ? await response.json() : null;
+      const route = payload?.code === "Ok" ? payload.routes?.[0] : null;
+      const coordinates = Array.isArray(route?.geometry?.coordinates) ? route.geometry.coordinates.map(validPoint).filter(Boolean) : [];
+      if (route && route.distance > 0 && coordinates.length >= 2) {
+        const step = Math.max(1, Math.ceil(coordinates.length / 1500));
+        const thinned = coordinates.filter((_, index) => index % step === 0 || index === coordinates.length - 1);
+        const routed = { distanceMeters: Math.round(route.distance), durationSeconds: Math.round(route.duration), coordinates: thinned, provider: "osrm" };
+        routeCache.set(key, routed);
+        return routed;
+      }
+    } catch {
+    }
+  }
+  return straightLine(from, to);
+}
+
 // features/keystone/domain/operationalReadiness.ts
-var import_graphql = require("graphql");
+var import_graphql2 = require("graphql");
 function operationsEnabled(mode) {
   return mode === "manual" || process.env.NODE_ENV !== "production";
 }
@@ -1731,7 +2243,7 @@ function rideReadiness(mode) {
 var OPERATIONS_OFF_MESSAGE = "Manual dispatch is off for this fleet. Turn it on in Platform \u2192 Settings \u2192 Operations.";
 async function requireFleetOperations(db, fleetId) {
   const fleet = fleetId ? await db.fleet.findUnique({ where: { id: fleetId }, select: { operationsMode: true } }) : null;
-  if (!fleet || !operationsEnabled(fleet.operationsMode)) throw new import_graphql.GraphQLError(OPERATIONS_OFF_MESSAGE, { extensions: { code: "RIDESHARE_OPERATIONS_OFF" } });
+  if (!fleet || !operationsEnabled(fleet.operationsMode)) throw new import_graphql2.GraphQLError(OPERATIONS_OFF_MESSAGE, { extensions: { code: "RIDESHARE_OPERATIONS_OFF" } });
 }
 
 // features/keystone/domain/serviceReadiness.ts
@@ -1748,6 +2260,32 @@ async function requireServiceReadiness(tx, serviceId, fleetId) {
   const area = await tx.serviceArea.findFirst({ where: { id: areas[0].id, fleetId: service.fleetId, status: "active", services: { some: { id: service.id } } }, select: { id: true } });
   if (!area) throw new Error("Service is unavailable.");
   return service;
+}
+
+// features/keystone/domain/popularPlaces.ts
+var POPULAR_PLACE_MIN_RIDERS = 3;
+var POPULAR_PLACE_WINDOW_DAYS = 90;
+var tidy = (label) => label.trim().replace(/\s+/g, " ");
+var looksLikeStreetAddress = (label) => /^\d+[a-z]?\b/i.test(label) || /\b(apt|apartment|unit|suite|ste|#)\s*\w+/i.test(label);
+function popularPlaces(rows, options = {}) {
+  const minRiders = options.minRiders ?? POPULAR_PLACE_MIN_RIDERS;
+  const limit = options.limit ?? 3;
+  const excluded = new Set((options.exclude || []).map((label) => tidy(label).toLowerCase()));
+  const places = /* @__PURE__ */ new Map();
+  for (const row of rows) {
+    if (!row.riderId) continue;
+    for (const raw of [row.dropoffLabel, row.pickupLabel]) {
+      const label = tidy(raw || "");
+      if (label.length < 2 || label.length > 120 || looksLikeStreetAddress(label)) continue;
+      const key = label.toLowerCase();
+      if (excluded.has(key)) continue;
+      const place = places.get(key) || { label, riders: /* @__PURE__ */ new Set(), uses: 0 };
+      place.riders.add(row.riderId);
+      place.uses++;
+      places.set(key, place);
+    }
+  }
+  return [...places.values()].filter((place) => place.riders.size >= minRiders).sort((a, b) => b.riders.size - a.riders.size || b.uses - a.uses || a.label.localeCompare(b.label)).slice(0, limit).map((place) => place.label);
 }
 
 // features/keystone/mutations/marketplaceRideshare.ts
@@ -1769,6 +2307,18 @@ async function marketplaceRideshareServiceAreas(_root, args, context) {
   if (args.after && !await context.prisma.serviceArea.findFirst({ where: { ...where, id: args.after }, select: { id: true } })) throw new Error("Invalid service area page.");
   const rows = await context.prisma.serviceArea.findMany({ where: { ...where, ...args.after ? { id: { gt: args.after } } : {} }, orderBy: { id: "asc" }, take: 25, select: { id: true, name: true, publicRegionLabel: true, countryCode: true } });
   return { items: rows.slice(0, 24), nextCursor: rows.length > 24 ? rows[23].id : null };
+}
+async function marketplaceRidesharePopularPlaces(_root, args, context) {
+  if (typeof args.serviceId !== "string" || !args.serviceId || args.serviceId.length > 200) return [];
+  const service = await context.prisma.rideService.findFirst({ where: { id: args.serviceId, status: "active", fleet: { is: { status: "active" } } }, select: { fleetId: true, serviceAreas: { where: { status: "active" }, take: 24, select: { publicRegionLabel: true } } } });
+  if (!service?.fleetId) return [];
+  const rows = await context.prisma.rideRequest.findMany({
+    where: { fleetId: service.fleetId, riderId: { not: null }, createdAt: { gte: new Date(Date.now() - POPULAR_PLACE_WINDOW_DAYS * 864e5) } },
+    orderBy: { createdAt: "desc" },
+    take: 2e3,
+    select: { riderId: true, pickupLabel: true, dropoffLabel: true }
+  });
+  return popularPlaces(rows, { exclude: service.serviceAreas.map((area) => area.publicRegionLabel) });
 }
 async function marketplaceRideshareServices(_root, args, context) {
   const limit = Math.max(1, Math.min(Number(args.limit) || 10, 24));
@@ -1798,7 +2348,7 @@ async function marketplaceRideshareServices(_root, args, context) {
     take: limit + 1,
     orderBy: [{ name: "asc" }, { id: "asc" }],
     // Stable bounded public projection.
-    query: `id name slug description category passengerCapacity wheelchairAccessible advanceBookingMinutes fleet { id operationsMode name slug publicDescription publicCity countryCode currencyCode logoIcon logoColor } serviceAreas(where: { status: { equals: "active" } }, orderBy: [{ publicRegionLabel: asc }, { id: asc }], take: 25) { id name publicRegionLabel countryCode status fleet { id } } fareRules(where: { status: { equals: "active" } }, orderBy: { version: desc }, take: 1) { id currencyCode baseFareMinor minimumFareMinor }`
+    query: `id name slug description photo { url } category passengerCapacity wheelchairAccessible advanceBookingMinutes fleet { id operationsMode name slug publicDescription heroImage { url } publicCity countryCode currencyCode logoIcon logoColor } serviceAreas(where: { status: { equals: "active" } }, orderBy: [{ publicRegionLabel: asc }, { id: asc }], take: 25) { id name publicRegionLabel countryCode status fleet { id } } fareRules(where: { status: { equals: "active" } }, orderBy: { version: desc }, take: 1) { id currencyCode baseFareMinor minimumFareMinor }`
   });
   return services.slice(0, limit).filter((service) => service.fleet).map((service, index) => {
     const publicRegionLabels = service.serviceAreas.slice(0, 24).filter((area) => area.fleet?.id === service.fleet.id).map((area) => area.publicRegionLabel);
@@ -1806,6 +2356,7 @@ async function marketplaceRideshareServices(_root, args, context) {
       id: service.id,
       title: service.name,
       description: service.description,
+      photoUrl: service.photo?.url ?? null,
       category: service.category,
       passengerCapacity: service.passengerCapacity,
       wheelchairAccessible: service.wheelchairAccessible,
@@ -1814,12 +2365,51 @@ async function marketplaceRideshareServices(_root, args, context) {
       readiness: rideReadiness(service.fleet.operationsMode),
       areasTruncated: service.serviceAreas.length > 24,
       nextCursor: services.length > limit && index === limit - 1 ? Buffer.from(JSON.stringify({ v: 1, query, location, name: service.name, id: service.id })).toString("base64url") : null,
-      fleet: { ...projectFleetBrand(service.fleet), id: service.fleet.id, name: service.fleet.name, publicDescription: service.fleet.publicDescription, publicCity: service.fleet.publicCity, countryCode: service.fleet.countryCode },
+      fleet: { ...projectFleetBrand(service.fleet), id: service.fleet.id, name: service.fleet.name, publicDescription: service.fleet.publicDescription, heroImageUrl: service.fleet.heroImage?.url ?? null, publicCity: service.fleet.publicCity, countryCode: service.fleet.countryCode },
       startingFareMinor: service.fareRules?.[0]?.minimumFareMinor ?? null,
       currencyCode: service.fareRules?.[0]?.currencyCode || service.fleet.currencyCode,
       extension: { schema: "openfront.rideshare.service/v1", value: { category: service.category, passengerCapacity: service.passengerCapacity, wheelchairAccessible: service.wheelchairAccessible, serviceAreas: publicRegionLabels } }
     };
   });
+}
+async function marketplaceRideshareEstimates(_root, args, context) {
+  const from = validPoint(args.pickupPoint);
+  const to = validPoint(args.dropoffPoint);
+  if (!from || !to) throw new Error("Pickup or destination location is invalid.");
+  const route = await quoteRoute("Pickup", "Destination", from, to);
+  const services = await context.sudo().query.RideService.findMany({
+    where: { status: { equals: "active" }, fleet: { status: { equals: "active" } }, serviceAreas: { some: { status: { equals: "active" } } } },
+    take: 24,
+    orderBy: [{ name: "asc" }, { id: "asc" }],
+    query: 'id fareRules(where: { status: { equals: "active" } }, take: 1, orderBy: { version: desc }) { currencyCode baseFareMinor perDistanceUnitMinor distanceUnit perMinuteMinor bookingFeeMinor minimumFareMinor maximumMultiplierBasisPoints cancellationFeeMinor noShowFeeMinor }'
+  });
+  const options = services.flatMap((service) => {
+    const rule = service.fareRules?.[0];
+    if (!rule) return [];
+    try {
+      const fare = calculateFare(rule, route.distanceMeters, route.durationSeconds);
+      return [{ serviceId: service.id, totalMinor: fare.totalMinor, currencyCode: fare.currencyCode, cancellationFeeMinor: rule.cancellationFeeMinor ?? 0, noShowFeeMinor: rule.noShowFeeMinor ?? 0 }];
+    } catch {
+      return [];
+    }
+  });
+  return { distanceMeters: route.distanceMeters, durationSeconds: route.durationSeconds, provider: route.evidence.provider, options };
+}
+async function quoteRoute(pickupLabel, dropoffLabel, pickupPoint, dropoffPoint) {
+  const from = pickupPoint == null ? null : validPoint(pickupPoint);
+  const to = dropoffPoint == null ? null : validPoint(dropoffPoint);
+  if (pickupPoint != null && !from || dropoffPoint != null && !to) throw new Error("Pickup or destination location is invalid.");
+  if (from && to) {
+    const path = await routeBetween(from, to);
+    if (path.distanceMeters > 3e5) throw new Error("Pickup and destination are too far apart.");
+    const points = { pickup: from.map((value) => Math.round(value * 1e4) / 1e4), dropoff: to.map((value) => Math.round(value * 1e4) / 1e4) };
+    return {
+      distanceMeters: Math.max(path.distanceMeters, 200),
+      durationSeconds: Math.max(path.durationSeconds, 120),
+      evidence: { provider: path.provider === "osrm" ? "osrm" : "straight-line", observedAt: (/* @__PURE__ */ new Date()).toISOString(), authoritative: false, disclosure: "Estimated from the driving route between your pickup and destination.", ...points }
+    };
+  }
+  return estimateRoute({ pickupLabel, dropoffLabel });
 }
 async function marketplaceRideshareQuote(_root, args, context) {
   return context.transaction(async (context2) => {
@@ -1837,7 +2427,7 @@ async function marketplaceRideshareQuote(_root, args, context) {
     if (scheduledFor && scheduledFor.getTime() < Date.now() + service.advanceBookingMinutes * 6e4) throw new Error("This service requires more advance notice for scheduled rides.");
     await requireFleetOperations(context2.prisma, service.fleet.id);
     await requireServiceReadiness(context2.prisma, service.id, service.fleet.id);
-    const route = await estimateRoute({ pickupLabel, dropoffLabel });
+    const route = await quoteRoute(pickupLabel, dropoffLabel, args.pickupPoint, args.dropoffPoint);
     const rule = service.fareRules[0];
     const breakdown = calculateFare(rule, route.distanceMeters, route.durationSeconds);
     const publicId = `rq_${(0, import_node_crypto5.randomUUID)()}`;
@@ -1863,12 +2453,13 @@ async function marketplaceRideshareQuote(_root, args, context) {
       expiresAt,
       guestProofHash: proof.hash
     }, query: "id" });
-    return { quoteId: publicId, quoteProof: proof.token, expiresAt: expiresAt.toISOString(), pickupLabel, dropoffLabel, scheduledFor: scheduledFor?.toISOString() || null, estimatedDistanceMeters: route.distanceMeters, estimatedDurationSeconds: route.durationSeconds, cancellationFeeMinor: rule.cancellationFeeMinor, noShowFeeMinor: rule.noShowFeeMinor, fare: breakdown, estimateDisclosure: "Estimated from your pickup and destination areas. The fleet confirms the final fare.", sourceCheckoutPath: `/book?service=${encodeURIComponent(service.id)}` };
+    return { quoteId: publicId, quoteProof: proof.token, expiresAt: expiresAt.toISOString(), pickupLabel, dropoffLabel, scheduledFor: scheduledFor?.toISOString() || null, estimatedDistanceMeters: route.distanceMeters, estimatedDurationSeconds: route.durationSeconds, cancellationFeeMinor: rule.cancellationFeeMinor, noShowFeeMinor: rule.noShowFeeMinor, fare: breakdown, estimateDisclosure: route.evidence.provider === "manual-estimate" ? "Estimated from your pickup and destination areas. The fleet confirms the final fare." : "Estimated from the driving route. The fleet confirms the final fare.", sourceCheckoutPath: `/book?service=${encodeURIComponent(service.id)}` };
   });
 }
 async function requestRide(_root, args, context) {
   const prisma = context.prisma;
-  return prisma.$transaction(async (tx) => {
+  const receiptEmail = normalizeReceiptEmail(args.receiptEmail);
+  const placed = await prisma.$transaction(async (tx) => {
     const riderId = await currentRiderId(tx, context.session);
     const intent = requestIntent(args, riderId);
     await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${args.quoteId}, 0))::text IS NOT NULL`;
@@ -1925,6 +2516,14 @@ async function requestRide(_root, args, context) {
     await tx.rideQuote.update({ where: { id: quote.id }, data: { status: "accepted", request: { connect: { id: request.id } } } });
     return { requestId: request.id, requestNumber, status: request.status, requestProof: receiptProof.token, replayed: false };
   }, { isolationLevel: "Serializable" });
+  if (placed.replayed === false) {
+    try {
+      const { deliverRequestReceived: deliverRequestReceived2 } = await Promise.resolve().then(() => (init_request_confirmation(), request_confirmation_exports));
+      await deliverRequestReceived2(prisma, placed.requestId, void 0, { receiptEmail, requestProof: placed.requestProof });
+    } catch {
+    }
+  }
+  return placed;
 }
 async function publicRideshareRequest(_root, args, context) {
   return riderRequestStatus(_root, args, context);
@@ -2612,7 +3211,7 @@ async function cancelRide(_root, args, context) {
     if (!current) throw new Error("Trip not found.");
     const actorType = authority.assignedDriver ? "driver" : authority.rider ? "rider" : "operator";
     if (args.reassign && (!authority.operator || actorType !== "operator")) throw new Error("Only an authorized fleet operator may cancel and reassign this request.");
-    const commandBinding = { version: 2, purpose: "trip_cancellation", actorType, ...authority.header, reviewed: { updatedAt: args.expectedUpdatedAt, feeMinor: args.expectedFeeMinor, currencyCode: args.expectedCurrencyCode } };
+    const commandBinding = { version: 2, purpose: "trip_cancellation", actorType, ...authority.header, reviewed: { updatedAt: reviewedIso(args.expectedUpdatedAt), feeMinor: args.expectedFeeMinor, currencyCode: args.expectedCurrencyCode } };
     const replay = await tx.tripEvent.findUnique({ where: { idempotencyKey: args.idempotencyKey } });
     if (replay) {
       const metadata = replay.metadata || {};
@@ -2623,7 +3222,7 @@ async function cancelRide(_root, args, context) {
     }
     if (!["driver_assigned", "driver_en_route", "driver_arrived"].includes(current.status || "") || !current.requestId || !current.acceptedOfferId) throw new Error("Trip can no longer be cancelled or reassigned.");
     const cancellationEconomics = requireAcceptedQuoteFee(current.bookingSnapshot, current.request?.quoteSnapshot, "cancellationFeeMinor");
-    if (current.updatedAt.toISOString() !== args.expectedUpdatedAt || cancellationEconomics.feeMinor !== args.expectedFeeMinor || cancellationEconomics.currencyCode !== args.expectedCurrencyCode) throw new Error("Cancellation review changed. Reconciliation is required before another command.");
+    if (!sameReviewedVersion(current.updatedAt, args.expectedUpdatedAt) || cancellationEconomics.feeMinor !== args.expectedFeeMinor || cancellationEconomics.currencyCode !== args.expectedCurrencyCode) throw new Error("Cancellation review changed. Reconciliation is required before another command.");
     const releaseOffers = await tx.matchOffer.findMany({ where: { requestId: current.requestId, status: { in: ["offered", "accepted"] } }, select: { id: true, driverId: true } });
     const actualOfferLockSet = releaseOffers.map((offer) => JSON.stringify([offer.id, offer.driverId])).sort();
     if (actualOfferLockSet.length !== expectedOfferLockSet.length || actualOfferLockSet.some((key, index) => key !== expectedOfferLockSet[index])) throw new Error("Affected offers changed concurrently; reload before retrying.");
@@ -2756,7 +3355,8 @@ async function submitTripReview(_root, args, context) {
 
 // features/integrations/payment/index.ts
 var paymentProviderAdapters = {
-  manual: () => Promise.resolve().then(() => (init_manual(), manual_exports))
+  manual: () => Promise.resolve().then(() => (init_manual(), manual_exports)),
+  stripe: () => Promise.resolve().then(() => (init_stripe(), stripe_exports))
 };
 
 // features/keystone/utils/paymentProviderAdapter.ts
@@ -2773,173 +3373,6 @@ async function executePaymentAdapter({ provider, functionName, args }) {
 // features/keystone/mutations/finance.ts
 var import_node_util5 = require("node:util");
 var import_node_crypto8 = require("node:crypto");
-function requireIdempotencyKey(value) {
-  const key = String(value || "").trim();
-  if (key.length < 12 || key.length > 200) throw new Error("A stable idempotency key of 12\u2013200 characters is required.");
-  return key;
-}
-async function appendObservation(prisma, paymentId, observation) {
-  return prisma.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`payment:${paymentId}`}, 0))::text IS NOT NULL`;
-    const payment = await tx.payment.findUnique({ where: { id: paymentId } });
-    if (!payment) throw new Error("Original payment evidence is unavailable.");
-    return tx.paymentObservation.create({ data: { paymentId, refundId: observation.refundId || null, observationKey: (0, import_node_crypto8.randomUUID)(), details: observation } });
-  }, { isolationLevel: "Serializable" });
-}
-function moneySnapshot(value) {
-  const quote = value?.quote && typeof value.quote === "object" ? value.quote : {};
-  const fare = quote.fare && typeof quote.fare === "object" ? quote.fare : {};
-  const amount = quote.totalMinor ?? fare.totalMinor;
-  const currency = quote.currencyCode ?? fare.currencyCode;
-  if (typeof currency !== "string") throw new Error("Trip currency evidence is unavailable.");
-  currencyDigits(currency);
-  if (!validMinor(amount) || amount <= 0) throw new Error("Trip does not have a payable fare snapshot.");
-  return { amount, currency };
-}
-async function initiateTripPayment(_root, args, context) {
-  if (!humanSessionId(context.session)) throw new Error("Authentication is required.");
-  const idempotencyKey = requireIdempotencyKey(args.idempotencyKey);
-  const prisma = context.prisma;
-  const preflight = await prisma.$transaction(async (tx) => {
-    const authority = await authorizedTripHeader(tx, context.session, args.tripId, "riderOrOperator", "finance");
-    if (!authority?.bound) throw new Error("Trip not found.");
-    const trip2 = await tx.trip.findFirst({ where: tripAuthorityWhere(authority.header), select: { id: true, status: true, rider: { select: { id: true } }, fleet: { select: { id: true } }, bookingSnapshot: true } });
-    if (!trip2) throw new Error("Trip not found.");
-    return { trip: trip2, header: authority.header };
-  }, { isolationLevel: "RepeatableRead" });
-  const trip = preflight.trip;
-  await requireFleetOperations(prisma, trip.fleet?.id);
-  const sudo = context.sudo();
-  if (!["driver_assigned", "driver_en_route", "driver_arrived", "in_progress", "completed"].includes(trip.status || "")) throw new Error("Trip is not in a payable state.");
-  const { amount, currency } = moneySnapshot(trip.bookingSnapshot);
-  const provider = await sudo.query.PaymentProvider.findOne({ where: { code: args.providerCode }, query: "id code isInstalled createPaymentFunction capturePaymentFunction refundPaymentFunction getPaymentStatusFunction handleWebhookFunction" });
-  if (!provider || provider.isInstalled !== "yes") throw new Error("Payment provider is unavailable.");
-  const reservation = await prisma.$transaction(async (tx) => {
-    const lockKey = `payment-init:${trip.id}`;
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))::text IS NOT NULL`;
-    await fenceHumanAuthority(tx, context.session, preflight.header.fleetId);
-    const authority = await authorizedTripHeader(tx, context.session, trip.id, "riderOrOperator", "finance");
-    if (!authority?.bound || !sameTripAuthority(authority.header, preflight.header)) throw new Error("Trip payment authority or assignment changed; reconciliation is required.");
-    const currentTrip = await tx.trip.findFirst({ where: tripAuthorityWhere(authority.header), select: { status: true, bookingSnapshot: true } });
-    if (!currentTrip || !["driver_assigned", "driver_en_route", "driver_arrived", "in_progress", "completed"].includes(currentTrip.status || "")) throw new Error("Trip is not in a payable state.");
-    const currentMoney = moneySnapshot(currentTrip.bookingSnapshot);
-    if (currentMoney.amount !== amount || currentMoney.currency !== currency) throw new Error("Accepted payment economics changed; reconciliation is required.");
-    const replay = await tx.payment.findUnique({ where: { idempotencyKey } });
-    const command = { version: 1, purpose: "payment_initiation", actorId: context.session.itemId, assignment: authority.header, body: { tripId: args.tripId, providerCode: args.providerCode, amountMinor: amount, currencyCode: currency } };
-    if (replay) {
-      const evidence2 = replay.providerEvidence;
-      if (replay.tripId !== trip.id || replay.providerId !== provider.id || replay.amountMinor !== amount || replay.currencyCode !== currency || !(0, import_node_util5.isDeepStrictEqual)(evidence2?.command, command)) throw new Error("Idempotency key belongs to a different payment intent or original binding is unavailable.");
-      return { payment: replay, shouldExecute: false };
-    }
-    const active = await tx.payment.findFirst({ where: { tripId: trip.id, status: { in: ["pending", "authorized", "captured", "partially_refunded"] } } });
-    if (active) throw new Error("A payment attempt already exists for this trip. Reconciliation is required before another attempt.");
-    const payment = await tx.payment.create({ data: {
-      tripId: trip.id,
-      providerId: provider.id,
-      amountMinor: amount,
-      currencyCode: currency,
-      status: "pending",
-      idempotencyKey,
-      providerEvidence: { command, providerSnapshot: { ...provider }, phase: "intent_recorded", adapter: provider.createPaymentFunction, disclosure: "No money movement has been verified." }
-    } });
-    return { payment, shouldExecute: true };
-  }, { isolationLevel: "Serializable" });
-  if (!reservation.shouldExecute) return reservation.payment;
-  let evidence;
-  try {
-    evidence = await executePaymentAdapter({ provider, functionName: "createPaymentFunction", args: { trip, amount, currency, idempotencyKey } });
-  } catch {
-    await appendObservation(prisma, reservation.payment.id, { observationId: `${reservation.payment.id}:create`, providerId: provider.id, amountMinor: amount, currencyCode: currency, phase: "outcome_indeterminate", observedAt: (/* @__PURE__ */ new Date()).toISOString() });
-    throw new Error("Payment outcome is indeterminate. The durable intent was retained for reconciliation; do not submit a new key.");
-  }
-  await appendObservation(prisma, reservation.payment.id, { observationId: `${reservation.payment.id}:create`, providerId: provider.id, amountMinor: amount, currencyCode: currency, phase: "pending", externalId: String(evidence.externalId || "").slice(0, 200), observedAt: (/* @__PURE__ */ new Date()).toISOString() });
-  return prisma.payment.update({ where: { id: reservation.payment.id }, data: {
-    status: "pending",
-    providerReference: String(evidence.externalId || "")
-  } });
-}
-async function requestTripRefund(_root, args, context) {
-  if (!humanSessionId(context.session)) throw new Error("Authentication is required.");
-  const idempotencyKey = requireIdempotencyKey(args.idempotencyKey);
-  const amount = Number(args.amountMinor);
-  if (!validMinor(amount) || amount <= 0) throw new Error("Refund amount must be a positive integer in minor currency units.");
-  const reason = args.reason ?? "";
-  if (typeof reason !== "string" || reason.length > 500) throw new Error("Refund reason is invalid.");
-  const prisma = context.prisma;
-  const preflight = await prisma.$transaction(async (tx) => {
-    const paymentHeader = await tx.payment.findUnique({ where: { id: args.paymentId }, select: { id: true, tripId: true } });
-    const authority = paymentHeader?.tripId ? await authorizedTripHeader(tx, context.session, paymentHeader.tripId, "operator", "finance") : null;
-    if (!authority?.bound) throw new Error("Payment is not refundable.");
-    const payment2 = await tx.payment.findFirst({ where: { id: args.paymentId, tripId: authority.header.id }, select: { id: true, amountMinor: true, currencyCode: true, status: true, providerReference: true, providerEvidence: true, provider: { select: { id: true, code: true, isInstalled: true, refundPaymentFunction: true } } } });
-    if (!payment2) throw new Error("Payment is not refundable.");
-    return { payment: payment2, header: authority.header };
-  }, { isolationLevel: "RepeatableRead" });
-  await requireFleetOperations(prisma, preflight.header.fleetId);
-  const payment = preflight.payment;
-  if (!["captured", "partially_refunded"].includes(payment.status || "")) throw new Error("Payment is not refundable.");
-  const provider = payment.provider;
-  if (!provider || provider.isInstalled !== "yes" || payment.amountMinor == null || payment.amountMinor <= 0 || !/^[A-Z]{3}$/.test(payment.currencyCode || "")) throw new Error("Payment evidence is incomplete and requires manual review.");
-  const reservation = await prisma.$transaction(async (tx) => {
-    const lockKey = `payment:${payment.id}`;
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))::text IS NOT NULL`;
-    await fenceHumanAuthority(tx, context.session, preflight.header.fleetId);
-    const authority = await authorizedTripHeader(tx, context.session, preflight.header.id, "operator", "finance");
-    if (!authority?.bound || !sameTripAuthority(authority.header, preflight.header)) throw new Error("Refund authority or assignment changed; reconciliation is required.");
-    const paymentHeader = await tx.payment.findUnique({ where: { id: payment.id }, select: { id: true, tripId: true, providerId: true } });
-    if (paymentHeader?.tripId !== authority.header.id || paymentHeader.providerId !== payment.provider?.id) throw new Error("Refund payment binding changed; reconciliation is required.");
-    const replay = await tx.refund.findUnique({ where: { idempotencyKey } });
-    const commandBinding = { version: 1, purpose: "payment_refund", actorId: context.session.itemId, assignment: authority.header, bodyHash: commandBodyHash({ paymentId: args.paymentId, amountMinor: amount, reason }) };
-    const priorCommand = await tx.tripEvent.findUnique({ where: { idempotencyKey } });
-    if (replay) {
-      if (replay.paymentId !== payment.id || replay.amountMinor !== amount || !(0, import_node_util5.isDeepStrictEqual)(priorCommand?.metadata?.commandBinding, commandBinding)) throw new Error("Idempotency key belongs to a different refund command or original binding is unavailable.");
-      return { refund: replay, shouldExecute: false };
-    }
-    const currentPayment = await tx.payment.findUnique({ where: { id: payment.id } });
-    if (!currentPayment || !["captured", "partially_refunded"].includes(currentPayment.status || "")) throw new Error("Payment is no longer refundable.");
-    const reservedRefunds = await tx.refund.aggregate({ where: { paymentId: payment.id, status: { in: ["requested", "processing", "succeeded"] } }, _sum: { amountMinor: true } });
-    const alreadyReserved = reservedRefunds._sum.amountMinor || 0;
-    if (currentPayment.amountMinor == null || amount > currentPayment.amountMinor - alreadyReserved) throw new Error("Refund amount exceeds the available balance after pending reservations.");
-    const refund = await tx.refund.create({ data: {
-      paymentId: payment.id,
-      providerId: provider.id,
-      amountMinor: amount,
-      currencyCode: payment.currencyCode,
-      reason,
-      status: "processing",
-      idempotencyKey
-    } });
-    await tx.tripEvent.create({ data: { tripId: authority.header.id, eventType: "finance.refund_reserved", actorType: "operator", actorUserId: context.session.itemId, idempotencyKey, occurredAt: /* @__PURE__ */ new Date(), metadata: { commandBinding, refundId: refund.id, providerId: provider.id } } });
-    return { refund, shouldExecute: true };
-  }, { isolationLevel: "Serializable" });
-  if (!reservation.shouldExecute) return reservation.refund;
-  let evidence;
-  try {
-    evidence = await executePaymentAdapter({ provider, functionName: "refundPaymentFunction", args: { paymentId: payment.providerReference, amount, currency: payment.currencyCode, idempotencyKey } });
-  } catch {
-    await appendObservation(prisma, payment.id, { observationId: `${reservation.refund.id}:result`, refundId: reservation.refund.id, providerId: provider.id, amountMinor: amount, currencyCode: payment.currencyCode, phase: "outcome_indeterminate", observedAt: (/* @__PURE__ */ new Date()).toISOString() });
-    throw new Error("Refund outcome is indeterminate. Its balance remains reserved pending reconciliation; do not submit a new key.");
-  }
-  const status = evidence.status === "succeeded" ? "succeeded" : "processing";
-  await appendObservation(prisma, payment.id, { observationId: `${reservation.refund.id}:result`, refundId: reservation.refund.id, providerId: provider.id, amountMinor: amount, currencyCode: payment.currencyCode, phase: status, externalId: String(evidence.externalId || "").slice(0, 200), observedAt: (/* @__PURE__ */ new Date()).toISOString() });
-  return prisma.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`payment:${payment.id}`}, 0))::text IS NOT NULL`;
-    const original = await tx.refund.findUnique({ where: { id: reservation.refund.id } });
-    if (!original || original.paymentId !== payment.id || original.providerId !== provider.id || original.idempotencyKey !== idempotencyKey) throw new Error("Original refund binding is unavailable.");
-    if (original.status === "succeeded") return original;
-    const refund = await tx.refund.update({ where: { id: original.id }, data: {
-      status,
-      providerReference: String(evidence.externalId || ""),
-      processedAt: status === "succeeded" ? /* @__PURE__ */ new Date() : null
-    } });
-    if (status === "succeeded") {
-      const current = await tx.payment.findUnique({ where: { id: payment.id } });
-      const totalSucceeded = await tx.refund.aggregate({ where: { paymentId: payment.id, status: "succeeded" }, _sum: { amountMinor: true } });
-      if (!current || current.amountMinor == null || (totalSucceeded._sum.amountMinor || 0) > current.amountMinor) throw new Error("Refund evidence exceeds original tender; reconciliation is required.");
-      await tx.payment.update({ where: { id: payment.id }, data: { status: (totalSucceeded._sum.amountMinor || 0) === current.amountMinor ? "refunded" : "partially_refunded" } });
-    }
-    return refund;
-  }, { isolationLevel: "Serializable" });
-}
 
 // features/keystone/domain/demoSeedCompleteness.ts
 var demoSeedInspectionSelections = {
@@ -3212,8 +3645,8 @@ async function bootstrapRideshare(_root, args, context) {
     const fleet = await transactionSudo.query.Fleet.createOne({ data: { name: "Harbor Independent Mobility", logoIcon: DEFAULT_STORE_LOGO_ICON, logoColor: DEFAULT_STORE_LOGO_COLOR, slug: demoSlug, status: "active", operationsMode: "manual", publicDescription: "A driver-owned cooperative serving central neighborhoods with transparent source-owned pricing.", publicCity: "Harbor City", countryCode: "US", currencyCode: "USD", timezone: "America/New_York", supportEmail: "support@example.invalid", preciseLocationRetentionDays: "30" }, query: "id" });
     await transactionSudo.query.FleetMembership.createOne({ data: { fleet: { connect: { id: fleet.id } }, user: { connect: { id: userId } }, role: "owner", status: "active", acceptedAt: /* @__PURE__ */ new Date() } });
     const area = await transactionSudo.query.ServiceArea.createOne({ data: { fleet: { connect: { id: fleet.id } }, name: "Harbor City Core", publicRegionLabel: "Harbor City central neighborhoods", countryCode: "US", status: "active", coarseBounds: { disclosure: "Coarse public service region; exact driver locations are not published." } }, query: "id" });
-    const service = await transactionSudo.query.RideService.createOne({ data: { fleet: { connect: { id: fleet.id } }, serviceAreas: { connect: [{ id: area.id }] }, name: "Independent Standard", slug: `${demoSlug}-standard`, description: "Everyday rides from locally operated independent drivers.", status: "active", category: "standard", passengerCapacity: 4, advanceBookingMinutes: 30 }, query: "id" });
-    const accessible = full ? await transactionSudo.query.RideService.createOne({ data: { fleet: { connect: { id: fleet.id } }, serviceAreas: { connect: [{ id: area.id }] }, name: "Accessible Ride", slug: `${demoSlug}-accessible`, description: "Wheelchair-accessible service when an eligible vehicle is available.", status: "active", category: "accessible", passengerCapacity: 4, wheelchairAccessible: true, advanceBookingMinutes: 120 }, query: "id" }) : null;
+    const service = await transactionSudo.query.RideService.createOne({ data: { fleet: { connect: { id: fleet.id } }, serviceAreas: { connect: [{ id: area.id }] }, name: "Independent Standard", slug: `${demoSlug}-standard`, description: "Everyday rides from locally operated independent drivers.", status: "active", category: "standard", passengerCapacity: 4, advanceBookingMinutes: 0 }, query: "id" });
+    const accessible = full ? await transactionSudo.query.RideService.createOne({ data: { fleet: { connect: { id: fleet.id } }, serviceAreas: { connect: [{ id: area.id }] }, name: "Accessible Ride", slug: `${demoSlug}-accessible`, description: "Wheelchair-accessible service when an eligible vehicle is available.", status: "active", category: "accessible", passengerCapacity: 4, wheelchairAccessible: true, advanceBookingMinutes: 0 }, query: "id" }) : null;
     for (const target of [service, accessible].filter(Boolean)) {
       await transactionSudo.query.FareRule.createOne({ data: { fleet: { connect: { id: fleet.id } }, service: { connect: { id: target.id } }, serviceArea: { connect: { id: area.id } }, name: `${target.id === service.id ? "Standard" : "Accessible"} transparent fare`, version: 1, status: "active", currencyCode: "USD", baseFareMinor: 350, perDistanceUnitMinor: 185, distanceUnit: "mile", perMinuteMinor: 35, bookingFeeMinor: 100, minimumFareMinor: 850, cancellationFeeMinor: 500, noShowFeeMinor: 900, maximumMultiplierBasisPoints: 1e4, rules: { dynamicPricingEnabled: false } } });
     }
@@ -3248,6 +3681,291 @@ async function bootstrapRideshare(_root, args, context) {
     await transactionSudo.query.User.updateOne({ where: { id: userId }, data: { onboardingStatus: diagnostic.onboardingStatus } });
     return { fleetId: fleet.id, created: true, summary: diagnostic };
   }, { maxWait: 1e4, timeout: 6e4 });
+}
+
+// features/keystone/mutations/finance.ts
+function requireIdempotencyKey(value) {
+  const key = String(value || "").trim();
+  if (key.length < 12 || key.length > 200) throw new Error("A stable idempotency key of 12\u2013200 characters is required.");
+  return key;
+}
+async function appendObservation(prisma, paymentId, observation) {
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`payment:${paymentId}`}, 0))::text IS NOT NULL`;
+    const payment = await tx.payment.findUnique({ where: { id: paymentId } });
+    if (!payment) throw new Error("Original payment evidence is unavailable.");
+    return tx.paymentObservation.create({ data: { paymentId, refundId: observation.refundId || null, observationKey: (0, import_node_crypto8.randomUUID)(), details: observation } });
+  }, { isolationLevel: "Serializable" });
+}
+function moneySnapshot(value) {
+  const quote = value?.quote && typeof value.quote === "object" ? value.quote : {};
+  const fare = quote.fare && typeof quote.fare === "object" ? quote.fare : {};
+  const amount = quote.totalMinor ?? fare.totalMinor;
+  const currency = quote.currencyCode ?? fare.currencyCode;
+  if (typeof currency !== "string") throw new Error("Trip currency evidence is unavailable.");
+  currencyDigits(currency);
+  if (!validMinor(amount) || amount <= 0) throw new Error("Trip does not have a payable fare snapshot.");
+  return { amount, currency };
+}
+async function initiateTripPayment(_root, args, context) {
+  if (!humanSessionId(context.session)) throw new Error("Authentication is required.");
+  const idempotencyKey = requireIdempotencyKey(args.idempotencyKey);
+  const prisma = context.prisma;
+  const preflight = await prisma.$transaction(async (tx) => {
+    const authority = await authorizedTripHeader(tx, context.session, args.tripId, "riderOrOperator", "finance");
+    if (!authority?.bound) throw new Error("Trip not found.");
+    const trip2 = await tx.trip.findFirst({ where: tripAuthorityWhere(authority.header), select: { id: true, status: true, confirmationCode: true, rider: { select: { id: true } }, fleet: { select: { id: true } }, bookingSnapshot: true } });
+    if (!trip2) throw new Error("Trip not found.");
+    return { trip: trip2, header: authority.header };
+  }, { isolationLevel: "RepeatableRead" });
+  const trip = preflight.trip;
+  await requireFleetOperations(prisma, trip.fleet?.id);
+  const sudo = context.sudo();
+  if (!["driver_assigned", "driver_en_route", "driver_arrived", "in_progress", "completed"].includes(trip.status || "")) throw new Error("Trip is not in a payable state.");
+  const { amount, currency } = moneySnapshot(trip.bookingSnapshot);
+  const provider = await sudo.query.PaymentProvider.findOne({ where: { code: args.providerCode }, query: "id code isInstalled createPaymentFunction capturePaymentFunction refundPaymentFunction getPaymentStatusFunction handleWebhookFunction" });
+  if (!provider || provider.isInstalled !== "yes") throw new Error("Payment provider is unavailable.");
+  const reservation = await prisma.$transaction(async (tx) => {
+    const lockKey = `payment-init:${trip.id}`;
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))::text IS NOT NULL`;
+    await fenceHumanAuthority(tx, context.session, preflight.header.fleetId);
+    const authority = await authorizedTripHeader(tx, context.session, trip.id, "riderOrOperator", "finance");
+    if (!authority?.bound || !sameTripAuthority(authority.header, preflight.header)) throw new Error("Trip payment authority or assignment changed; reconciliation is required.");
+    const currentTrip = await tx.trip.findFirst({ where: tripAuthorityWhere(authority.header), select: { status: true, bookingSnapshot: true } });
+    if (!currentTrip || !["driver_assigned", "driver_en_route", "driver_arrived", "in_progress", "completed"].includes(currentTrip.status || "")) throw new Error("Trip is not in a payable state.");
+    const currentMoney = moneySnapshot(currentTrip.bookingSnapshot);
+    if (currentMoney.amount !== amount || currentMoney.currency !== currency) throw new Error("Accepted payment economics changed; reconciliation is required.");
+    const replay = await tx.payment.findUnique({ where: { idempotencyKey } });
+    const command = { version: 1, purpose: "payment_initiation", actorId: context.session.itemId, assignment: authority.header, body: { tripId: args.tripId, providerCode: args.providerCode, amountMinor: amount, currencyCode: currency } };
+    if (replay) {
+      const evidence2 = replay.providerEvidence;
+      if (replay.tripId !== trip.id || replay.providerId !== provider.id || replay.amountMinor !== amount || replay.currencyCode !== currency || !(0, import_node_util5.isDeepStrictEqual)(evidence2?.command, command)) throw new Error("Idempotency key belongs to a different payment intent or original binding is unavailable.");
+      return { payment: replay, shouldExecute: false };
+    }
+    const active = await tx.payment.findFirst({ where: { tripId: trip.id, status: { in: ["pending", "authorized", "captured", "partially_refunded"] } } });
+    if (active) throw new Error("A payment attempt already exists for this trip. Reconciliation is required before another attempt.");
+    const payment = await tx.payment.create({ data: {
+      tripId: trip.id,
+      providerId: provider.id,
+      amountMinor: amount,
+      currencyCode: currency,
+      status: "pending",
+      idempotencyKey,
+      providerEvidence: { command, providerSnapshot: { ...provider }, phase: "intent_recorded", adapter: provider.createPaymentFunction, disclosure: "No money movement has been verified." }
+    } });
+    return { payment, shouldExecute: true };
+  }, { isolationLevel: "Serializable" });
+  if (!reservation.shouldExecute) return reservation.payment;
+  let evidence;
+  try {
+    evidence = await executePaymentAdapter({ provider, functionName: "createPaymentFunction", args: { trip, amount, currency, idempotencyKey, origin: requestBaseUrl(context.req) } });
+  } catch {
+    await appendObservation(prisma, reservation.payment.id, { observationId: `${reservation.payment.id}:create`, providerId: provider.id, amountMinor: amount, currencyCode: currency, phase: "outcome_indeterminate", observedAt: (/* @__PURE__ */ new Date()).toISOString() });
+    throw new Error("Payment outcome is indeterminate. The durable intent was retained for reconciliation; do not submit a new key.");
+  }
+  await appendObservation(prisma, reservation.payment.id, { observationId: `${reservation.payment.id}:create`, providerId: provider.id, amountMinor: amount, currencyCode: currency, phase: "pending", externalId: String(evidence.externalId || "").slice(0, 200), observedAt: (/* @__PURE__ */ new Date()).toISOString() });
+  return prisma.payment.update({ where: { id: reservation.payment.id }, data: {
+    status: "pending",
+    providerReference: String(evidence.externalId || "")
+  } });
+}
+async function requestTripRefund(_root, args, context) {
+  if (!humanSessionId(context.session)) throw new Error("Authentication is required.");
+  const idempotencyKey = requireIdempotencyKey(args.idempotencyKey);
+  const amount = Number(args.amountMinor);
+  if (!validMinor(amount) || amount <= 0) throw new Error("Refund amount must be a positive integer in minor currency units.");
+  const reason = args.reason ?? "";
+  if (typeof reason !== "string" || reason.length > 500) throw new Error("Refund reason is invalid.");
+  const prisma = context.prisma;
+  const preflight = await prisma.$transaction(async (tx) => {
+    const paymentHeader = await tx.payment.findUnique({ where: { id: args.paymentId }, select: { id: true, tripId: true } });
+    const authority = paymentHeader?.tripId ? await authorizedTripHeader(tx, context.session, paymentHeader.tripId, "operator", "finance") : null;
+    if (!authority?.bound) throw new Error("Payment is not refundable.");
+    const payment2 = await tx.payment.findFirst({ where: { id: args.paymentId, tripId: authority.header.id }, select: { id: true, amountMinor: true, currencyCode: true, status: true, providerReference: true, providerEvidence: true, provider: { select: { id: true, code: true, isInstalled: true, refundPaymentFunction: true } } } });
+    if (!payment2) throw new Error("Payment is not refundable.");
+    return { payment: payment2, header: authority.header };
+  }, { isolationLevel: "RepeatableRead" });
+  await requireFleetOperations(prisma, preflight.header.fleetId);
+  const payment = preflight.payment;
+  if (!["captured", "partially_refunded"].includes(payment.status || "")) throw new Error("Payment is not refundable.");
+  const provider = payment.provider;
+  if (!provider || provider.isInstalled !== "yes" || payment.amountMinor == null || payment.amountMinor <= 0 || !/^[A-Z]{3}$/.test(payment.currencyCode || "")) throw new Error("Payment evidence is incomplete and requires manual review.");
+  const reservation = await prisma.$transaction(async (tx) => {
+    const lockKey = `payment:${payment.id}`;
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))::text IS NOT NULL`;
+    await fenceHumanAuthority(tx, context.session, preflight.header.fleetId);
+    const authority = await authorizedTripHeader(tx, context.session, preflight.header.id, "operator", "finance");
+    if (!authority?.bound || !sameTripAuthority(authority.header, preflight.header)) throw new Error("Refund authority or assignment changed; reconciliation is required.");
+    const paymentHeader = await tx.payment.findUnique({ where: { id: payment.id }, select: { id: true, tripId: true, providerId: true } });
+    if (paymentHeader?.tripId !== authority.header.id || paymentHeader.providerId !== payment.provider?.id) throw new Error("Refund payment binding changed; reconciliation is required.");
+    const replay = await tx.refund.findUnique({ where: { idempotencyKey } });
+    const commandBinding = { version: 1, purpose: "payment_refund", actorId: context.session.itemId, assignment: authority.header, bodyHash: commandBodyHash({ paymentId: args.paymentId, amountMinor: amount, reason }) };
+    const priorCommand = await tx.tripEvent.findUnique({ where: { idempotencyKey } });
+    if (replay) {
+      if (replay.paymentId !== payment.id || replay.amountMinor !== amount || !(0, import_node_util5.isDeepStrictEqual)(priorCommand?.metadata?.commandBinding, commandBinding)) throw new Error("Idempotency key belongs to a different refund command or original binding is unavailable.");
+      return { refund: replay, shouldExecute: false };
+    }
+    const currentPayment = await tx.payment.findUnique({ where: { id: payment.id } });
+    if (!currentPayment || !["captured", "partially_refunded"].includes(currentPayment.status || "")) throw new Error("Payment is no longer refundable.");
+    const reservedRefunds = await tx.refund.aggregate({ where: { paymentId: payment.id, status: { in: ["requested", "processing", "succeeded"] } }, _sum: { amountMinor: true } });
+    const alreadyReserved = reservedRefunds._sum.amountMinor || 0;
+    if (currentPayment.amountMinor == null || amount > currentPayment.amountMinor - alreadyReserved) throw new Error("Refund amount exceeds the available balance after pending reservations.");
+    const refund = await tx.refund.create({ data: {
+      paymentId: payment.id,
+      providerId: provider.id,
+      amountMinor: amount,
+      currencyCode: payment.currencyCode,
+      reason,
+      status: "processing",
+      idempotencyKey
+    } });
+    await tx.tripEvent.create({ data: { tripId: authority.header.id, eventType: "finance.refund_reserved", actorType: "operator", actorUserId: context.session.itemId, idempotencyKey, occurredAt: /* @__PURE__ */ new Date(), metadata: { commandBinding, refundId: refund.id, providerId: provider.id } } });
+    return { refund, shouldExecute: true };
+  }, { isolationLevel: "Serializable" });
+  if (!reservation.shouldExecute) return reservation.refund;
+  let evidence;
+  try {
+    evidence = await executePaymentAdapter({ provider, functionName: "refundPaymentFunction", args: { paymentId: payment.providerReference, amount, currency: payment.currencyCode, idempotencyKey } });
+  } catch {
+    await appendObservation(prisma, payment.id, { observationId: `${reservation.refund.id}:result`, refundId: reservation.refund.id, providerId: provider.id, amountMinor: amount, currencyCode: payment.currencyCode, phase: "outcome_indeterminate", observedAt: (/* @__PURE__ */ new Date()).toISOString() });
+    throw new Error("Refund outcome is indeterminate. Its balance remains reserved pending reconciliation; do not submit a new key.");
+  }
+  const status = evidence.status === "succeeded" ? "succeeded" : "processing";
+  await appendObservation(prisma, payment.id, { observationId: `${reservation.refund.id}:result`, refundId: reservation.refund.id, providerId: provider.id, amountMinor: amount, currencyCode: payment.currencyCode, phase: status, externalId: String(evidence.externalId || "").slice(0, 200), observedAt: (/* @__PURE__ */ new Date()).toISOString() });
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`payment:${payment.id}`}, 0))::text IS NOT NULL`;
+    const original = await tx.refund.findUnique({ where: { id: reservation.refund.id } });
+    if (!original || original.paymentId !== payment.id || original.providerId !== provider.id || original.idempotencyKey !== idempotencyKey) throw new Error("Original refund binding is unavailable.");
+    if (original.status === "succeeded") return original;
+    const refund = await tx.refund.update({ where: { id: original.id }, data: {
+      status,
+      providerReference: String(evidence.externalId || ""),
+      processedAt: status === "succeeded" ? /* @__PURE__ */ new Date() : null
+    } });
+    if (status === "succeeded") {
+      const current = await tx.payment.findUnique({ where: { id: payment.id } });
+      const totalSucceeded = await tx.refund.aggregate({ where: { paymentId: payment.id, status: "succeeded" }, _sum: { amountMinor: true } });
+      if (!current || current.amountMinor == null || (totalSucceeded._sum.amountMinor || 0) > current.amountMinor) throw new Error("Refund evidence exceeds original tender; reconciliation is required.");
+      await tx.payment.update({ where: { id: payment.id }, data: { status: (totalSucceeded._sum.amountMinor || 0) === current.amountMinor ? "refunded" : "partially_refunded" } });
+    }
+    return refund;
+  }, { isolationLevel: "Serializable" });
+}
+
+// features/keystone/mutations/cardPayments.ts
+var import_node_crypto9 = require("node:crypto");
+init_stripe();
+var STRIPE_CODE = "pp_stripe";
+var PAYABLE = ["driver_assigned", "driver_en_route", "driver_arrived", "in_progress", "completed"];
+var ACTIVE = ["pending", "authorized", "captured", "partially_refunded"];
+async function stripeProvider(context) {
+  const provider = await context.sudo().query.PaymentProvider.findOne({ where: { code: STRIPE_CODE }, query: "id isInstalled createPaymentFunction" });
+  return provider?.isInstalled === "yes" && provider.createPaymentFunction === "stripe" && stripeSecretKey() ? provider : null;
+}
+async function riderTrip(context, tripId) {
+  if (!humanSessionId(context.session)) throw new Error("Sign in to pay for this ride.");
+  const authority = await authorizedTripHeader(context.prisma, context.session, tripId, "riderOrOperator", "finance");
+  if (!authority) throw new Error("Trip not found.");
+  const trip = await context.prisma.trip.findUnique({ where: { id: tripId }, select: { id: true, status: true, confirmationCode: true, bookingSnapshot: true } });
+  if (!trip) throw new Error("Trip not found.");
+  return { trip, bound: authority.bound };
+}
+function activePayment(context, tripId) {
+  return context.prisma.payment.findFirst({
+    where: { tripId, status: { in: ACTIVE } },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, status: true, amountMinor: true, currencyCode: true, providerReference: true, tripId: true, provider: { select: { code: true } } }
+  });
+}
+function money2(trip) {
+  try {
+    return moneySnapshot(trip.bookingSnapshot);
+  } catch {
+    return null;
+  }
+}
+async function capture(context, payment, session2) {
+  const intent = typeof session2.payment_intent === "string" ? { id: session2.payment_intent, latest_charge: null } : session2.payment_intent;
+  const charge = intent?.latest_charge && typeof intent.latest_charge === "object" ? intent.latest_charge : null;
+  const card = charge?.payment_method_details?.card;
+  await context.prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`payment:${payment.id}`}, 0))::text IS NOT NULL`;
+    const updated = await tx.payment.updateMany({ where: { id: payment.id, status: { in: ["pending", "authorized"] } }, data: { status: "captured", capturedAt: /* @__PURE__ */ new Date() } });
+    if (updated.count !== 1) return;
+    await tx.paymentObservation.create({ data: { paymentId: payment.id, observationKey: (0, import_node_crypto9.randomUUID)(), details: {
+      phase: "captured",
+      source: "stripe_checkout",
+      checkoutSessionId: session2.id,
+      paymentIntentId: intent?.id ?? null,
+      chargeId: charge?.id ?? null,
+      card: card ? { brand: card.brand ?? null, last4: card.last4 ?? null } : null,
+      amountMinor: payment.amountMinor,
+      currencyCode: payment.currencyCode,
+      observedAt: (/* @__PURE__ */ new Date()).toISOString()
+    } } });
+    await tx.ledgerEntry.create({ data: { tripId: payment.tripId, paymentId: payment.id, entryKey: `payment:${payment.id}:captured`, kind: "rider_charge", account: "rider_receivable", direction: "credit", amountMinor: payment.amountMinor, currencyCode: payment.currencyCode, memo: "Paid by card online", metadata: { checkoutSessionId: session2.id, paymentIntentId: intent?.id ?? null } } });
+  }, { isolationLevel: "Serializable" });
+}
+async function cancelAttempt(context, payment, reason) {
+  await context.prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`payment:${payment.id}`}, 0))::text IS NOT NULL`;
+    const updated = await tx.payment.updateMany({ where: { id: payment.id, status: "pending" }, data: { status: "cancelled" } });
+    if (updated.count === 1) await tx.paymentObservation.create({ data: { paymentId: payment.id, observationKey: (0, import_node_crypto9.randomUUID)(), details: { phase: "cancelled", source: "stripe_checkout", reason, observedAt: (/* @__PURE__ */ new Date()).toISOString() } } });
+  }, { isolationLevel: "Serializable" });
+}
+async function settle(context, trip, payment) {
+  const session2 = await retrieveCheckoutSession(String(payment.providerReference || ""));
+  if (session2.client_reference_id !== trip.id || session2.metadata?.tripId !== trip.id) throw new Error("This payment doesn\u2019t belong to this ride.");
+  if (session2.payment_status === "paid") {
+    if (session2.amount_total !== payment.amountMinor || session2.currency?.toUpperCase() !== payment.currencyCode) throw new Error("The paid amount doesn\u2019t match this ride. Contact the fleet.");
+    await capture(context, payment, session2);
+    return { status: "captured", session: session2 };
+  }
+  if (session2.status === "expired") {
+    await cancelAttempt(context, payment, "checkout_expired");
+    return { status: "cancelled", session: session2 };
+  }
+  return { status: "pending", session: session2 };
+}
+async function tripCardPayment(_root, args, context) {
+  const { trip, bound } = await riderTrip(context, args.tripId);
+  const fare = money2(trip);
+  const enabled = Boolean(await stripeProvider(context));
+  const payment = await activePayment(context, trip.id);
+  return {
+    enabled,
+    payable: enabled && bound && PAYABLE.includes(trip.status || "") && Boolean(fare) && (!payment || payment.provider?.code === STRIPE_CODE && payment.status === "pending"),
+    status: payment?.status ?? null,
+    amountMinor: payment?.amountMinor ?? fare?.amount ?? null,
+    currencyCode: payment?.currencyCode ?? fare?.currency ?? null,
+    url: null
+  };
+}
+async function startTripCardPayment(_root, args, context) {
+  const { trip } = await riderTrip(context, args.tripId);
+  if (!await stripeProvider(context)) throw new Error("Card payment isn\u2019t available for this ride.");
+  const existing = await activePayment(context, trip.id);
+  if (existing && existing.status !== "pending") throw new Error("This ride is already paid.");
+  if (existing && existing.provider?.code !== STRIPE_CODE) throw new Error("The fleet is collecting this fare directly.");
+  if (existing) {
+    const settled = await settle(context, trip, existing);
+    if (settled.status === "captured") return { enabled: true, payable: false, status: "captured", amountMinor: existing.amountMinor, currencyCode: existing.currencyCode, url: null };
+    if (settled.status === "pending" && settled.session.url) return { enabled: true, payable: true, status: "pending", amountMinor: existing.amountMinor, currencyCode: existing.currencyCode, url: settled.session.url };
+    if (settled.status === "pending") await cancelAttempt(context, existing, "checkout_unavailable");
+  }
+  const payment = await initiateTripPayment(null, { tripId: trip.id, providerCode: STRIPE_CODE, idempotencyKey: `card:${trip.id}:${(0, import_node_crypto9.randomUUID)()}` }, context);
+  const session2 = await retrieveCheckoutSession(String(payment.providerReference || ""));
+  if (!session2.url) throw new Error("Card payment couldn\u2019t start. Try again in a moment.");
+  return { enabled: true, payable: true, status: "pending", amountMinor: payment.amountMinor, currencyCode: payment.currencyCode, url: session2.url };
+}
+async function confirmTripCardPayment(_root, args, context) {
+  const { trip } = await riderTrip(context, args.tripId);
+  const payment = await activePayment(context, trip.id);
+  const view = (status) => ({ enabled: true, payable: status === "pending", status, amountMinor: payment?.amountMinor ?? null, currencyCode: payment?.currencyCode ?? null, url: null });
+  if (!payment || payment.provider?.code !== STRIPE_CODE || payment.status !== "pending") return view(payment?.status ?? null);
+  if (!stripeSecretKey()) throw new Error("Card payment isn\u2019t available for this ride.");
+  const settled = await settle(context, trip, payment);
+  return view(settled.status);
 }
 
 // features/keystone/mutations/accountViews.ts
@@ -3437,10 +4155,10 @@ async function dispatchCandidatePage(_root, args, context) {
 }
 
 // features/keystone/mutations/fleetOperations.ts
-var import_node_crypto9 = require("node:crypto");
-var import_graphql2 = require("graphql");
+var import_node_crypto10 = require("node:crypto");
+var import_graphql3 = require("graphql");
 var fail = (message) => {
-  throw new import_graphql2.GraphQLError(message, { extensions: { code: "RIDESHARE_OPERATION_INVALID" } });
+  throw new import_graphql3.GraphQLError(message, { extensions: { code: "RIDESHARE_OPERATION_INVALID" } });
 };
 var oneOf = (value, options, label) => {
   if (!options.includes(value)) fail(`${label} must be one of: ${options.join(", ").replaceAll("_", " ")}.`);
@@ -3546,7 +4264,7 @@ async function confirmManualPayment(_root, args, context) {
     await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`payment:${payment.id}`}, 0))::text IS NOT NULL`;
     const updated = await tx.payment.updateMany({ where: { id: payment.id, status: { in: ["pending", "authorized"] } }, data: { status: "captured", capturedAt: /* @__PURE__ */ new Date() } });
     if (updated.count !== 1) fail("This payment changed. Reload and try again.");
-    await tx.paymentObservation.create({ data: { paymentId: payment.id, observationKey: (0, import_node_crypto9.randomUUID)(), details: { phase: "captured", source: "operator_confirmation", method, actorId: actor.id, amountMinor: payment.amountMinor, currencyCode: payment.currencyCode, observedAt: (/* @__PURE__ */ new Date()).toISOString() } } });
+    await tx.paymentObservation.create({ data: { paymentId: payment.id, observationKey: (0, import_node_crypto10.randomUUID)(), details: { phase: "captured", source: "operator_confirmation", method, actorId: actor.id, amountMinor: payment.amountMinor, currencyCode: payment.currencyCode, observedAt: (/* @__PURE__ */ new Date()).toISOString() } } });
     await tx.ledgerEntry.create({ data: { tripId: payment.tripId, paymentId: payment.id, entryKey: `payment:${payment.id}:captured`, kind: "rider_charge", account: "rider_receivable", direction: "credit", amountMinor: payment.amountMinor, currencyCode: payment.currencyCode, memo: `Received by ${method.replaceAll("_", " ")}`, metadata: { actorId: actor.id } } });
     return { id: payment.id, status: "captured" };
   });
@@ -3563,17 +4281,17 @@ async function confirmManualRefund(_root, args, context) {
     if (updated.count !== 1) fail("This refund changed. Reload and try again.");
     const refunded = await tx.refund.aggregate({ where: { paymentId: refund.payment.id, status: "succeeded" }, _sum: { amountMinor: true } });
     await tx.payment.update({ where: { id: refund.payment.id }, data: { status: (refunded._sum.amountMinor || 0) >= (refund.payment.amountMinor || 0) ? "refunded" : "partially_refunded" } });
-    await tx.paymentObservation.create({ data: { paymentId: refund.payment.id, refundId: refund.id, observationKey: (0, import_node_crypto9.randomUUID)(), details: { phase: "refunded", source: "operator_confirmation", actorId: actor.id, amountMinor: refund.amountMinor, observedAt: (/* @__PURE__ */ new Date()).toISOString() } } });
+    await tx.paymentObservation.create({ data: { paymentId: refund.payment.id, refundId: refund.id, observationKey: (0, import_node_crypto10.randomUUID)(), details: { phase: "refunded", source: "operator_confirmation", actorId: actor.id, amountMinor: refund.amountMinor, observedAt: (/* @__PURE__ */ new Date()).toISOString() } } });
     await tx.ledgerEntry.create({ data: { tripId: refund.payment.tripId, paymentId: refund.payment.id, entryKey: `refund:${refund.id}:succeeded`, kind: "refund", account: "rider_receivable", direction: "debit", amountMinor: refund.amountMinor, currencyCode: refund.currencyCode, memo: "Refund handed back", metadata: { actorId: actor.id } } });
     return { id: refund.id, status: "succeeded" };
   });
 }
 
 // features/keystone/mutations/fleetSetup.ts
-var import_node_crypto10 = require("node:crypto");
-var import_graphql3 = require("graphql");
+var import_node_crypto11 = require("node:crypto");
+var import_graphql4 = require("graphql");
 var fail2 = (message) => {
-  throw new import_graphql3.GraphQLError(message, { extensions: { code: "RIDESHARE_SETUP_INVALID" } });
+  throw new import_graphql4.GraphQLError(message, { extensions: { code: "RIDESHARE_SETUP_INVALID" } });
 };
 var text13 = (value, label, { required = false, max = 200 } = {}) => {
   const clean = typeof value === "string" ? value.trim() : "";
@@ -3634,7 +4352,7 @@ async function createFleet(_root, args, context) {
     fail2("Time zone is not recognised.");
   }
   return context.prisma.$transaction(async (tx) => {
-    const fleet = await tx.fleet.create({ data: { name, slug: `${slugify(name)}-${(0, import_node_crypto10.randomUUID)().slice(0, 6)}`, status: "setup", publicCity: text13(args.publicCity, "City", { max: 120 }), countryCode: text13(args.countryCode, "Country", { max: 2 }).toUpperCase() || "US", currencyCode, timezone }, select: { id: true, name: true, status: true } });
+    const fleet = await tx.fleet.create({ data: { name, slug: `${slugify(name)}-${(0, import_node_crypto11.randomUUID)().slice(0, 6)}`, status: "setup", publicCity: text13(args.publicCity, "City", { max: 120 }), countryCode: text13(args.countryCode, "Country", { max: 2 }).toUpperCase() || "US", currencyCode, timezone }, select: { id: true, name: true, status: true } });
     await tx.fleetMembership.create({ data: { fleetId: fleet.id, userId: actor.id, role: "owner", status: "active", acceptedAt: /* @__PURE__ */ new Date() } });
     return fleet;
   });
@@ -3776,7 +4494,7 @@ async function createRideService(_root, args, context) {
     return tx.rideService.create({ data: {
       fleetId,
       name,
-      slug: `${slugify(name)}-${(0, import_node_crypto10.randomUUID)().slice(0, 6)}`,
+      slug: `${slugify(name)}-${(0, import_node_crypto11.randomUUID)().slice(0, 6)}`,
       description: text13(args.description, "Description", { max: 500 }),
       category: oneOf2(args.category, ["standard", "comfort", "xl", "accessible", "pet_friendly", "scheduled"], "Category", "standard"),
       passengerCapacity: whole(args.passengerCapacity, "Seats", 1, 50, 4),
@@ -3843,15 +4561,17 @@ async function setDriverOnline(_root, args, context) {
 // features/keystone/mutations/index.ts
 var graphql2 = String.raw;
 var typeDefs = graphql2`
-    type MarketplaceFleet { logoIcon: String, logoColor: String, id: ID!, name: String!, publicDescription: String, publicCity: String, countryCode: String }
+    type MarketplaceFleet { logoIcon: String, logoColor: String, id: ID!, name: String!, publicDescription: String, heroImageUrl: String, publicCity: String, countryCode: String }
     type RideshareExtension { schema: String!, value: JSON! }
     type RideReadiness { bookingEnabled: Boolean!, mode: String!, reason: String! }
     type OfferMaintenanceResult { releasedCount: Int!, hasMore: Boolean! }
     type PublicServiceArea { id: ID!, name: String!, publicRegionLabel: String!, countryCode: String }
     type PublicServiceAreaPage { items: [PublicServiceArea!]!, nextCursor: ID }
-    type MarketplaceRideshareService { nextCursor: String, areasTruncated: Boolean!, id: ID!, title: String!, description: String, category: String!, passengerCapacity: Int!, wheelchairAccessible: Boolean!, advanceBookingMinutes: Int!, publicRegionLabels: [String!]!, fleet: MarketplaceFleet!, startingFareMinor: Int, currencyCode: String!, extension: RideshareExtension!, readiness: RideReadiness! }
+    type MarketplaceRideshareService { nextCursor: String, areasTruncated: Boolean!, id: ID!, title: String!, description: String, photoUrl: String, category: String!, passengerCapacity: Int!, wheelchairAccessible: Boolean!, advanceBookingMinutes: Int!, publicRegionLabels: [String!]!, fleet: MarketplaceFleet!, startingFareMinor: Int, currencyCode: String!, extension: RideshareExtension!, readiness: RideReadiness! }
     type FareBreakdown { currencyCode: String!, baseFareMinor: Int!, distanceMinor: Int!, durationMinor: Int!, bookingFeeMinor: Int!, multiplierBasisPoints: Int!, subtotalMinor: Int!, totalMinor: Int! }
     type MarketplaceRideQuote { quoteId: ID!, quoteProof: String!, expiresAt: DateTime!, pickupLabel: String!, dropoffLabel: String!, scheduledFor: DateTime, estimatedDistanceMeters: Int!, estimatedDurationSeconds: Int!, cancellationFeeMinor: Int!, noShowFeeMinor: Int!, fare: FareBreakdown!, estimateDisclosure: String!, sourceCheckoutPath: String! }
+    type RideEstimateOption { serviceId: ID!, totalMinor: Int!, currencyCode: String!, cancellationFeeMinor: Int!, noShowFeeMinor: Int! }
+    type RideEstimates { distanceMeters: Int!, durationSeconds: Int!, provider: String!, options: [RideEstimateOption!]! }
     type RideRequestReceipt { requestId: ID!, requestNumber: String!, status: String!, requestProof: String!, replayed: Boolean! }
     type RideIntentResolution { kind: String!, quoteId: ID!, receipt: RideRequestReceipt }
     type RideRequestCancellation { requestId: ID!, status: String!, replayed: Boolean!, alreadyCancelled: Boolean! }
@@ -3862,9 +4582,11 @@ var typeDefs = graphql2`
     type RideOfferResponse { accepted: Boolean!, requestId: ID!, tripId: ID, confirmationCode: String, tripToken: String }
     type RideshareBootstrapResult { fleetId: ID!, created: Boolean!, summary: JSON! }
     type PublicTripEvent { eventType: String!, fromStatus: String, toStatus: String, occurredAt: DateTime! }
+    type TripCardPayment { enabled: Boolean!, payable: Boolean!, status: String, amountMinor: Int, currencyCode: String, url: String }
     type PublicTripPayment { amountMinor: Int, currencyCode: String, status: String }
+    type PublicTripDriver { publicName: String!, photoUrl: String, rating: Float, ratingCount: Int }
     type PublicTripReview { direction: String, rating: Int, body: String, status: String, submittedAt: DateTime }
-    type PublicRideshareTrip { requestId: ID!, fleetBrand: JSON, id: ID!, historyTruncated: Boolean!, confirmationCode: String!, status: String!, scheduledFor: DateTime, acceptedAt: DateTime, enRouteAt: DateTime, arrivedAt: DateTime, startedAt: DateTime, completedAt: DateTime, cancelledAt: DateTime, pickupLabel: String, dropoffLabel: String, bookingSnapshot: JSON!, finalFareSnapshot: JSON, events: [PublicTripEvent!]!, payments: [PublicTripPayment!]!, reviews: [PublicTripReview!]! }
+    type PublicRideshareTrip { driver: PublicTripDriver, requestId: ID!, fleetBrand: JSON, id: ID!, historyTruncated: Boolean!, confirmationCode: String!, status: String!, scheduledFor: DateTime, acceptedAt: DateTime, enRouteAt: DateTime, arrivedAt: DateTime, startedAt: DateTime, completedAt: DateTime, cancelledAt: DateTime, pickupLabel: String, dropoffLabel: String, bookingSnapshot: JSON!, finalFareSnapshot: JSON, events: [PublicTripEvent!]!, payments: [PublicTripPayment!]!, reviews: [PublicTripReview!]! }
     type DriverWorkspaceDriver { id: ID!, publicName: String!, status: String, dispatchStatus: String }
     type DriverWorkspaceRequest { id: ID!, requestNumber: String!, requestedFor: DateTime, passengerCount: Int, pickupLabel: String, dropoffLabel: String }
     type DriverWorkspaceVehicle { id: ID!, label: String!, make: String, model: String, color: String, plateMasked: String }
@@ -3876,6 +4598,8 @@ var typeDefs = graphql2`
     type Query {
       redirectToInit: Boolean
       marketplaceRideshareServices(query: String, location: String, limit: Int, after: String): [MarketplaceRideshareService!]!
+      marketplaceRidesharePopularPlaces(serviceId: ID!): [String!]!
+      marketplaceRideshareEstimates(pickupPoint: JSON!, dropoffPoint: JSON!): RideEstimates!
       marketplaceRideshareService(id: ID!): MarketplaceRideshareService
       marketplaceRideshareServiceAreas(serviceId: ID!, after: ID): PublicServiceAreaPage!
       publicRideshareTrip(confirmationCode: String!, tripToken: String, requestId: ID, requestProof: String): PublicRideshareTrip
@@ -3895,10 +4619,11 @@ var typeDefs = graphql2`
       riderTripHistory(requestId: ID!, requestProof: String, kind: String!, cursor: String): JSON
       dispatchCandidatePage(requestId: ID!, cursor: String, query: String): JSON
       dispatchQueueScope: Boolean!
+      tripCardPayment(tripId: ID!): TripCardPayment!
     }
     type Mutation {
-      marketplaceRideshareQuote(serviceId: ID!, pickupLabel: String!, dropoffLabel: String!, scheduledFor: DateTime, passengerCount: Int, wheelchairAccessible: Boolean, handoffId: String): MarketplaceRideQuote!
-      requestRide(quoteId: ID!, quoteProof: String!, passengerCount: Int, accessibilityNeeds: JSON, riderNotes: String, preciseRouteEncryptedRef: String): RideRequestReceipt!
+      marketplaceRideshareQuote(serviceId: ID!, pickupLabel: String!, dropoffLabel: String!, pickupPoint: JSON, dropoffPoint: JSON, scheduledFor: DateTime, passengerCount: Int, wheelchairAccessible: Boolean, handoffId: String): MarketplaceRideQuote!
+      requestRide(quoteId: ID!, quoteProof: String!, passengerCount: Int, accessibilityNeeds: JSON, riderNotes: String, preciseRouteEncryptedRef: String, receiptEmail: String): RideRequestReceipt!
       resolveRideRequestIntent(quoteId: ID!, quoteProof: String!, passengerCount: Int, accessibilityNeeds: JSON, riderNotes: String, preciseRouteEncryptedRef: String): RideIntentResolution!
       offerRideToDriver(requestId: ID!, driverId: ID!, vehicleId: ID!, expiresInSeconds: Int, idempotencyKey: String!, expectedActorId: ID!): MatchOffer!
       respondToRideOffer(offerId: ID!, response: String!, reason: String, idempotencyKey: String!): RideOfferResponse!
@@ -3912,7 +4637,9 @@ var typeDefs = graphql2`
       sendTripMessage(tripId: ID!, tripToken: String, body: String!, idempotencyKey: String!): Message!
       initiateTripPayment(tripId: ID!, providerCode: String!, idempotencyKey: String!): Payment!
       requestTripRefund(paymentId: ID!, amountMinor: Int!, reason: String, idempotencyKey: String!): Refund!
-      saveFleetBranding(fleetId: ID!, expectedUpdatedAt: DateTime!, logoIcon: String!, logoColor: String!, idempotencyKey: String!, expectedActorId: ID!): JSON!
+      startTripCardPayment(tripId: ID!): TripCardPayment!
+      confirmTripCardPayment(tripId: ID!): TripCardPayment!
+      saveFleetBranding(fleetId: ID!, expectedUpdatedAt: DateTime!, logoIcon: String!, logoColor: String!, name: String, idempotencyKey: String!, expectedActorId: ID!): JSON!
       dismissRideshareOnboarding: Boolean!
       bootstrapRideshare(mode: String!): RideshareBootstrapResult!
       expireRideOffers(fleetId: ID!): OfferMaintenanceResult!
@@ -3949,6 +4676,8 @@ function extendGraphqlSchema(baseSchema) {
       marketplaceRideshareServices,
       marketplaceRideshareService,
       marketplaceRideshareServiceAreas,
+      marketplaceRidesharePopularPlaces,
+      marketplaceRideshareEstimates,
       publicRideshareTrip,
       publicRideshareRequest,
       myDriverWorkspace,
@@ -3959,6 +4688,7 @@ function extendGraphqlSchema(baseSchema) {
       safetyQueueScope: (_root, _args, context) => hasAnyFleetScope(context, context.session, "safety"),
       financeQueueScope: (_root, _args, context) => hasAnyFleetScope(context, context.session, "finance"),
       rideshareCapabilities: async (_root, _args, context) => Object.fromEntries(await Promise.all(["operations", "drivers", "finance", "safety", "fleetAdmin"].map(async (capability) => [capability, await hasAnyFleetScope(context, context.session, capability)]))),
+      tripCardPayment,
       tripCancellationPreview,
       riderRequestCancellationPreview,
       riderTripHistory,
@@ -3967,12 +4697,12 @@ function extendGraphqlSchema(baseSchema) {
       dispatchQueueScope: (_root, _args, context) => hasAnyFleetScope(context, context.session, "operations"),
       riderAccountOptions: async (_root, _args, context) => ({ registrationEnabled: await riderSignupsOpen(context.prisma) })
     },
-    Mutation: { addFleetMember, updateFleetMember, addDriverTimeOff, removeDriverTimeOff, triageSafetyIncident: updateSafetyIncident, triageSupportCase: updateSupportCase, moderateReview, confirmManualPayment, confirmManualRefund, setupFleet: createFleet, addFleetDriver, addFleetVehicle, assignVehicleDrivers, addComplianceDocument, reviewComplianceDocument, reviewDriver, reviewVehicle, setDriverAvailability, setDriverOnline, setupServiceArea: createServiceArea, setupRideService: createRideService, setupFareRule: createFareRule, saveFleetBranding, marketplaceRideshareQuote, requestRide, resolveRideRequestIntent, offerRideToDriver, respondToRideOffer, transitionTrip, cancelRideRequest, cancelRide, recordTripLocation, submitTripReview, reportSafetyIncident, openSupportCase, sendTripMessage, initiateTripPayment, requestTripRefund, bootstrapRideshare, dismissRideshareOnboarding, expireRideOffers, expireRequestFleetOffers }
+    Mutation: { startTripCardPayment, confirmTripCardPayment, addFleetMember, updateFleetMember, addDriverTimeOff, removeDriverTimeOff, triageSafetyIncident: updateSafetyIncident, triageSupportCase: updateSupportCase, moderateReview, confirmManualPayment, confirmManualRefund, setupFleet: createFleet, addFleetDriver, addFleetVehicle, assignVehicleDrivers, addComplianceDocument, reviewComplianceDocument, reviewDriver, reviewVehicle, setDriverAvailability, setDriverOnline, setupServiceArea: createServiceArea, setupRideService: createRideService, setupFareRule: createFareRule, saveFleetBranding, marketplaceRideshareQuote, requestRide, resolveRideRequestIntent, offerRideToDriver, respondToRideOffer, transitionTrip, cancelRideRequest, cancelRide, recordTripLocation, submitTripReview, reportSafetyIncident, openSupportCase, sendTripMessage, initiateTripPayment, requestTripRefund, bootstrapRideshare, dismissRideshareOnboarding, expireRideOffers, expireRequestFleetOffers }
   } });
 }
 
 // features/keystone/lib/mail.ts
-var import_nodemailer = require("nodemailer");
+var import_nodemailer2 = require("nodemailer");
 function getBaseUrlForEmails() {
   if (process.env.SMTP_STORE_LINK) {
     return process.env.SMTP_STORE_LINK;
@@ -3980,7 +4710,7 @@ function getBaseUrlForEmails() {
   console.warn("SMTP_STORE_LINK not set. Please add SMTP_STORE_LINK to your environment variables for email links to work properly.");
   return "";
 }
-var transport = (0, import_nodemailer.createTransport)({
+var transport2 = (0, import_nodemailer2.createTransport)({
   // @ts-ignore
   host: process.env.SMTP_HOST,
   port: process.env.SMTP_PORT,
@@ -4024,7 +4754,7 @@ function passwordResetEmail({ url }) {
 }
 async function sendPasswordResetEmail(resetToken, to, baseUrl) {
   const frontendUrl = baseUrl || getBaseUrlForEmails();
-  const info = await transport.sendMail({
+  const info = await transport2.sendMail({
     to,
     from: process.env.SMTP_FROM,
     subject: "Your password reset token!",
@@ -4033,7 +4763,7 @@ async function sendPasswordResetEmail(resetToken, to, baseUrl) {
     })
   });
   if (process.env.SMTP_USER?.includes("ethereal.email")) {
-    console.log(`\u{1F4E7} Message Sent!  Preview it at ${(0, import_nodemailer.getTestMessageUrl)(info)}`);
+    console.log(`\u{1F4E7} Message Sent!  Preview it at ${(0, import_nodemailer2.getTestMessageUrl)(info)}`);
   }
 }
 
@@ -4054,22 +4784,28 @@ var { withAuth } = (0, import_auth.createAuth)({
   } },
   sessionData: `id name email role { id name ${permissionNames.join(" ")} }`
 });
-var storage = process.env.S3_BUCKET_NAME ? {
+function productionEnv(name, developmentFallback) {
+  if (process.env[name]) return process.env[name];
+  if (process.env.NODE_ENV === "production") throw new Error(`${name} is required in production`);
+  return developmentFallback;
+}
+var s3Endpoint = productionEnv("S3_ENDPOINT", "https://sfo3.digitaloceanspaces.com");
+var storage = {
   my_images: {
     kind: "s3",
     type: "image",
-    bucketName: process.env.S3_BUCKET_NAME,
-    region: process.env.S3_REGION || "auto",
-    accessKeyId: process.env.S3_ACCESS_KEY_ID || "",
-    secretAccessKey: process.env.S3_SECRET_ACCESS_KEY || "",
-    endpoint: process.env.S3_ENDPOINT,
-    forcePathStyle: s3ForcePathStyle(process.env.S3_ENDPOINT),
+    bucketName: productionEnv("S3_BUCKET_NAME", "keystone-test"),
+    region: productionEnv("S3_REGION", "ap-southeast-2"),
+    accessKeyId: productionEnv("S3_ACCESS_KEY_ID", "keystone"),
+    secretAccessKey: productionEnv("S3_SECRET_ACCESS_KEY", "keystone"),
+    endpoint: s3Endpoint,
+    forcePathStyle: s3ForcePathStyle(s3Endpoint),
     signed: { expiry: 5e3 }
   }
-} : void 0;
+};
 var keystone_default = withAuth((0, import_core14.config)({
   db: { provider: "postgresql", url: databaseURL },
-  lists: models,
+  lists: withItemViewAwareUi(withDeleteAwareUi(withCreateAwareUi(models))),
   session,
   graphql: { extendGraphqlSchema },
   storage,

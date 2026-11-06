@@ -23,7 +23,7 @@ export const RideService = list({
   access: operatorAccess,
   fields: {
     fleet: relationship({ ref: 'Fleet.services', access: { create: () => false, update: () => false } }), name: text({ validation: { isRequired: true } }), slug: text({ validation: { isRequired: true }, isIndexed: 'unique' }),
-    photo: image({ storage: 'my_images', label: 'Vehicle photo', ui: { description: 'Shown on the ride option tile. Leave empty to show the built-in vehicle drawing.' } }),
+    photo: image({ storage: 'my_images', label: 'Vehicle photo', ui: { description: 'For your records. Riders see the matching drawing from the built-in vehicle set (by category), so every ride option looks the same.' } }),
     description: text({ ui: { displayMode: 'textarea' } }), status: select({ options: ['draft', 'active', 'paused'].map(value => ({ label: value, value })), defaultValue: 'draft' }),
     category: select({ options: ['standard', 'comfort', 'xl', 'accessible', 'pet_friendly', 'scheduled'].map(value => ({ label: value, value })), defaultValue: 'standard' }),
     passengerCapacity: integer({ defaultValue: 4, validation: { min: 1, max: 50 } }), wheelchairAccessible: checkbox({ defaultValue: false }), advanceBookingMinutes: integer({ defaultValue: 0 }),

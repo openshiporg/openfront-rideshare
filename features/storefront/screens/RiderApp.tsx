@@ -5,8 +5,9 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { gql, QUOTE_FIELDS, SERVICE_FIELDS, whoAmI, type Estimates, type Identity, type LngLat, type Place, type Quote, type Service } from '../lib/api'
 import { cityPoint, drivingRoute, locate, placeAt, recentPlaces, rememberPlace, type RoutePath } from '../lib/places'
-import { clock, formatMoney, minutes, shortPlace } from '../lib/format'
+import { clock, formatMoney, minutes } from '../lib/format'
 import { storeLogoMark, storeWordmark } from '../lib/store-mark'
+import { vehicleArt } from '@/features/lib/vehicles'
 import { defaultServiceId, initialFlow, riderFlow } from '../domain/riderFlow'
 import { archiveReceipt, parsePendingRequest, parseRiderReceipt, pendingRequestStorageKey, persistPendingRequest, receiptFromFragment, receiptStorageKey, storedReceipt, type RiderReceipt } from '../domain/riderReceiptStorage'
 import { isQuoteResponse } from '../domain/quoteResponse'
@@ -15,13 +16,13 @@ import { RiderMap } from '../components/RiderMap'
 import { PlanRide } from '../components/PlanRide'
 import { RidePanel, type RideInfo } from '../components/RidePanel'
 import { RiderMenu } from '../components/RiderMenu'
-import { WhenButton, WhenPanel } from '../components/WhenPanel'
-import { Button, CarGlyph, Icon, MapButton, Sheet, Spinner, cx } from '../components/ui'
+import { WhenPanel, WhenSwitch } from '../components/WhenPanel'
+import { Button, DropoffMark, Icon, MapButton, PickupMark, Sheet, Spinner, VehicleArt, cx } from '../components/ui'
 
 type Binding = QuoteBinding<Quote>
 
 /**
- * The rider app: one screen, one map, one sheet that changes with the ride (Uber/Lyft).
+ * The rider app: one screen, one map, one sheet that changes with the ride.
  * Pickup is where you are, the time is Now, and after the destination one tap requests the ride.
  */
 export default function RiderApp({ initialRide, initialServiceId }: { initialRide?: { code: string; requestId?: string }; initialServiceId?: string }) {
@@ -240,7 +241,7 @@ export default function RiderApp({ initialRide, initialServiceId }: { initialRid
   const tripSeconds = liveEstimates?.durationSeconds ?? route?.durationSeconds ?? null
   const dropoffAt = (seconds: number | null) => seconds == null ? null : clock(new Date((flow.when ? Date.parse(flow.when) : Date.now()) + seconds * 1000))
 
-  return <div className="rider fixed inset-0 overflow-hidden bg-white text-black">
+  return <div className="rider fixed inset-0 overflow-hidden bg-paper text-ink">
     <RiderMap user={user} pickup={mapPickup} dropoff={mapDropoff} route={mapRoute} bottom={phase === 'search' ? 0 : sheet} pin={pinField} searching={searching} onPinMove={onPinMove} />
 
     {/* Top bar over the map. */}
@@ -248,56 +249,62 @@ export default function RiderApp({ initialRide, initialServiceId }: { initialRid
       <div className="pointer-events-auto">
         {phase === 'choose' || phase === 'pin'
           ? <MapButton aria-label="Back" onClick={() => dispatch({ type: 'back' })}><Icon.back className="size-5" /></MapButton>
-          : <Link href="/" aria-label={fleetName} className="press flex h-11 max-w-[60vw] items-center gap-2 rounded-full bg-white pl-3 pr-4 shadow-[0_2px_10px_rgba(0,0,0,0.18)] outline-none focus-visible:ring-2 focus-visible:ring-black">
-            <img alt="" src={`data:image/svg+xml,${encodeURIComponent(storeLogoMark(fleet?.logoIcon))}`} className="size-6 shrink-0 object-contain brightness-0" />
-            <span className="truncate text-[17px] font-bold tracking-[-0.01em]">{storeWordmark(fleetName)}</span>
+          : <Link href="/" aria-label={fleetName} className="press flex h-11 max-w-[60vw] items-center gap-2 rounded-[14px] bg-white pl-2.5 pr-3.5 shadow-[0_1px_0_rgba(16,35,31,0.06),0_6px_16px_-6px_rgba(16,35,31,0.35)] outline-none focus-visible:ring-2 focus-visible:ring-tide">
+            <img alt="" src={`data:image/svg+xml,${encodeURIComponent(storeLogoMark(fleet?.logoIcon))}`} style={{ filter: `hue-rotate(${Number(fleet?.logoColor) || 0}deg)` }} className="h-7 w-6 shrink-0 object-contain" />
+            <span className="display truncate text-[19px] font-bold leading-none">{storeWordmark(fleetName)}</span>
           </Link>}
       </div>
       <div className="pointer-events-auto"><RiderMenu identity={identity} fleetName={fleetName} /></div>
     </div>
 
     {phase === 'search' && <PlanRide field={flow.phase.name === 'search' ? flow.phase.field : 'dropoff'} pickup={flow.pickup} pickupIsGps={flow.pickupSource === 'gps'} dropoff={flow.dropoff} near={near} when={flow.when}
-      onWhen={() => setWhenOpen(true)} onPick={(field, place) => dispatch({ type: 'pick', field, place })} onField={field => dispatch({ type: 'openSearch', field })}
+      onNow={() => dispatch({ type: 'setWhen', when: null })} onWhen={() => setWhenOpen(true)} onPick={(field, place) => dispatch({ type: 'pick', field, place })} onField={field => dispatch({ type: 'openSearch', field })}
       onSetOnMap={field => dispatch({ type: 'setOnMap', field })} onBack={() => dispatch({ type: 'back' })} onUseLocation={() => { void findMe(true) }} locating={locating} />}
 
-    {whenOpen && phase !== 'ride' && <div className="fixed inset-0 z-50 flex items-end bg-black/40 fade-in lg:items-center lg:justify-center" onPointerDown={event => { if (event.target === event.currentTarget) setWhenOpen(false) }}>
-      <div role="dialog" aria-modal="true" aria-label="Pickup time" className="sheet-in w-full rounded-t-[20px] bg-white pb-[max(env(safe-area-inset-bottom),16px)] pt-3 lg:max-w-[440px] lg:rounded-2xl">
+    {whenOpen && phase !== 'ride' && <div className="fixed inset-0 z-50 flex items-end bg-ink/40 fade-in lg:items-center lg:justify-center" onPointerDown={event => { if (event.target === event.currentTarget) setWhenOpen(false) }}>
+      <div role="dialog" aria-modal="true" aria-label="Schedule a pickup" className="sheet-in w-full rounded-t-[28px] bg-paper pb-[max(env(safe-area-inset-bottom),12px)] pt-4 lg:max-w-[460px] lg:rounded-[28px]">
         <WhenPanel when={flow.when} leadMinutes={selected?.advanceBookingMinutes ?? 0} onCancel={() => setWhenOpen(false)} onDone={when => { dispatch({ type: 'setWhen', when }); setWhenOpen(false) }} />
       </div>
     </div>}
 
     {phase === 'home' && <Sheet key="home" label="Where to" onHeight={setSheet}>
-      <div className="px-4 pb-2 pt-2">
-        <div className="flex h-14 items-center gap-2 rounded-full bg-[#eeeeee] pl-5 pr-1.5">
-          <button type="button" onClick={() => dispatch({ type: 'openSearch', field: 'dropoff' })} className="flex h-full min-w-0 flex-1 items-center gap-3 text-left outline-none focus-visible:underline">
-            <Icon.search className="size-[22px] shrink-0" /><span className="truncate text-[19px] font-semibold">Where to?</span>
+      <div className="px-4 pb-2 pt-1">
+        <div className="overflow-hidden rounded-[20px] bg-white shadow-[0_1px_0_rgba(16,35,31,0.04)] ring-1 ring-rule">
+          <button type="button" onClick={() => dispatch({ type: 'openSearch', field: 'pickup' })} className="press flex min-h-14 w-full items-center gap-3 px-4 py-2 text-left outline-none focus-visible:bg-tide-soft">
+            <PickupMark />
+            <span className="min-w-0 flex-1">
+              <span className="block text-[12px] font-semibold text-ink-3">Pickup</span>
+              <span className="block truncate text-[15px] font-medium">{flow.pickup ? `${flow.pickupSource === 'gps' ? flow.pickup.label : flow.pickup.name}${flow.pickupSource === 'city' ? ' · set your exact spot' : ''}` : locating ? 'Finding your location…' : 'Choose pickup'}</span>
+            </span>
+            {locating && !flow.pickup ? <Spinner className="size-4 text-tide" /> : <Icon.chevronRight className="size-4 shrink-0 text-ink-3" />}
           </button>
-          <WhenButton when={flow.when} onClick={() => setWhenOpen(true)} />
+          <span aria-hidden="true" className="ml-[21px] block h-0 border-t border-dashed border-rule" />
+          <button type="button" onClick={() => dispatch({ type: 'openSearch', field: 'dropoff' })} className="press flex min-h-16 w-full items-center gap-3 px-4 text-left outline-none focus-visible:bg-tide-soft">
+            <DropoffMark />
+            <span className="display min-w-0 flex-1 truncate text-[22px] font-bold">Where to?</span>
+            <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-[12px] bg-tide text-white"><Icon.search className="size-[18px]" /></span>
+          </button>
         </div>
-        <button type="button" onClick={() => dispatch({ type: 'openSearch', field: 'pickup' })} className="press mt-2 flex min-h-11 w-full items-center gap-3 px-1 text-left text-[15px] outline-none focus-visible:bg-black/5">
-          <span aria-hidden="true" className="size-2.5 shrink-0 rounded-full bg-black" />
-          <span className="min-w-0 flex-1 truncate"><span className="text-[#6b6b6b]">Pickup · </span>{flow.pickupSource === 'gps' ? shortPlace(flow.pickup?.label) || 'Current location' : flow.pickup ? `${flow.pickup.name}${flow.pickupSource === 'city' ? ' (set your exact spot)' : ''}` : locating ? 'Finding your location…' : 'Choose pickup'}</span>
-          <Icon.chevronRight className="size-4 shrink-0 text-[#9a9a9a]" />
-        </button>
-        <ul className="mt-1">
-          {recentPlaces().slice(0, 3).map(place => <li key={place.label} className="border-t border-[#eeeeee]">
-            <button type="button" onClick={() => dispatch({ type: 'pick', field: 'dropoff', place })} className="press flex min-h-[60px] w-full items-center gap-4 py-2 text-left outline-none focus-visible:bg-black/5">
-              <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[#eeeeee]"><Icon.history className="size-[18px]" /></span>
-              <span className="min-w-0"><span className="block truncate text-[16px] font-medium">{place.name}</span><span className="block truncate text-[14px] text-[#6b6b6b]">{place.detail}</span></span>
+        <WhenSwitch className="mt-3" when={flow.when} onNow={() => dispatch({ type: 'setWhen', when: null })} onSchedule={() => setWhenOpen(true)} />
+        {recentPlaces().length > 0 && <ul className="mt-2">
+          {recentPlaces().slice(0, 3).map(place => <li key={place.label}>
+            <button type="button" onClick={() => dispatch({ type: 'pick', field: 'dropoff', place })} className="press flex min-h-14 w-full items-center gap-3 rounded-[14px] px-1 py-1.5 text-left outline-none hover:bg-white focus-visible:bg-white">
+              <span className="grid size-10 shrink-0 place-items-center rounded-[12px] bg-tide-soft text-tide"><Icon.history className="size-[18px]" /></span>
+              <span className="min-w-0"><span className="block truncate text-[15px] font-semibold">{place.name}</span><span className="block truncate text-[13px] text-ink-3">{place.detail}</span></span>
             </button>
           </li>)}
-        </ul>
-        {servicesError && <p role="alert" className="mt-2 text-[14px] text-[#c4160d]">Rides are unavailable right now. Try again shortly.</p>}
+        </ul>}
+        {servicesError && <p role="alert" className="mt-2 text-[14px] text-alert">Rides are unavailable right now. Try again shortly.</p>}
       </div>
     </Sheet>}
 
     {phase === 'pin' && <Sheet key="pin" label="Set location on map" onHeight={setSheet}>
       <div className="px-4 pb-2 pt-2">
-        <h2 className="text-center text-[18px] font-bold">{pinField === 'pickup' ? 'Set your pickup spot' : 'Set your destination'}</h2>
-        <p className="mt-1 text-center text-[14px] text-[#6b6b6b]">Drag the map to move the pin</p>
-        <div className="mt-3 flex min-h-12 items-center gap-3 rounded-xl bg-[#f3f3f3] px-4">
-          <span aria-hidden="true" className={cx('size-2.5 shrink-0 bg-black', pinField === 'pickup' && 'rounded-full')} />
-          <span className="min-w-0 flex-1 truncate text-[16px]">{pinBusy || !pinPlace ? 'Finding address…' : pinPlace.name}</span>
+        <h2 className="display text-[22px] font-bold">{pinField === 'pickup' ? 'Set your pickup spot' : 'Set your destination'}</h2>
+        <p className="mt-0.5 text-[14px] text-ink-2">Drag the map to move the pin</p>
+        <div className="mt-3 flex min-h-14 items-center gap-3 rounded-[16px] bg-white px-4 ring-1 ring-rule">
+          {pinField === 'pickup' ? <PickupMark /> : <DropoffMark />}
+          <span className="min-w-0 flex-1 truncate text-[16px] font-medium">{pinBusy || !pinPlace ? 'Finding address…' : pinPlace.label}</span>
           {pinBusy && <Spinner className="size-4" />}
         </div>
         <Button size="lg" className="mt-3 w-full" disabled={!pinPlace || pinBusy} onClick={() => pinPlace && pinField && dispatch({ type: 'pick', field: pinField, place: pinPlace })}>{pinField === 'pickup' ? 'Confirm pickup' : 'Confirm destination'}</Button>
@@ -305,43 +312,49 @@ export default function RiderApp({ initialRide, initialServiceId }: { initialRid
     </Sheet>}
 
     {(phase === 'choose' || phase === 'requesting') && <Sheet key="choose" label="Choose a ride" onHeight={setSheet}>
-      <h2 className="px-4 pt-1 text-center text-[18px] font-bold">{phase === 'requesting' ? `Requesting ${selected?.title || 'your ride'}…` : 'Choose a ride'}</h2>
-      <ul role="radiogroup" aria-label="Rides" className="mt-2 max-h-[34dvh] min-h-0 overflow-y-auto px-2 lg:max-h-[44dvh]">
-        {services === null && <li className="flex items-center gap-3 px-3 py-6 text-[15px]"><Spinner className="size-4" />Loading rides…</li>}
-        {rides.map(service => {
+      <div className="flex items-baseline justify-between gap-3 px-4 pt-1">
+        <h2 className="display truncate text-[22px] font-bold">{phase === 'requesting' ? `Requesting ${selected?.title || 'your ride'}…` : 'Choose a ride'}</h2>
+        {tripSeconds != null && <span className="shrink-0 text-[13px] font-semibold text-ink-2">{minutes(tripSeconds)} trip</span>}
+      </div>
+      <ul role="radiogroup" aria-label="Rides" className="mt-3 grid max-h-[40dvh] min-h-0 grid-cols-2 gap-2 overflow-y-auto px-4 pb-1 lg:max-h-[48dvh]">
+        {services === null && <li className="col-span-2 flex items-center gap-3 py-6 text-[15px]"><Spinner className="size-4 text-tide" />Loading rides…</li>}
+        {rides.map((service, index) => {
           const price = priceOf(service.id)
           const bookable = Boolean(service.readiness?.bookingEnabled)
           const active = service.id === flow.serviceId
           const at = dropoffAt(tripSeconds)
-          return <li key={service.id}>
+          return <li key={service.id} className="tile-in" style={{ animationDelay: `${index * 40}ms` }}>
             <button type="button" role="radio" aria-checked={active} disabled={!bookable || phase === 'requesting'} onClick={() => dispatch({ type: 'selectService', serviceId: service.id })}
-              className={cx('press flex min-h-[72px] w-full items-center gap-3 rounded-xl px-3 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-black', active ? 'ring-2 ring-black' : 'hover:bg-black/[0.03]', !bookable && 'opacity-45')}>
-              {service.photoUrl ? <img src={service.photoUrl} alt="" className="h-12 w-[72px] shrink-0 object-contain" /> : <CarGlyph seats={service.passengerCapacity} className="h-12 w-[72px] shrink-0" />}
-              <span className="min-w-0 flex-1">
-                <span className="flex items-center gap-1.5 text-[17px] font-semibold"><span className="truncate">{service.title}</span><span className="inline-flex shrink-0 items-center gap-0.5 text-[14px] font-medium"><Icon.person className="size-3.5" />{service.passengerCapacity}</span>{service.wheelchairAccessible && <Icon.wheelchair className="size-4 shrink-0" />}</span>
-                <span className="block truncate text-[14px] text-[#5e5e5e]">{bookable ? [at ? `Drop-off ${at}` : null, tripSeconds != null ? minutes(tripSeconds) : null].filter(Boolean).join(' · ') || service.description : service.readiness?.reason || 'Not available right now'}</span>
+              className={cx('press flex h-full min-h-[132px] w-full flex-col rounded-[20px] p-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-tide focus-visible:ring-offset-2 focus-visible:ring-offset-paper',
+                active ? 'bg-tide text-white shadow-[0_8px_20px_-10px_rgba(15,92,85,0.8)]' : 'bg-white text-ink ring-1 ring-inset ring-rule hover:ring-[#cfc9ba]', !bookable && 'opacity-50')}>
+              <span className="flex items-start justify-between gap-2">
+                <VehicleArt src={vehicleArt(service.category, { seats: service.passengerCapacity, wheelchair: service.wheelchairAccessible })} className="h-9 w-12" />
+                <span className={cx('display text-[18px] font-bold leading-6 tabular-nums', active ? 'text-white' : 'text-ink')}>{price != null && service.currencyCode ? formatMoney(price, service.currencyCode) : liveEstimates ? '—' : <span className={cx('inline-block h-4 w-12 animate-pulse rounded motion-reduce:animate-none', active ? 'bg-white/30' : 'bg-tide-soft')} />}</span>
               </span>
-              <span className="shrink-0 text-right text-[17px] font-semibold tabular-nums">{price != null && service.currencyCode ? formatMoney(price, service.currencyCode) : liveEstimates ? '—' : <span className="inline-block h-4 w-14 animate-pulse rounded bg-[#eeeeee] motion-reduce:animate-none" />}</span>
+              <span className="mt-auto pt-2 text-[15px] font-semibold leading-5 [overflow-wrap:anywhere] line-clamp-2">{service.title}</span>
+              <span className={cx('mt-1 flex min-w-0 items-center gap-2 text-[12px] font-medium', active ? 'text-white/85' : 'text-ink-3')}>
+                <span className="inline-flex shrink-0 items-center gap-0.5"><Icon.person className="size-3.5" />{service.passengerCapacity}</span>
+                {service.wheelchairAccessible && <Icon.wheelchair className="size-3.5 shrink-0" />}
+                <span className="truncate">{bookable ? (at ? `Arrive ${at}` : service.description || '') : service.readiness?.reason || 'Not available now'}</span>
+              </span>
             </button>
           </li>
         })}
       </ul>
-      <div className="mt-1 border-t border-[#eeeeee] px-4 pt-2">
-        <div className="flex min-h-11 items-center justify-between gap-3">
-          <span className="flex min-w-0 items-center gap-2 text-[15px]"><Icon.card className="size-5 shrink-0" /><span className="truncate">{identity ? 'Card, after your driver is assigned' : 'Pay after your driver is assigned'}</span></span>
-          <WhenButton when={flow.when} onClick={() => setWhenOpen(true)} className="shadow-none ring-1 ring-[#e2e2e2]" />
-        </div>
-        {flow.error && <p role="alert" className="pb-1 text-[14px] text-[#c4160d]">{flow.error}</p>}
-        <Button size="lg" className="mt-1 w-full" disabled={!selected || phase === 'requesting' || !selected.readiness?.bookingEnabled} onClick={() => void request()}>
-          {phase === 'requesting' ? <><Spinner className="size-5" />Requesting…</> : `${flow.when ? 'Schedule' : 'Request'} ${selected?.title || 'ride'}`}
+      <div className="mt-2 px-4 pt-1">
+        <WhenSwitch when={flow.when} onNow={() => dispatch({ type: 'setWhen', when: null })} onSchedule={() => setWhenOpen(true)} />
+        <p className="mt-2 flex min-h-6 items-center gap-2 text-[13px] text-ink-2"><Icon.card className="size-4 shrink-0" /><span className="truncate">{identity ? 'Card, after your driver is assigned' : 'Pay after your driver is assigned'}</span></p>
+        {flow.error && <p role="alert" className="pb-1 text-[14px] text-alert">{flow.error}</p>}
+        <Button size="lg" className="mt-2 w-full" disabled={!selected || phase === 'requesting' || !selected.readiness?.bookingEnabled} onClick={() => void request()}>
+          {phase === 'requesting' ? <><Spinner className="size-5" />Requesting…</> : <span className="truncate">{`${flow.when ? 'Schedule' : 'Request'} ${selected?.title || 'ride'}`}</span>}
         </Button>
       </div>
     </Sheet>}
 
     {phase === 'unconfirmed' && <Sheet key="unconfirmed" label="Request status" onHeight={setSheet}>
       <div className="px-4 pb-2 pt-2">
-        <h2 className="text-[22px] font-bold">Checking your request</h2>
-        <p className="mt-1 text-[15px] text-[#5e5e5e]">The connection dropped before we heard back. Check it before requesting again, so you aren’t booked twice.</p>
+        <h2 className="display text-[22px] font-bold">Checking your request</h2>
+        <p className="mt-1 text-[15px] text-ink-2">The connection dropped before we heard back. Check it before requesting again, so you aren’t booked twice.</p>
         <Button size="lg" className="mt-4 w-full" disabled={resolving || !pendingBinding} onClick={() => void resolvePending()}>{resolving ? <><Spinner className="size-5" />Checking…</> : 'Check request'}</Button>
       </div>
     </Sheet>}

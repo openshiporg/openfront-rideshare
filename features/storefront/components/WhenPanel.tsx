@@ -2,20 +2,19 @@
 
 import { useMemo, useState } from 'react'
 import { earliestScheduled } from '../domain/riderFlow'
-import { dayAndTime } from '../lib/format'
+import { clock, dayAndTime } from '../lib/format'
 import { Button, Icon, cx } from './ui'
 
 /**
- * Uber's "When do you want to be picked up?": Now is selected unless the rider schedules.
- * Reached only from the "Now ▾" control; never a step in the booking path.
+ * Choosing a later pickup: a day strip and a column of times. Only reached from the Schedule half of
+ * the switch; never a step in the booking path, and "Leave now" is always one tap away.
  */
 export function WhenPanel({ when, leadMinutes, onDone, onCancel }: { when: string | null; leadMinutes: number; onDone: (when: string | null) => void; onCancel: () => void }) {
   const now = useMemo(() => new Date(), [])
   const earliest = useMemo(() => earliestScheduled(now, leadMinutes), [now, leadMinutes])
   const days = useMemo(() => Array.from({ length: 7 }, (_, index) => { const day = new Date(earliest); day.setHours(0, 0, 0, 0); day.setDate(day.getDate() + index); return day }), [earliest])
-  const [mode, setMode] = useState<'now' | 'later'>(when ? 'later' : 'now')
   const initial = when ? new Date(when) : earliest
-  const [day, setDay] = useState(() => days.findIndex(d => d.toDateString() === initial.toDateString()) >= 0 ? days.findIndex(d => d.toDateString() === initial.toDateString()) : 0)
+  const [day, setDay] = useState(() => Math.max(0, days.findIndex(d => d.toDateString() === initial.toDateString())))
   const [slot, setSlot] = useState(() => when ? new Date(when).getTime() : earliest.getTime())
   const slots = useMemo(() => {
     const start = new Date(days[day]); const end = new Date(start); end.setDate(end.getDate() + 1)
@@ -28,40 +27,51 @@ export function WhenPanel({ when, leadMinutes, onDone, onCancel }: { when: strin
   }, [days, day, earliest])
   const chosen = slots.find(s => s.getTime() === slot) || slots[0]
   return <div className="flex min-h-0 flex-col px-4 pt-2">
-    <h2 className="text-center text-[20px] font-bold leading-7">When do you want to be picked up?</h2>
-    <div role="radiogroup" aria-label="Pickup time" className="mt-4 grid grid-cols-2 gap-2">
-      {(['now', 'later'] as const).map(value => <button key={value} type="button" role="radio" aria-checked={mode === value} onClick={() => setMode(value)}
-        className={cx('press h-12 rounded-xl text-[16px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-black', mode === value ? 'bg-black text-white' : 'bg-[#eeeeee] text-black')}>
-        {value === 'now' ? 'Now' : 'Schedule'}
-      </button>)}
+    <h2 className="display text-[22px] font-bold leading-7">Schedule a pickup</h2>
+    <p className="mt-1 text-[14px] text-ink-2">Your driver is booked for this time. You can still leave now instead.</p>
+    <div role="radiogroup" aria-label="Day" className="-mx-4 mt-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
+      {days.map((d, index) => {
+        const on = day === index
+        return <button key={d.toISOString()} type="button" role="radio" aria-checked={on} onClick={() => { setDay(index); setSlot(0) }}
+          className={cx('press flex min-h-14 w-14 shrink-0 flex-col items-center justify-center rounded-[16px] outline-none focus-visible:ring-2 focus-visible:ring-tide', on ? 'bg-tide text-white' : 'bg-white text-ink ring-1 ring-inset ring-rule')}>
+          <span className={cx('text-[12px] font-semibold', on ? 'text-white/80' : 'text-ink-3')}>{index === 0 && d.toDateString() === now.toDateString() ? 'Today' : d.toLocaleDateString([], { weekday: 'short' })}</span>
+          <span className="display text-[18px] font-bold leading-6">{d.getDate()}</span>
+        </button>
+      })}
     </div>
-    {mode === 'later' && <div className="mt-4 flex min-h-0 flex-col">
-      <div role="radiogroup" aria-label="Day" className="-mx-4 flex gap-1 overflow-x-auto px-4 pb-2 [scrollbar-width:none]">
-        {days.map((d, index) => <button key={d.toISOString()} type="button" role="radio" aria-checked={day === index} onClick={() => { setDay(index); setSlot(0) }}
-          className={cx('press min-h-11 shrink-0 border-b-2 px-3 text-[15px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-black', day === index ? 'border-black text-black' : 'border-transparent text-[#6b6b6b]')}>
-          {index === 0 && d.toDateString() === now.toDateString() ? 'Today' : d.toLocaleDateString([], { weekday: 'short', day: 'numeric' })}
-        </button>)}
-      </div>
-      <ul role="radiogroup" aria-label="Time" className="max-h-[38dvh] overflow-y-auto border-t border-[#eeeeee] [scrollbar-width:thin]">
-        {slots.map(s => <li key={s.getTime()}><button type="button" role="radio" aria-checked={chosen?.getTime() === s.getTime()} onClick={() => setSlot(s.getTime())}
-          className="press flex min-h-12 w-full items-center justify-between px-1 text-left text-[16px] outline-none focus-visible:bg-black/5">
-          <span className={chosen?.getTime() === s.getTime() ? 'font-semibold' : ''}>{s.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>
-          {chosen?.getTime() === s.getTime() && <Icon.check className="size-5" />}
-        </button></li>)}
-      </ul>
-      {leadMinutes > 15 && <p className="mt-2 text-[13px] text-[#6b6b6b]">This ride can be scheduled from {dayAndTime(earliest)}.</p>}
-    </div>}
+    <ul role="radiogroup" aria-label="Time" className="mt-3 grid max-h-[34dvh] grid-cols-3 gap-2 overflow-y-auto pb-1 [scrollbar-width:thin] min-[360px]:grid-cols-4">
+      {slots.map(s => {
+        const on = chosen?.getTime() === s.getTime()
+        return <li key={s.getTime()}><button type="button" role="radio" aria-checked={on} onClick={() => setSlot(s.getTime())}
+          className={cx('press flex h-11 w-full items-center justify-center rounded-[12px] text-[15px] tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-tide', on ? 'bg-ink font-semibold text-white' : 'bg-white text-ink ring-1 ring-inset ring-rule')}>
+          {clock(s)}
+        </button></li>
+      })}
+    </ul>
+    {leadMinutes > 15 && <p className="mt-2 text-[13px] text-ink-3">This ride can be scheduled from {dayAndTime(earliest)}.</p>}
     <div className="mt-4 grid grid-cols-[auto_1fr] gap-2">
-      <Button tone="secondary" size="lg" onClick={onCancel}>Cancel</Button>
-      <Button size="lg" onClick={() => onDone(mode === 'now' || !chosen ? null : chosen.toISOString())}>{mode === 'now' || !chosen ? 'Pick up now' : `Schedule ${dayAndTime(chosen)}`}</Button>
+      <Button tone="secondary" size="lg" onClick={() => onDone(null)}>Leave now</Button>
+      <Button size="lg" disabled={!chosen} onClick={() => chosen && onDone(chosen.toISOString())}>{chosen ? `Schedule ${dayAndTime(chosen)}` : 'Schedule'}</Button>
     </div>
+    <button type="button" onClick={onCancel} className="press mx-auto mt-1 min-h-11 px-4 text-[14px] font-semibold text-ink-2 outline-none focus-visible:underline">Close</button>
   </div>
 }
 
-/** The "Now ▾" control itself: shows the chosen time once scheduled. */
-export function WhenButton({ when, onClick, className }: { when: string | null; onClick: () => void; className?: string }) {
-  return <button type="button" onClick={onClick} aria-label={when ? `Pickup ${dayAndTime(when)}. Change pickup time` : 'Pickup now. Change pickup time'}
-    className={cx('press inline-flex h-11 shrink-0 items-center gap-1.5 rounded-full bg-white px-3.5 text-[15px] font-semibold text-black shadow-[0_1px_4px_rgba(0,0,0,0.12)] outline-none focus-visible:ring-2 focus-visible:ring-black', className)}>
-    <Icon.clock className="size-[18px]" />{when ? dayAndTime(when) : 'Now'}<Icon.chevronDown className="size-4" />
-  </button>
+/**
+ * The time switch, inside the sheet: "Leave now" and "Schedule" as two halves of one track, with a
+ * white thumb that slides to the chosen half. Once a time is set, the Schedule half shows it.
+ */
+export function WhenSwitch({ when, onNow, onSchedule, className }: { when: string | null; onNow: () => void; onSchedule: () => void; className?: string }) {
+  const later = Boolean(when)
+  return <div role="radiogroup" aria-label="Pickup time" className={cx('relative grid h-11 grid-cols-2 rounded-[14px] bg-[#e9e5da] p-1', className)}>
+    <span aria-hidden="true" className={cx('when-thumb absolute inset-y-1 left-1 w-[calc(50%-4px)] rounded-[11px] bg-white shadow-[0_1px_2px_rgba(16,35,31,0.12),0_2px_8px_-2px_rgba(16,35,31,0.18)]', later && 'translate-x-full')} />
+    <button type="button" role="radio" aria-checked={!later} onClick={onNow}
+      className={cx('press relative z-10 flex min-w-0 items-center justify-center gap-1.5 rounded-[11px] px-2 text-[14px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-tide', later ? 'text-ink-2' : 'text-ink')}>
+      <span aria-hidden="true" className={cx('size-2 shrink-0 rounded-full', later ? 'bg-ink-3/50' : 'bg-tide')} /><span className="truncate">Leave now</span>
+    </button>
+    <button type="button" role="radio" aria-checked={later} onClick={onSchedule} aria-label={later ? `Scheduled ${dayAndTime(when!)}. Change time` : 'Schedule for later'}
+      className={cx('press relative z-10 flex min-w-0 items-center justify-center gap-1.5 rounded-[11px] px-2 text-[14px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-tide', later ? 'text-ink' : 'text-ink-2')}>
+      <Icon.clock className="size-4 shrink-0" /><span className="truncate">{later ? dayAndTime(when!) : 'Schedule'}</span>
+    </button>
+  </div>
 }
