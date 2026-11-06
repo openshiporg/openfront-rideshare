@@ -28,6 +28,7 @@ export function RiderMap({ user, pickup, dropoff, route, bottom, top = 72, pin, 
   const lib = useRef<typeof import('maplibre-gl') | null>(null)
   const markers = useRef<Record<string, Marker | undefined>>({})
   const routeRef = useRef<LngLat[] | null>(null)
+  const spaceRef = useRef<Array<{ kind: string; point: LngLat }>>([])
   const [ready, setReady] = useState(false)
   const [failed, setFailed] = useState(false)
   const [moving, setMoving] = useState(false)
@@ -53,6 +54,18 @@ export function RiderMap({ user, pickup, dropoff, route, bottom, top = 72, pin, 
           instance.addLayer({ id: 'ride-route-casing', type: 'line', source: 'ride-route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#0f5c55', 'line-opacity': 0.18, 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 10, 16, 18] } })
           instance.addLayer({ id: 'ride-route-line', type: 'line', source: 'ride-route', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#0f5c55', 'line-width': ['interpolate', ['linear'], ['zoom'], 10, 3.5, 16, 6] } })
         } catch { /* retried on the next styledata */ }
+        try {
+          // Markers are HTML overlays, which map labels don't avoid. An invisible symbol at each marker takes part
+          // in label placement instead, so a town name never sits under the pickup or destination.
+          if (!instance.hasImage('ride-marker-space')) instance.addImage('ride-marker-space', { width: 1, height: 1, data: new Uint8Array(4) })
+          instance.addSource('ride-marker-space', { type: 'geojson', data: markerSpace(spaceRef.current) })
+          instance.addLayer({ id: 'ride-marker-space', type: 'symbol', source: 'ride-marker-space', layout: {
+            'icon-image': 'ride-marker-space', 'icon-allow-overlap': true, 'icon-ignore-placement': false,
+            // The destination pin stands above its point; the pickup dot is centred on it. Sizes include a small margin.
+            'icon-size': ['match', ['get', 'kind'], 'dropoff', 44, 36],
+            'icon-anchor': ['match', ['get', 'kind'], 'dropoff', 'bottom', 'center'],
+          } })
+        } catch { /* labels may overlap a marker; nothing else depends on this */ }
       }
       instance.on('style.load', () => { monochrome(instance); addRoute(); setReady(true) })
       instance.once('load', () => instance.getContainer().querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show'))
@@ -82,6 +95,8 @@ export function RiderMap({ user, pickup, dropoff, route, bottom, top = 72, pin, 
     place('user', sameAsPickup && dropoff ? null : user, () => markerElement('user'))
     place('pickup', pin === 'pickup' || (!dropoff && sameAsPickup) ? null : pickup?.point, () => markerElement('pickup', searching))
     place('dropoff', pin === 'dropoff' ? null : dropoff?.point, () => markerElement('dropoff'))
+    spaceRef.current = Object.entries(markers.current).flatMap(([kind, marker]) => marker ? [{ kind, point: marker.getLngLat().toArray() as LngLat }] : [])
+    ;(instance.getSource('ride-marker-space') as GeoJSONSource | undefined)?.setData(markerSpace(spaceRef.current))
   }, [ready, user?.[0], user?.[1], pickup?.point[0], pickup?.point[1], dropoff?.point[0], dropoff?.point[1], pin, searching]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Route.
@@ -133,6 +148,10 @@ export function RiderMap({ user, pickup, dropoff, route, bottom, top = 72, pin, 
 const reduced = () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 function line(coordinates: LngLat[] | null): GeoJSON.FeatureCollection {
   return { type: 'FeatureCollection', features: coordinates && coordinates.length >= 2 ? [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates } }] : [] }
+}
+
+function markerSpace(points: Array<{ kind: string; point: LngLat }>): GeoJSON.FeatureCollection {
+  return { type: 'FeatureCollection', features: points.map(({ kind, point }) => ({ type: 'Feature', properties: { kind }, geometry: { type: 'Point', coordinates: point } })) }
 }
 
 function markerElement(kind: 'user' | 'pickup' | 'dropoff', pulse = false) {

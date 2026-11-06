@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { gql, QUOTE_FIELDS, SERVICE_FIELDS, whoAmI, type Estimates, type Identity, type LngLat, type Place, type Quote, type Service } from '../lib/api'
@@ -319,7 +319,7 @@ export default function RiderApp({ initialRide, initialServiceId }: { initialRid
         <h2 className="display truncate text-[22px] font-bold">{phase === 'requesting' ? `Requesting ${selected?.title || 'your ride'}…` : 'Choose a ride'}</h2>
         {tripSeconds != null && <span className="shrink-0 text-[13px] font-semibold text-ink-2">{minutes(tripSeconds)} trip</span>}
       </div>
-      <ul role="radiogroup" aria-label="Rides" className="mt-3 grid max-h-[40dvh] min-h-0 grid-cols-2 gap-2 overflow-y-auto px-4 pb-1 lg:max-h-[48dvh]">
+      <RideTiles count={rides.length}>
         {services === null && <li className="col-span-2 flex items-center gap-3 py-6 text-[15px]"><Spinner className="size-4 text-tide" />Loading rides…</li>}
         {rides.map((service, index) => {
           const price = priceOf(service.id)
@@ -328,13 +328,13 @@ export default function RiderApp({ initialRide, initialServiceId }: { initialRid
           const at = dropoffAt(tripSeconds)
           return <li key={service.id} className="tile-in" style={{ animationDelay: `${index * 40}ms` }}>
             <button type="button" role="radio" aria-checked={active} disabled={!bookable || phase === 'requesting'} onClick={() => dispatch({ type: 'selectService', serviceId: service.id })}
-              className={cx('press flex h-full min-h-[132px] w-full flex-col rounded-[20px] p-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-tide focus-visible:ring-offset-2 focus-visible:ring-offset-paper',
+              className={cx('press flex h-full min-h-[104px] w-full flex-col rounded-[20px] px-3 pb-2.5 pt-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-tide focus-visible:ring-offset-2 focus-visible:ring-offset-paper',
                 active ? 'bg-tide text-white shadow-[0_8px_20px_-10px_rgba(15,92,85,0.8)]' : 'bg-white text-ink ring-1 ring-inset ring-rule hover:ring-[#cfc9ba]', !bookable && 'opacity-50')}>
               <span className="flex items-start justify-between gap-2">
-                <VehicleArt src={vehicleArt(service.category, { seats: service.passengerCapacity, wheelchair: service.wheelchairAccessible })} className="h-9 w-12" />
+                <VehicleArt src={vehicleArt(service.category, { seats: service.passengerCapacity, wheelchair: service.wheelchairAccessible })} className="h-8 w-11" />
                 <span className={cx('display text-[18px] font-bold leading-6 tabular-nums', active ? 'text-white' : 'text-ink')}>{price != null && service.currencyCode ? formatMoney(price, service.currencyCode) : liveEstimates ? '—' : <span className={cx('inline-block h-4 w-12 animate-pulse rounded motion-reduce:animate-none', active ? 'bg-white/30' : 'bg-tide-soft')} />}</span>
               </span>
-              <span className="mt-auto pt-2 text-[15px] font-semibold leading-5 [overflow-wrap:anywhere] line-clamp-2">{service.title}</span>
+              <span className="mt-auto pt-1.5 text-[15px] font-semibold leading-5 [overflow-wrap:anywhere] line-clamp-2">{service.title}</span>
               <span className={cx('mt-1 flex min-w-0 items-center gap-2 text-[12px] font-medium', active ? 'text-white/85' : 'text-ink-3')}>
                 <span className="inline-flex shrink-0 items-center gap-0.5"><Icon.person className="size-3.5" />{service.passengerCapacity}</span>
                 {service.wheelchairAccessible && <Icon.wheelchair className="size-3.5 shrink-0" />}
@@ -343,7 +343,7 @@ export default function RiderApp({ initialRide, initialServiceId }: { initialRid
             </button>
           </li>
         })}
-      </ul>
+      </RideTiles>
       <div className="mt-2 px-4 pt-1">
         <WhenSwitch when={flow.when} onNow={() => dispatch({ type: 'setWhen', when: null })} onSchedule={() => setWhenOpen(true)} />
         <p className="mt-2 flex min-h-6 items-center gap-2 text-[13px] text-ink-2"><Icon.card className="size-4 shrink-0" /><span className="truncate">{saved.card ? `${cardName(saved.card)} · charged after the ride` : identity ? 'Card, after your driver is assigned' : 'Pay after your driver is assigned'}</span></p>
@@ -368,3 +368,31 @@ export default function RiderApp({ initialRide, initialServiceId }: { initialRid
     </Sheet>}
   </div>
 }
+
+/** The ride tiles. All of them fit on a phone; when a short screen (or a long list) can't show them all, the
+ * list scrolls, fades at the cut edge and says how many more there are, so a tile is never silently clipped. */
+function RideTiles({ count, children }: { count: number; children: React.ReactNode }) {
+  const ref = useRef<HTMLUListElement>(null)
+  const [hidden, setHidden] = useState(0)
+  useLayoutEffect(() => {
+    const list = ref.current
+    if (!list) return
+    const measure = () => {
+      const bottom = list.getBoundingClientRect().bottom - 2
+      setHidden(Array.from(list.children).filter(item => item.getBoundingClientRect().top > bottom - 24).length)
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(list)
+    list.addEventListener('scroll', measure, { passive: true })
+    return () => { observer.disconnect(); list.removeEventListener('scroll', measure) }
+  }, [count])
+  return <div className="relative flex min-h-0 shrink flex-col">
+    <ul ref={ref} role="radiogroup" aria-label="Rides" className={cx('mt-3 grid max-h-[48dvh] min-h-[112px] shrink grid-cols-2 gap-2 overflow-y-auto overscroll-contain px-4 pb-1', hidden > 0 && '[mask-image:linear-gradient(to_bottom,#000_calc(100%-28px),transparent)]')}>{children}</ul>
+    {hidden > 0 && <button type="button" onClick={() => ref.current?.scrollBy({ top: ref.current.clientHeight * 0.8, behavior: reduced() ? 'auto' : 'smooth' })}
+      className="press absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 rounded-full bg-white px-3 py-1 text-[13px] font-semibold text-ink shadow-[0_2px_8px_-2px_rgba(16,35,31,0.35)] ring-1 ring-rule">
+      {hidden} more {hidden === 1 ? 'ride' : 'rides'}<Icon.chevronDown className="ml-1 inline size-3.5" />
+    </button>}
+  </div>
+}
+const reduced = () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
