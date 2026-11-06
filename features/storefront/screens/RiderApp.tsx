@@ -388,7 +388,7 @@ function RideTiles({ count, children }: { count: number; children: React.ReactNo
     return () => { observer.disconnect(); list.removeEventListener('scroll', measure) }
   }, [count])
   return <div className="relative flex min-h-0 shrink flex-col">
-    <ul ref={ref} role="radiogroup" aria-label="Rides" className={cx('mt-3 grid max-h-[48dvh] min-h-[112px] shrink grid-cols-2 gap-2 overflow-y-auto overscroll-contain px-4 pb-1', hidden > 0 && '[mask-image:linear-gradient(to_bottom,#000_calc(100%-28px),transparent)]')}>{children}</ul>
+    <ul ref={ref} role="radiogroup" aria-label="Rides" className={cx('mt-3 grid max-h-[48dvh] min-h-[112px] shrink grid-cols-2 [@media(max-height:700px)]:max-h-[31dvh] gap-2 overflow-y-auto overscroll-contain px-4 pb-1', hidden > 0 && '[mask-image:linear-gradient(to_bottom,#000_calc(100%-28px),transparent)]')}>{children}</ul>
     {hidden > 0 && <button type="button" onClick={() => ref.current?.scrollBy({ top: ref.current.clientHeight * 0.8, behavior: reduced() ? 'auto' : 'smooth' })}
       className="press absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 rounded-full bg-white px-3 py-1 text-[13px] font-semibold text-ink shadow-[0_2px_8px_-2px_rgba(16,35,31,0.35)] ring-1 ring-rule">
       {hidden} more {hidden === 1 ? 'ride' : 'rides'}<Icon.chevronDown className="ml-1 inline size-3.5" />
