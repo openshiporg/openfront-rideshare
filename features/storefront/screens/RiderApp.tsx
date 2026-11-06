@@ -349,7 +349,11 @@ export default function RiderApp({ initialRide, initialServiceId }: { initialRid
         <p className="mt-2 flex min-h-6 items-center gap-2 text-[13px] text-ink-2"><Icon.card className="size-4 shrink-0" /><span className="truncate">{saved.card ? `${cardName(saved.card)} · charged after the ride` : identity ? 'Card, after your driver is assigned' : 'Pay after your driver is assigned'}</span></p>
         {flow.error && <p role="alert" className="pb-1 text-[14px] text-alert">{flow.error}</p>}
         <Button size="lg" className="mt-2 w-full" disabled={!selected || phase === 'requesting' || !selected.readiness?.bookingEnabled} onClick={() => void request()}>
-          {phase === 'requesting' ? <><Spinner className="size-5" />Requesting…</> : <span className="truncate">{`${flow.when ? 'Schedule' : 'Request'} ${selected?.title || 'ride'}`}</span>}
+          {phase === 'requesting' ? <><Spinner className="size-5" />Requesting…</> : <>
+            {/* The chosen tile already names the ride; narrow phones get the short verb so the button never truncates. */}
+            <span className="hidden truncate min-[380px]:inline">{`${flow.when ? 'Schedule' : 'Request'} ${selected?.title || 'ride'}`}</span>
+            <span className="min-[380px]:hidden">{flow.when ? 'Schedule ride' : 'Request ride'}</span>
+          </>}
         </Button>
       </div>
     </Sheet>}

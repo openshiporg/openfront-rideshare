@@ -335,7 +335,10 @@ function Sidebar({
         <div
           data-slot="sidebar-gap"
           className={cn(
-            "relative bg-transparent transition-[width] duration-200 ease-linear",
+            // The gap spans the page's full height in the sidebar's colour, so the fixed panel never seems to end
+            // partway down a long page (full-page captures, print, overscroll).
+            "relative h-full min-h-svh bg-transparent transition-[width] duration-200 ease-linear",
+            variant === "sidebar" && "bg-sidebar group-data-[side=left]:border-r group-data-[side=right]:border-l",
             side === "left" ? "w-(--sidebar-width-left)" : "w-(--sidebar-width-right)",
             "group-data-[collapsible=offcanvas]:w-0",
             "group-data-[side=right]:rotate-180",
