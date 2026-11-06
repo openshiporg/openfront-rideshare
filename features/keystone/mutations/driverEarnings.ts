@@ -24,6 +24,23 @@ function period(from?: string | null, to?: string | null) {
 
 const PAID = ['captured', 'partially_refunded', 'refunded']
 
+/**
+ * Engaged time (Uber/Lyft "engaged"): from heading to the pickup until drop-off.
+ * Falls back to accepted, then start of ride; spans over 12 h are bad data
+ * (e.g. a scheduled ride accepted days ahead) and fall back to the ride itself.
+ */
+const MAX_ENGAGED_SECONDS = 12 * 3600
+export function engagedSeconds(trip: { acceptedAt?: Date | null; enRouteAt?: Date | null; startedAt?: Date | null; completedAt?: Date | null }) {
+  if (!trip.completedAt) return 0
+  const end = trip.completedAt.getTime()
+  for (const from of [trip.enRouteAt, trip.acceptedAt, trip.startedAt]) {
+    if (!from) continue
+    const seconds = Math.round((end - from.getTime()) / 1000)
+    if (seconds >= 0 && seconds <= MAX_ENGAGED_SECONDS) return seconds
+  }
+  return 0
+}
+
 export async function driverEarningsReport(_root: unknown, args: { from?: string | null; to?: string | null }, context: any) {
   if (!humanSessionId(context.session)) throw new Error('Authentication is required.')
   const global = await isGlobalAdministrator({ context, session: context.session } as any)
@@ -37,7 +54,7 @@ export async function driverEarningsReport(_root: unknown, args: { from?: string
     take: MAX_TRIPS + 1,
     orderBy: [{ id: 'asc' }],
     select: {
-      id: true, status: true, startedAt: true, completedAt: true, bookingSnapshot: true, finalFareSnapshot: true,
+      id: true, status: true, acceptedAt: true, enRouteAt: true, startedAt: true, completedAt: true, bookingSnapshot: true, finalFareSnapshot: true,
       driver: { select: { id: true, publicName: true } },
       cancellations: { select: { feeMinor: true, currencyCode: true } },
       payments: { select: { status: true, amountMinor: true, currencyCode: true, purpose: true, refunds: { where: { status: 'succeeded' }, select: { amountMinor: true } } } },
@@ -59,7 +76,7 @@ export async function driverEarningsReport(_root: unknown, args: { from?: string
     if (completed) {
       row.trips += 1
       row.faresMinor += fare?.amount || 0
-      if (trip.startedAt && trip.completedAt) row.onTripSeconds += Math.max(0, Math.round((trip.completedAt.getTime() - trip.startedAt.getTime()) / 1000))
+      row.onTripSeconds += engagedSeconds(trip)
     }
     row.feesMinor += fees
     const due = (completed ? fare?.amount || 0 : 0) + fees

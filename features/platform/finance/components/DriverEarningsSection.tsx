@@ -1,12 +1,11 @@
 import { keystoneClient } from '@/features/dashboard/lib/keystoneClient'
 import { PlatformEmpty, PlatformSection } from '@/features/platform/components/PlatformPage'
 import { formatPaymentAmount } from '../domain/pagination'
-import type { DriverEarningsReport } from '../domain/driverEarnings'
+import { formatEngaged, type DriverEarningsReport } from '../domain/driverEarnings'
 import { EarningsCsvButton } from './EarningsCsvButton'
 
 const QUERY = `query DriverEarnings($from: String, $to: String) { driverEarningsReport(from: $from, to: $to) }`
 const day = (value: unknown) => (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : undefined)
-const hours = (seconds: number) => `${(seconds / 3600).toFixed(1)} h`
 
 /** Per-driver earnings statement for a period, with CSV export for payroll or settlement. */
 export async function DriverEarningsSection({ from, to }: { from?: string; to?: string }) {
@@ -25,7 +24,7 @@ export async function DriverEarningsSection({ from, to }: { from?: string; to?: 
       : !report || !report.drivers.length ? <PlatformEmpty>No completed trips in this period</PlatformEmpty>
       : <>
       <ul className="divide-y rounded-[6px] border sm:hidden">{report.drivers.map(row => <li key={`${row.driverId}:${row.currencyCode}`} className="space-y-2 p-3 text-sm tabular-nums">
-        <div className="flex items-baseline justify-between gap-3"><span className="font-medium">{row.driverName}</span><span className="text-muted-foreground">{row.trips} {row.trips === 1 ? 'trip' : 'trips'} · {hours(row.onTripSeconds)}</span></div>
+        <div className="flex items-baseline justify-between gap-3"><span className="font-medium">{row.driverName}</span><span className="text-muted-foreground">{row.trips} {row.trips === 1 ? 'trip' : 'trips'}{row.onTripSeconds ? ` · ${formatEngaged(row.onTripSeconds)} engaged` : ''}</span></div>
         <dl className="grid grid-cols-2 gap-x-4 gap-y-1">
           {([['Fares', row.faresMinor], ['Fees', row.feesMinor], ['Charged', row.collectedMinor], ['Refunded', row.refundedMinor], ['Net received', Math.max(0, row.collectedMinor - row.refundedMinor)], ['Outstanding', row.uncollectedMinor]] as const).map(([label, value]) => <div key={label} className="flex justify-between gap-2"><dt className="text-muted-foreground">{label}</dt><dd>{formatPaymentAmount(value, row.currencyCode)}</dd></div>)}
         </dl>
@@ -33,20 +32,20 @@ export async function DriverEarningsSection({ from, to }: { from?: string; to?: 
       <div className="hidden overflow-x-auto rounded-[6px] border sm:block">
         <table className="w-full text-sm">
           <thead className="bg-muted/40 text-left text-xs text-muted-foreground"><tr>
-            <th className="px-3 py-2 font-medium">Driver</th><th className="px-3 py-2 text-right font-medium">Trips</th><th className="px-3 py-2 text-right font-medium">On trip</th>
+            <th className="px-3 py-2 font-medium">Driver</th><th className="px-3 py-2 text-right font-medium">Trips</th><th className="px-3 py-2 text-right font-medium">Engaged</th>
             <th className="px-3 py-2 text-right font-medium">Fares</th><th className="px-3 py-2 text-right font-medium">Fees</th><th className="px-3 py-2 text-right font-medium">Charged</th>
             <th className="px-3 py-2 text-right font-medium">Refunded</th><th className="px-3 py-2 text-right font-medium">Net received</th><th className="px-3 py-2 text-right font-medium">Outstanding</th>
           </tr></thead>
           <tbody className="divide-y">{report.drivers.map(row => <tr key={`${row.driverId}:${row.currencyCode}`} className="tabular-nums">
-            <td className="px-3 py-2 font-medium">{row.driverName}</td><td className="px-3 py-2 text-right">{row.trips}</td><td className="px-3 py-2 text-right">{hours(row.onTripSeconds)}</td>
+            <td className="px-3 py-2 font-medium">{row.driverName}</td><td className="px-3 py-2 text-right">{row.trips}</td><td className="px-3 py-2 text-right">{formatEngaged(row.onTripSeconds)}</td>
             <td className="px-3 py-2 text-right">{formatPaymentAmount(row.faresMinor, row.currencyCode)}</td><td className="px-3 py-2 text-right">{formatPaymentAmount(row.feesMinor, row.currencyCode)}</td>
             <td className="px-3 py-2 text-right">{formatPaymentAmount(row.collectedMinor, row.currencyCode)}</td><td className="px-3 py-2 text-right">{formatPaymentAmount(row.refundedMinor, row.currencyCode)}</td><td className="px-3 py-2 text-right">{formatPaymentAmount(Math.max(0, row.collectedMinor - row.refundedMinor), row.currencyCode)}</td>
             <td className="px-3 py-2 text-right">{formatPaymentAmount(row.uncollectedMinor, row.currencyCode)}</td>
           </tr>)}</tbody>
-          {totals && <tfoot className="border-t text-xs text-muted-foreground"><tr><td className="px-3 py-2" colSpan={9}>{totals.trips} completed {totals.trips === 1 ? 'trip' : 'trips'} · {formatPaymentAmount(totals.gross, currency)} gross{report.truncated ? ' · showing the first 5,000 trips; narrow the range' : ''}. Charged includes card and recorded payments, also prepaid fares on rides later cancelled. Outstanding is cash in the driver’s hand or still owed.</td></tr></tfoot>}
+          {totals && <tfoot className="border-t text-xs text-muted-foreground"><tr><td className="px-3 py-2" colSpan={9}>{totals.trips} completed {totals.trips === 1 ? 'trip' : 'trips'} · {formatPaymentAmount(totals.gross, currency)} gross{report.truncated ? ' · showing the first 5,000 trips; narrow the range' : ''}. Charged includes card and recorded payments, also prepaid fares on rides later cancelled. Outstanding is cash in the driver’s hand or still owed. Engaged is from heading to the pickup until drop-off.</td></tr></tfoot>}
         </table>
       </div>
-      {totals && <p className="text-xs text-muted-foreground sm:hidden">{totals.trips} completed {totals.trips === 1 ? 'trip' : 'trips'} · {formatPaymentAmount(totals.gross, currency)} gross{report.truncated ? ' · showing the first 5,000 trips; narrow the range' : ''}. Charged includes card and recorded payments, also prepaid fares on rides later cancelled. Outstanding is cash in the driver’s hand or still owed.</p>}
+      {totals && <p className="text-xs text-muted-foreground sm:hidden">{totals.trips} completed {totals.trips === 1 ? 'trip' : 'trips'} · {formatPaymentAmount(totals.gross, currency)} gross{report.truncated ? ' · showing the first 5,000 trips; narrow the range' : ''}. Charged includes card and recorded payments, also prepaid fares on rides later cancelled. Outstanding is cash in the driver’s hand or still owed. Engaged is from heading to the pickup until drop-off.</p>}
       </>}
   </PlatformSection>
 }

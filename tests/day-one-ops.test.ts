@@ -2,7 +2,8 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { deliverTripReceipt, receiptLines, tripReceiptHtml } from '../features/keystone/lib/trip-receipt'
 import { phoneBookingNotes } from '../features/keystone/mutations/operatorBooking'
-import { driverEarningsCsv } from '../features/platform/finance/domain/driverEarnings'
+import { driverEarningsCsv, formatEngaged } from '../features/platform/finance/domain/driverEarnings'
+import { engagedSeconds } from '../features/keystone/mutations/driverEarnings'
 
 const SMTP = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASSWORD', 'SMTP_STORE_LINK']
 for (const key of SMTP) process.env[key] = key === 'SMTP_STORE_LINK' ? 'https://ride.test' : 'x'
@@ -70,5 +71,17 @@ test('driver earnings CSV totals per driver and neutralises formulas', () => {
   ] })
   const [header, row] = csv.trim().split('\r\n')
   assert.match(header, /^Driver,Currency,Completed trips.*Outstanding/)
-  assert.equal(row, `"'=Maya, R.",USD,3,1.50,45.60,5.00,50.60,30.40,15.20,15.20,20.20`)
+  assert.equal(row, `"'=Maya, R.",USD,3,90.0,45.60,5.00,50.60,30.40,15.20,15.20,20.20`)
+})
+
+test('engaged time runs from en route to drop-off, with sane fallbacks', () => {
+  const t = (iso: string) => new Date(`2026-11-06T${iso}Z`)
+  assert.equal(engagedSeconds({ acceptedAt: t('10:00:00'), enRouteAt: t('10:01:00'), startedAt: t('10:09:00'), completedAt: t('10:30:00') }), 29 * 60)
+  assert.equal(engagedSeconds({ acceptedAt: t('10:00:00'), startedAt: t('10:09:00'), completedAt: t('10:30:00') }), 30 * 60)
+  assert.equal(engagedSeconds({ enRouteAt: new Date('2026-11-01T10:00:00Z'), startedAt: t('10:09:00'), completedAt: t('10:30:00') }), 21 * 60)
+  assert.equal(engagedSeconds({ startedAt: t('10:09:00') }), 0)
+  assert.equal(formatEngaged(0), '—')
+  assert.equal(formatEngaged(40), '<1 min')
+  assert.equal(formatEngaged(29 * 60), '29 min')
+  assert.equal(formatEngaged(185 * 60), '3 h 05 min')
 })
