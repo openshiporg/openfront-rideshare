@@ -1,3 +1,4 @@
+import { RideshareRefusal } from '../domain/constraintErrors'
 import { randomUUID } from 'node:crypto'
 import type { Prisma, PrismaClient } from '@prisma/client'
 import { calculateFare } from '../domain/fare'
@@ -15,7 +16,7 @@ import { POPULAR_PLACE_WINDOW_DAYS, popularPlaces } from '../domain/popularPlace
 
 const cleanLabel = (value: string, name: string) => {
   const label = String(value || '').trim().replace(/\s+/g, ' ')
-  if (label.length < 2 || label.length > 120) throw new Error(`${name} must be between 2 and 120 characters.`)
+  if (label.length < 2 || label.length > 120) throw new RideshareRefusal(`${name} must be between 2 and 120 characters.`)
   return label
 }
 
@@ -26,11 +27,11 @@ export async function marketplaceRideshareService(_root: unknown, args: { id: st
 }
 
 export async function marketplaceRideshareServiceAreas(_root: unknown, args: { serviceId: string; after?: string | null }, context: any) {
-  if (typeof args.serviceId !== 'string' || !args.serviceId || args.serviceId.length > 200 || (args.after && (typeof args.after !== 'string' || args.after.length > 200))) throw new Error('Invalid service area page.')
+  if (typeof args.serviceId !== 'string' || !args.serviceId || args.serviceId.length > 200 || (args.after && (typeof args.after !== 'string' || args.after.length > 200))) throw new RideshareRefusal('Invalid service area page.')
   const service = await context.prisma.rideService.findFirst({ where: { id: args.serviceId, status: 'active', fleet: { is: { status: 'active' } } }, select: { id: true, fleetId: true } })
   if (!service?.fleetId) return { items: [], nextCursor: null }
   const where = { fleetId: service.fleetId, status: 'active', services: { some: { id: service.id } } }
-  if (args.after && !await context.prisma.serviceArea.findFirst({ where: { ...where, id: args.after }, select: { id: true } })) throw new Error('Invalid service area page.')
+  if (args.after && !await context.prisma.serviceArea.findFirst({ where: { ...where, id: args.after }, select: { id: true } })) throw new RideshareRefusal('Invalid service area page.')
   const rows = await context.prisma.serviceArea.findMany({ where: { ...where, ...(args.after ? { id: { gt: args.after } } : {}) }, orderBy: { id: 'asc' }, take: 25, select: { id: true, name: true, publicRegionLabel: true, countryCode: true } })
   return { items: rows.slice(0, 24), nextCursor: rows.length > 24 ? rows[23].id : null }
 }
@@ -53,10 +54,10 @@ export async function marketplaceRideshareServices(_root: unknown, args: { query
   const location = String(args.location || '').trim().slice(0, 100)
   let boundary: { name: string; id: string } | null = null
   if (args.after) {
-    if (typeof args.after !== 'string' || args.after.length > 1600) throw new Error('Invalid discovery cursor.')
+    if (typeof args.after !== 'string' || args.after.length > 1600) throw new RideshareRefusal('Invalid discovery cursor.')
     let value: any
-    try { value = JSON.parse(Buffer.from(args.after, 'base64url').toString()) } catch { throw new Error('Invalid discovery cursor.') }
-    if (value?.v !== 1 || value.query !== query || value.location !== location || typeof value.name !== 'string' || value.name.length > 300 || typeof value.id !== 'string' || value.id.length > 200) throw new Error('Invalid discovery cursor.')
+    try { value = JSON.parse(Buffer.from(args.after, 'base64url').toString()) } catch { throw new RideshareRefusal('Invalid discovery cursor.') }
+    if (value?.v !== 1 || value.query !== query || value.location !== location || typeof value.name !== 'string' || value.name.length > 300 || typeof value.id !== 'string' || value.id.length > 200) throw new RideshareRefusal('Invalid discovery cursor.')
     boundary = value
   }
   const services = await context.sudo().query.RideService.findMany({
@@ -93,7 +94,7 @@ export async function marketplaceRideshareServices(_root: unknown, args: { query
 export async function marketplaceRideshareEstimates(_root: unknown, args: { pickupPoint: unknown; dropoffPoint: unknown }, context: any) {
   const from = validPoint(args.pickupPoint)
   const to = validPoint(args.dropoffPoint)
-  if (!from || !to) throw new Error('Pickup or destination location is invalid.')
+  if (!from || !to) throw new RideshareRefusal('Pickup or destination location is invalid.')
   const route = await quoteRoute('Pickup', 'Destination', from, to)
   const services = await context.sudo().query.RideService.findMany({
     where: { status: { equals: 'active' }, fleet: { status: { equals: 'active' } }, serviceAreas: { some: { status: { equals: 'active' } } } },
@@ -112,11 +113,11 @@ export async function marketplaceRideshareEstimates(_root: unknown, args: { pick
 async function quoteRoute(pickupLabel: string, dropoffLabel: string, pickupPoint: unknown, dropoffPoint: unknown) {
   const from = pickupPoint == null ? null : validPoint(pickupPoint)
   const to = dropoffPoint == null ? null : validPoint(dropoffPoint)
-  if ((pickupPoint != null && !from) || (dropoffPoint != null && !to)) throw new Error('Pickup or destination location is invalid.')
+  if ((pickupPoint != null && !from) || (dropoffPoint != null && !to)) throw new RideshareRefusal('Pickup or destination location is invalid.')
   if (from && to) {
     const path = await routeBetween(from, to)
     // A city ride, not a cross-country one: anything this far is a mistyped place.
-    if (path.distanceMeters > 300_000) throw new Error('Pickup and destination are too far apart.')
+    if (path.distanceMeters > 300_000) throw new RideshareRefusal('Pickup and destination are too far apart.')
     const points = { pickup: from.map(value => Math.round(value * 1e4) / 1e4), dropoff: to.map(value => Math.round(value * 1e4) / 1e4) }
     return {
       distanceMeters: Math.max(path.distanceMeters, 200), durationSeconds: Math.max(path.durationSeconds, 120),
@@ -132,14 +133,14 @@ export async function marketplaceRideshareQuote(_root: unknown, args: { serviceI
   const pickupLabel = cleanLabel(args.pickupLabel, 'pickupLabel')
   const dropoffLabel = cleanLabel(args.dropoffLabel, 'dropoffLabel')
   const scheduledFor = args.scheduledFor ? new Date(args.scheduledFor) : null
-  if (scheduledFor && (Number.isNaN(scheduledFor.getTime()) || scheduledFor.getTime() < Date.now() - 60_000)) throw new Error('scheduledFor must be a future date.')
+  if (scheduledFor && (Number.isNaN(scheduledFor.getTime()) || scheduledFor.getTime() < Date.now() - 60_000)) throw new RideshareRefusal('scheduledFor must be a future date.')
   const service = await context.sudo().query.RideService.findOne({ where: { id: args.serviceId }, query: `id name status category passengerCapacity wheelchairAccessible advanceBookingMinutes fleet { id status currencyCode } fareRules(where: { status: { equals: "active" } }, take: 1, orderBy: { version: desc }) { id version currencyCode baseFareMinor perDistanceUnitMinor distanceUnit perMinuteMinor bookingFeeMinor minimumFareMinor maximumMultiplierBasisPoints cancellationFeeMinor noShowFeeMinor }` })
-  if (!service || service.status !== 'active' || service.fleet?.status !== 'active' || !service.fareRules?.[0]) throw new Error('Service is not available for quoting.')
+  if (!service || service.status !== 'active' || service.fleet?.status !== 'active' || !service.fareRules?.[0]) throw new RideshareRefusal('Service is not available for quoting.')
   const passengerCount = args.passengerCount ?? 1
-  if (!Number.isSafeInteger(passengerCount) || passengerCount < 1 || passengerCount > 50) throw new Error('Passenger count must be a whole number from 1 to 50.')
-  if (passengerCount > service.passengerCapacity) throw new Error('Passenger count exceeds this service capacity.')
-  if (args.wheelchairAccessible && !service.wheelchairAccessible) throw new Error('This service does not advertise wheelchair-accessible vehicles.')
-  if (scheduledFor && scheduledFor.getTime() < Date.now() + service.advanceBookingMinutes * 60_000) throw new Error('This service requires more advance notice for scheduled rides.')
+  if (!Number.isSafeInteger(passengerCount) || passengerCount < 1 || passengerCount > 50) throw new RideshareRefusal('Passenger count must be a whole number from 1 to 50.')
+  if (passengerCount > service.passengerCapacity) throw new RideshareRefusal('Passenger count exceeds this service capacity.')
+  if (args.wheelchairAccessible && !service.wheelchairAccessible) throw new RideshareRefusal('This service does not advertise wheelchair-accessible vehicles.')
+  if (scheduledFor && scheduledFor.getTime() < Date.now() + service.advanceBookingMinutes * 60_000) throw new RideshareRefusal('This service requires more advance notice for scheduled rides.')
   await requireFleetOperations(context.prisma, service.fleet.id)
   await requireServiceReadiness(context.prisma, service.id, service.fleet.id)
   const route = await quoteRoute(pickupLabel, dropoffLabel, args.pickupPoint, args.dropoffPoint)
@@ -167,42 +168,42 @@ export async function requestRide(_root: unknown, args: { quoteId: string; quote
     const intent = requestIntent(args, riderId)
     await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${args.quoteId}, 0))::text IS NOT NULL`
     const quoteHeader = await tx.rideQuote.findUnique({ where: { publicId: args.quoteId }, select: { id: true, publicId: true, guestProofHash: true, riderId: true, requestId: true } })
-    if (!quoteHeader?.guestProofHash || typeof args.quoteProof !== 'string' || args.quoteProof.length > 4096 || !verifyOwnershipProof(args.quoteProof, 'quote', quoteHeader.publicId, quoteHeader.guestProofHash, quoteHeader.requestId ? 0 : Date.now()) || (quoteHeader.riderId && quoteHeader.riderId !== riderId)) throw new Error('Quote is invalid or not owned by this session.')
+    if (!quoteHeader?.guestProofHash || typeof args.quoteProof !== 'string' || args.quoteProof.length > 4096 || !verifyOwnershipProof(args.quoteProof, 'quote', quoteHeader.publicId, quoteHeader.guestProofHash, quoteHeader.requestId ? 0 : Date.now()) || (quoteHeader.riderId && quoteHeader.riderId !== riderId)) throw new RideshareRefusal('Quote is invalid or not owned by this session.')
     if (quoteHeader.requestId) {
       const requestHeader = await tx.rideRequest.findUnique({ where: { id: quoteHeader.requestId }, select: { id: true, fleetId: true, riderId: true } })
-      if (!requestHeader || requestHeader.riderId !== riderId) throw new Error('Original receipt ownership is unavailable.')
+      if (!requestHeader || requestHeader.riderId !== riderId) throw new RideshareRefusal('Original receipt ownership is unavailable.')
       const existing = await tx.rideRequest.findFirst({ where: requestOwnerWhere(requestHeader) })
-      if (!existing) throw new Error('Original receipt ownership is unavailable.')
+      if (!existing) throw new RideshareRefusal('Original receipt ownership is unavailable.')
       return recoverRequestReceipt(existing, quoteHeader, intent, args.quoteProof)
     }
     const quote = await tx.rideQuote.findFirst({ where: { id: quoteHeader.id, riderId, fareSnapshot: { path: ['_quoteOwner', 'kind'], equals: riderId ? 'account' : 'guest' } } })
     // After commit the original quote is a recovery credential only, bounded by the
     // stored request receipt expiry/hash. It can never create a new expired request.
-    if (!quote || !quote.guestProofHash || !verifyOwnershipProof(args.quoteProof, 'quote', quote.publicId, quote.guestProofHash, quote.requestId ? 0 : Date.now()) || (quote.riderId && quote.riderId !== intent.riderId)) throw new Error('Quote is invalid or not owned by this session.')
+    if (!quote || !quote.guestProofHash || !verifyOwnershipProof(args.quoteProof, 'quote', quote.publicId, quote.guestProofHash, quote.requestId ? 0 : Date.now()) || (quote.riderId && quote.riderId !== intent.riderId)) throw new RideshareRefusal('Quote is invalid or not owned by this session.')
     if (quote.requestId) {
       const existing = await tx.rideRequest.findUnique({ where: { id: quote.requestId } })
-      if (!existing || quote.requestId !== existing.id) throw new Error('Request receipt is temporarily unavailable; retry with the same quote proof.')
+      if (!existing || quote.requestId !== existing.id) throw new RideshareRefusal('Request receipt is temporarily unavailable; retry with the same quote proof.')
       const service = quote.serviceId ? await tx.rideService.findUnique({ where: { id: quote.serviceId }, select: { fleetId: true } }) : null
-      if (!service?.fleetId || service.fleetId !== existing.fleetId) throw new Error('Original request binding is unavailable.')
+      if (!service?.fleetId || service.fleetId !== existing.fleetId) throw new RideshareRefusal('Original request binding is unavailable.')
       return recoverRequestReceipt(existing, quote, intent, args.quoteProof)
     }
 
     // Original committed receipt recovery above is read-only and requires no
     // external provider activation. The operational creation barrier stays closed.
-    if (quote.status !== 'active' || quote.expiresAt <= new Date()) throw new Error('Quote is invalid or expired.')
+    if (quote.status !== 'active' || quote.expiresAt <= new Date()) throw new RideshareRefusal('Quote is invalid or expired.')
     const quoteSnapshot = quote.fareSnapshot && typeof quote.fareSnapshot === 'object' && !Array.isArray(quote.fareSnapshot) ? quote.fareSnapshot as Record<string, unknown> : {}
     const serviceSnapshot = quoteSnapshot.service && typeof quoteSnapshot.service === 'object' ? quoteSnapshot.service as Record<string, unknown> : {}
     const passengerCount = intent.passengerCount
-    if (passengerCount > Number(serviceSnapshot.passengerCapacity || 0)) throw new Error('Passenger count exceeds the quoted service capacity.')
+    if (passengerCount > Number(serviceSnapshot.passengerCapacity || 0)) throw new RideshareRefusal('Passenger count exceeds the quoted service capacity.')
     const accessibilityNeeds = intent.accessibilityNeeds
-    if (accessibilityNeeds.wheelchairAccessible === true && serviceSnapshot.wheelchairAccessible !== true) throw new Error('The quoted service does not meet the accessibility requirement.')
+    if (accessibilityNeeds.wheelchairAccessible === true && serviceSnapshot.wheelchairAccessible !== true) throw new RideshareRefusal('The quoted service does not meet the accessibility requirement.')
     const requestNumber = `RIDE-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}-${randomUUID().slice(0, 8).toUpperCase()}`
     const proofExpiry = new Date(Date.now() + 24 * 60 * 60_000)
     const requestId = randomUUID()
     const receiptProof = createRecoverableRequestProof(requestId, requestNumber, proofExpiry, args.quoteProof)
-    if (!quote.serviceId) throw new Error('The quote no longer references a service.')
+    if (!quote.serviceId) throw new RideshareRefusal('The quote no longer references a service.')
     const service = await requireServiceReadiness(tx, quote.serviceId)
-    if (!service?.fleetId) throw new Error('The quoted service is no longer attached to an operating fleet.')
+    if (!service?.fleetId) throw new RideshareRefusal('The quoted service is no longer attached to an operating fleet.')
     await requireFleetOperations(tx, service.fleetId)
     const request = await tx.rideRequest.create({ data: {
       id: requestId, fleetId: service.fleetId, riderId: intent.riderId, requestNumber, status: 'requested', requestedFor: quote.scheduledFor,
@@ -235,25 +236,25 @@ export async function resolveRideRequestIntent(_root: unknown, args: Parameters<
     const intent = requestIntent(args, riderId)
     await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${args.quoteId}, 0))::text IS NOT NULL`
     const header = await tx.rideQuote.findUnique({ where: { publicId: args.quoteId }, select: { id: true, publicId: true, riderId: true, guestProofHash: true, requestId: true } })
-    if (!header?.guestProofHash || typeof args.quoteProof !== 'string' || args.quoteProof.length > 4096 || !verifyOwnershipProof(args.quoteProof, 'quote', header.publicId, header.guestProofHash, 0) || header.riderId !== riderId) throw new Error('Original request intent is unavailable.')
+    if (!header?.guestProofHash || typeof args.quoteProof !== 'string' || args.quoteProof.length > 4096 || !verifyOwnershipProof(args.quoteProof, 'quote', header.publicId, header.guestProofHash, 0) || header.riderId !== riderId) throw new RideshareRefusal('Original request intent is unavailable.')
     if (header.requestId) {
       const requestHeader = await tx.rideRequest.findUnique({ where: { id: header.requestId }, select: { id: true, riderId: true, fleetId: true } })
-      if (!requestHeader || requestHeader.riderId !== riderId) throw new Error('Original request intent is unavailable.')
+      if (!requestHeader || requestHeader.riderId !== riderId) throw new RideshareRefusal('Original request intent is unavailable.')
       const request = await tx.rideRequest.findFirst({ where: requestOwnerWhere(requestHeader) })
-      if (!request) throw new Error('Original request intent is unavailable.')
+      if (!request) throw new RideshareRefusal('Original request intent is unavailable.')
       return { kind: 'request', quoteId: args.quoteId, receipt: recoverRequestReceipt(request, header, intent, args.quoteProof) }
     }
     const quote = await tx.rideQuote.findFirst({ where: { id: header.id, riderId, fareSnapshot: { path: ['_quoteOwner', 'kind'], equals: riderId ? 'account' : 'guest' } } })
-    if (!quote) throw new Error('Original quote ownership provenance is unavailable.')
+    if (!quote) throw new RideshareRefusal('Original quote ownership provenance is unavailable.')
     const snapshot = quote.fareSnapshot || {}
     const binding = { version: 1, purpose: 'unused_quote_resolution', riderId, quoteId: header.publicId, intentHash: requestIntentHash(intent) }
     if (snapshot._intentResolution) {
-      if (JSON.stringify(snapshot._intentResolution.binding) !== JSON.stringify(binding)) throw new Error('Original resolution body is different.')
-      if (quote.status !== 'void') throw new Error('Resolution state is unavailable.')
+      if (JSON.stringify(snapshot._intentResolution.binding) !== JSON.stringify(binding)) throw new RideshareRefusal('Original resolution body is different.')
+      if (quote.status !== 'void') throw new RideshareRefusal('Resolution state is unavailable.')
     } else {
-      if (!['active', 'expired', 'void'].includes(quote.status)) throw new Error('Original quote state is unavailable.')
+      if (!['active', 'expired', 'void'].includes(quote.status)) throw new RideshareRefusal('Original quote state is unavailable.')
       const closed = await tx.rideQuote.updateMany({ where: { id: quote.id, requestId: null, status: quote.status }, data: { status: 'void', fareSnapshot: { ...snapshot, _intentResolution: { binding, result: 'closed_unused', occurredAt: new Date().toISOString() } } } })
-      if (closed.count !== 1) throw new Error('Original quote changed; reconcile the same intent again.')
+      if (closed.count !== 1) throw new RideshareRefusal('Original quote changed; reconcile the same intent again.')
     }
     return { kind: 'closed_unused', quoteId: args.quoteId, receipt: null }
   }, { isolationLevel: 'Serializable' })

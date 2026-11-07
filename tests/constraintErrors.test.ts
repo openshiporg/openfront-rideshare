@@ -48,3 +48,12 @@ test('fleet settings the app reads blindly are checked on every edit', () => {
 test('Keystone-wrapped unique errors (message only) still map', () => {
   assert.equal(constraintRefusal(new Error('Prisma error: Unique constraint failed on the fields: (`fleet`,`kind`)'))?.code, 'RIDESHARE_DUPLICATE_ACTIVE_POLICY')
 })
+
+test('rider-facing refusals pass through the production mask readably', async () => {
+  const { RideshareRefusal } = await import('../features/keystone/domain/constraintErrors')
+  const schema = createSchema({ typeDefs: 'type Query { quote: String }', resolvers: { Query: { quote: () => { throw new RideshareRefusal('Passenger count exceeds this service capacity.') } } } })
+  const yoga = createYoga({ schema, plugins: [graphqlErrorMaskingPlugin(true)], maskedErrors: true })
+  const body = await (await yoga.fetch('http://localhost/graphql', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ query: '{ quote }' }) })).json()
+  assert.equal(body.errors[0].message, 'Passenger count exceeds this service capacity.')
+  assert.equal(body.errors[0].extensions.code, 'RIDESHARE_REFUSED')
+})

@@ -50,3 +50,8 @@ export function constraintGraphQLError(error: GraphQLError): GraphQLError {
   if (!refusal) return error
   return new GraphQLError(refusal.message, { nodes: error.nodes, source: error.source, positions: error.positions, path: error.path, extensions: { code: refusal.code } })
 }
+
+/** A refusal written for the person who made the request. Unlike a plain Error it is not masked as "Unexpected error.". */
+export class RideshareRefusal extends GraphQLError {
+  constructor(message: string) { super(message, { extensions: { code: 'RIDESHARE_REFUSED' } }) }
+}

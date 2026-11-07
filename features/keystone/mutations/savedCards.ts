@@ -1,3 +1,4 @@
+import { RideshareRefusal } from '../domain/constraintErrors'
 import { randomUUID } from 'node:crypto'
 import type { PrismaClient } from '@prisma/client'
 import { currentHumanActor } from '../access'
@@ -27,7 +28,7 @@ export async function stripeEnabled(prisma: PrismaClient) {
 
 async function requireRider(context: any) {
   const actor = await currentHumanActor(context.prisma, context.session)
-  if (!actor) throw new Error('Sign in to save a card.')
+  if (!actor) throw new RideshareRefusal('Sign in to save a card.')
   return actor.id as string
 }
 
@@ -51,9 +52,9 @@ export async function riderSavedCard(_root: unknown, _args: unknown, context: an
 
 export async function startRiderCardSetup(_root: unknown, args: { returnTo?: string | null }, context: any) {
   const userId = await requireRider(context)
-  if (!await stripeEnabled(context.prisma)) throw new Error('Saving a card isn’t available here yet.')
+  if (!await stripeEnabled(context.prisma)) throw new RideshareRefusal('Saving a card isn’t available here yet.')
   const origin = requestBaseUrl(context.req)
-  if (!origin) throw new Error('Saving a card needs the storefront address.')
+  if (!origin) throw new RideshareRefusal('Saving a card needs the storefront address.')
   const user = await context.prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true } })
   let profile = await savedCardFor(context.prisma, userId)
   let customerId = profile?.stripeCustomerId || ''
@@ -64,7 +65,7 @@ export async function startRiderCardSetup(_root: unknown, args: { returnTo?: str
   const path = returnPath(args.returnTo)
   const join = path.includes('?') ? '&' : '?'
   const session = await createCardSetupSession({ customerId, userId, successUrl: `${origin}${path}${join}card_setup={CHECKOUT_SESSION_ID}`, cancelUrl: `${origin}${path}${join}card_setup=cancelled` })
-  if (!session.url) throw new Error('Card setup couldn’t start. Try again in a moment.')
+  if (!session.url) throw new RideshareRefusal('Card setup couldn’t start. Try again in a moment.')
   return { url: session.url }
 }
 
@@ -72,13 +73,13 @@ export async function startRiderCardSetup(_root: unknown, args: { returnTo?: str
 export async function confirmRiderCardSetup(_root: unknown, args: { sessionId: string }, context: any) {
   const userId = await requireRider(context)
   const profile = await savedCardFor(context.prisma, userId)
-  if (!profile?.stripeCustomerId) throw new Error('No card setup is in progress.')
+  if (!profile?.stripeCustomerId) throw new RideshareRefusal('No card setup is in progress.')
   const session = await retrieveSetupSession(String(args.sessionId || ''))
   const intent = typeof session.setup_intent === 'object' ? session.setup_intent : null
-  if (session.mode !== 'setup' || session.metadata?.userId !== userId || session.client_reference_id !== userId || session.customer !== profile.stripeCustomerId) throw new Error('This card setup belongs to another account.')
+  if (session.mode !== 'setup' || session.metadata?.userId !== userId || session.client_reference_id !== userId || session.customer !== profile.stripeCustomerId) throw new RideshareRefusal('This card setup belongs to another account.')
   if (session.status !== 'complete' || intent?.status !== 'succeeded') return { saved: false, card: cardView(profile) }
   const method = typeof intent.payment_method === 'object' ? intent.payment_method as StripeCard : null
-  if (!method?.id || !method.card?.last4) throw new Error('The card couldn’t be read back from Stripe.')
+  if (!method?.id || !method.card?.last4) throw new RideshareRefusal('The card couldn’t be read back from Stripe.')
   if (profile.cardPaymentMethodId === method.id) return { saved: true, card: cardView(profile) }
   const previous = profile.cardPaymentMethodId
   const updated = await context.prisma.riderProfile.update({ where: { userId }, data: { cardPaymentMethodId: method.id, cardBrand: method.card.brand || 'card', cardLast4: method.card.last4, cardExpMonth: method.card.exp_month ?? null, cardExpYear: method.card.exp_year ?? null, cardSavedAt: new Date() } })
@@ -178,7 +179,7 @@ export async function settleIntent(prisma: PrismaClient, payment: any, intent: S
     const current = await tx.payment.findUnique({ where: { id: payment.id } })
     if (!current || current.status !== 'pending') return
     if (succeeded) {
-      if (intent.amount !== current.amountMinor || intent.currency?.toUpperCase() !== current.currencyCode) throw new Error('Stripe charged a different amount; reconciliation is required.')
+      if (intent.amount !== current.amountMinor || intent.currency?.toUpperCase() !== current.currencyCode) throw new RideshareRefusal('Stripe charged a different amount; reconciliation is required.')
       await tx.payment.update({ where: { id: current.id }, data: { status: 'captured', capturedAt: new Date(), providerReference: intent.id, failureCode: '', failureMessage: '' } })
       await tx.ledgerEntry.create({ data: { tripId: current.tripId, paymentId: current.id, entryKey: `payment:${current.id}:captured`, kind: 'rider_charge', account: 'rider_receivable', direction: 'credit', amountMinor: current.amountMinor, currencyCode: current.currencyCode, memo: MEMO[(current.purpose || 'fare') as ChargePurpose], metadata: { paymentIntentId: intent.id, attempt: current.attempts } } })
     } else if (!processing) {
@@ -200,12 +201,12 @@ export async function retryTripCharge(_root: unknown, args: { paymentId: string 
   const prisma = context.prisma as PrismaClient
   const header = await prisma.payment.findUnique({ where: { id: args.paymentId }, select: { id: true, tripId: true, status: true, providerReference: true, providerEvidence: true, provider: { select: { code: true } } } })
   const authority = header?.tripId ? await authorizedTripHeader(prisma, context.session, header.tripId, 'operator', 'finance') : null
-  if (!header || !authority?.operator) throw new Error('Payment not found.')
-  if (header.provider?.code !== STRIPE_CODE || (header.providerEvidence as any)?.source !== 'saved_card') throw new Error('Only saved-card charges can be retried here.')
-  if (!['failed', 'pending'].includes(header.status || '')) throw new Error('This charge is not waiting for a retry.')
+  if (!header || !authority?.operator) throw new RideshareRefusal('Payment not found.')
+  if (header.provider?.code !== STRIPE_CODE || (header.providerEvidence as any)?.source !== 'saved_card') throw new RideshareRefusal('Only saved-card charges can be retried here.')
+  if (!['failed', 'pending'].includes(header.status || '')) throw new RideshareRefusal('This charge is not waiting for a retry.')
   const trip = await prisma.trip.findUnique({ where: { id: header.tripId! }, select: { riderId: true } })
   const profile = await savedCardFor(prisma, trip?.riderId)
-  if (!profile?.cardPaymentMethodId || !profile.stripeCustomerId) throw new Error('The rider has no saved card. Record the payment another way.')
+  if (!profile?.cardPaymentMethodId || !profile.stripeCustomerId) throw new RideshareRefusal('The rider has no saved card. Record the payment another way.')
   if (header.status === 'pending' && header.providerReference?.startsWith('pi_')) {
     // A charge Stripe is still processing (or we never heard back from): read its answer first.
     const intent = await retrievePaymentIntent(header.providerReference)
@@ -213,7 +214,7 @@ export async function retryTripCharge(_root: unknown, args: { paymentId: string 
     const result = await settleIntent(prisma, payment, intent)
     return { status: result.status }
   }
-  if (header.status === 'failed' && await prisma.payment.findFirst({ where: { tripId: header.tripId, id: { not: header.id }, purpose: (await prisma.payment.findUnique({ where: { id: header.id }, select: { purpose: true } }))?.purpose, status: { in: ACTIVE } }, select: { id: true } })) throw new Error('This charge was already paid another way.')
+  if (header.status === 'failed' && await prisma.payment.findFirst({ where: { tripId: header.tripId, id: { not: header.id }, purpose: (await prisma.payment.findUnique({ where: { id: header.id }, select: { purpose: true } }))?.purpose, status: { in: ACTIVE } }, select: { id: true } })) throw new RideshareRefusal('This charge was already paid another way.')
   const result = await attempt(prisma, header.id, profile, header.status === 'failed')
   return { status: (result as any).status || 'failed' }
 }
