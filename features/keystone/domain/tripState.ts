@@ -1,3 +1,4 @@
+import { GraphQLError } from 'graphql'
 export const tripTransitions = {
   start_en_route: { from: ['driver_assigned'], to: 'driver_en_route' },
   arrive: { from: ['driver_en_route'], to: 'driver_arrived' },
@@ -11,7 +12,7 @@ export type TripAction = keyof typeof tripTransitions
 
 export function nextTripStatus(current: string, action: string) {
   const transition = tripTransitions[action as TripAction]
-  if (!transition || !(transition.from as readonly string[]).includes(current)) throw new Error(`Trip cannot transition from ${current} via ${action}.`)
+  if (!transition || !(transition.from as readonly string[]).includes(current)) throw new GraphQLError(`Trip cannot transition from ${current} via ${action}.`)
   return transition.to
 }
 

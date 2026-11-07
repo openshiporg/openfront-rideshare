@@ -1,3 +1,4 @@
+import { GraphQLError } from 'graphql'
 import { randomUUID } from 'node:crypto'
 import { humanSessionId } from '../access'
 import { authorizedTripHeader } from '../domain/tripAuthority'
@@ -23,11 +24,11 @@ async function stripeProvider(context: any) {
 }
 
 async function riderTrip(context: any, tripId: string) {
-  if (!humanSessionId(context.session)) throw new Error('Sign in to pay for this ride.')
+  if (!humanSessionId(context.session)) throw new GraphQLError('Sign in to pay for this ride.')
   const authority = await authorizedTripHeader(context.prisma, context.session, tripId, 'riderOrOperator', 'finance')
-  if (!authority) throw new Error('Trip not found.')
+  if (!authority) throw new GraphQLError('Trip not found.')
   const trip = await context.prisma.trip.findUnique({ where: { id: tripId }, select: { id: true, status: true, confirmationCode: true, bookingSnapshot: true, riderId: true } })
-  if (!trip) throw new Error('Trip not found.')
+  if (!trip) throw new GraphQLError('Trip not found.')
   return { trip, bound: authority.bound }
 }
 
@@ -70,9 +71,9 @@ async function cancelAttempt(context: any, payment: any, reason: string) {
 /** Settles a pending card attempt from its Checkout session. Returns the resulting status. */
 async function settle(context: any, trip: any, payment: any) {
   const session = await retrieveCheckoutSession(String(payment.providerReference || ''))
-  if (session.client_reference_id !== trip.id || session.metadata?.tripId !== trip.id) throw new Error('This payment doesn’t belong to this ride.')
+  if (session.client_reference_id !== trip.id || session.metadata?.tripId !== trip.id) throw new GraphQLError('This payment doesn’t belong to this ride.')
   if (session.payment_status === 'paid') {
-    if (session.amount_total !== payment.amountMinor || session.currency?.toUpperCase() !== payment.currencyCode) throw new Error('The paid amount doesn’t match this ride. Contact the fleet.')
+    if (session.amount_total !== payment.amountMinor || session.currency?.toUpperCase() !== payment.currencyCode) throw new GraphQLError('The paid amount doesn’t match this ride. Contact the fleet.')
     await capture(context, payment, session)
     return { status: 'captured', session }
   }
@@ -102,11 +103,11 @@ export async function tripCardPayment(_root: unknown, args: { tripId: string }, 
 
 export async function startTripCardPayment(_root: unknown, args: { tripId: string }, context: any): Promise<CardPaymentView> {
   const { trip } = await riderTrip(context, args.tripId)
-  if (!await stripeProvider(context)) throw new Error('Card payment isn’t available for this ride.')
+  if (!await stripeProvider(context)) throw new GraphQLError('Card payment isn’t available for this ride.')
   const existing = await activePayment(context, trip.id)
-  if (existing && existing.status !== 'pending') throw new Error('This ride is already paid.')
-  if (existing && existing.provider?.code !== STRIPE_CODE) throw new Error('The fleet is collecting this fare directly.')
-  if (existing && (existing.providerEvidence as any)?.source === 'saved_card') throw new Error('Your saved card is being charged for this ride.')
+  if (existing && existing.status !== 'pending') throw new GraphQLError('This ride is already paid.')
+  if (existing && existing.provider?.code !== STRIPE_CODE) throw new GraphQLError('The fleet is collecting this fare directly.')
+  if (existing && (existing.providerEvidence as any)?.source === 'saved_card') throw new GraphQLError('Your saved card is being charged for this ride.')
   if (existing) {
     const settled = await settle(context, trip, existing)
     if (settled.status === 'captured') return { enabled: true, payable: false, status: 'captured', amountMinor: existing.amountMinor, currencyCode: existing.currencyCode, url: null }
@@ -115,7 +116,7 @@ export async function startTripCardPayment(_root: unknown, args: { tripId: strin
   }
   const payment = await initiateTripPayment(null, { tripId: trip.id, providerCode: STRIPE_CODE, idempotencyKey: `card:${trip.id}:${randomUUID()}` }, context)
   const session = await retrieveCheckoutSession(String(payment.providerReference || ''))
-  if (!session.url) throw new Error('Card payment couldn’t start. Try again in a moment.')
+  if (!session.url) throw new GraphQLError('Card payment couldn’t start. Try again in a moment.')
   return { enabled: true, payable: true, status: 'pending', amountMinor: payment.amountMinor, currencyCode: payment.currencyCode, url: session.url }
 }
 
@@ -124,7 +125,7 @@ export async function confirmTripCardPayment(_root: unknown, args: { tripId: str
   const payment = await activePayment(context, trip.id)
   const view = (status: string | null) => ({ enabled: true, payable: status === 'pending', status, amountMinor: payment?.amountMinor ?? null, currencyCode: payment?.currencyCode ?? null, url: null })
   if (!payment || payment.provider?.code !== STRIPE_CODE || payment.status !== 'pending' || (payment.providerEvidence as any)?.source === 'saved_card') return view(payment?.status ?? null)
-  if (!stripeSecretKey()) throw new Error('Card payment isn’t available for this ride.')
+  if (!stripeSecretKey()) throw new GraphQLError('Card payment isn’t available for this ride.')
   const settled = await settle(context, trip, payment)
   return view(settled.status)
 }
