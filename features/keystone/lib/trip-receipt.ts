@@ -33,17 +33,16 @@ export function receiptLines(fare: any) {
 }
 
 export function tripReceiptHtml(mail: TripReceiptMail) {
-  const rows = mail.lines.map(line => `<tr><td style="padding:4px 0">${escapeHtml(line.label)}</td><td style="padding:4px 0;text-align:right">${escapeHtml(line.amount)}</td></tr>`).join('')
-  return `<body style="font-family:Helvetica,Arial,sans-serif;color:#222;max-width:560px;margin:auto">
-    <h2>Thanks for riding with ${escapeHtml(mail.fleetName)}, ${escapeHtml(mail.name)}</h2>
-    <p>Trip <strong>${escapeHtml(mail.confirmationCode)}</strong><br/>${escapeHtml(mail.whenLabel)}${mail.driverName ? `<br/>Driver: ${escapeHtml(mail.driverName)}` : ''}</p>
-    <p>From: ${escapeHtml(mail.pickup)}<br/>To: ${escapeHtml(mail.dropoff)}</p>
-    <table style="width:100%;border-collapse:collapse;font-size:14px">${rows}
-      <tr><td style="padding:8px 0;border-top:1px solid #ddd"><strong>Total</strong></td><td style="padding:8px 0;border-top:1px solid #ddd;text-align:right"><strong>${escapeHtml(mail.total)}</strong></td></tr>
-    </table>
-    <p>${escapeHtml(mail.paymentLine)}</p>
-    <p><a href="${escapeHtml(mail.link)}">View your rides</a></p>
-  </body>`
+  return emailLayout({
+    storeName: mail.fleetName,
+    preheader: `Trip ${mail.confirmationCode}: ${mail.total}`,
+    title: `Thanks for riding, ${mail.name}`,
+    body: `${emailParagraph(`Trip <strong>${escapeHtml(mail.confirmationCode)}</strong><br>${escapeHtml(mail.whenLabel)}${mail.driverName ? `<br>Driver: ${escapeHtml(mail.driverName)}` : ''}`)}
+${emailPanel(`From: ${escapeHtml(mail.pickup)}<br>To: ${escapeHtml(mail.dropoff)}`)}
+${emailTotals([...mail.lines.map(line => ({ label: line.label, value: line.amount })), { label: 'Total', value: mail.total }])}
+${emailMuted(escapeHtml(mail.paymentLine))}
+${emailButton('View your rides', mail.link)}`,
+  })
 }
 
 async function sendTripReceiptEmail(mail: TripReceiptMail) {
@@ -71,6 +70,7 @@ function paymentLine(payments: Array<{ status: string | null; purpose: string | 
 }
 
 import { claimNotificationRetry } from './notification-retry'
+import { emailButton, emailLayout, emailMuted, emailPanel, emailParagraph, emailTotals } from "./email-layout"
 
 export async function deliverTripReceipt(prisma: any, tripId: string, send?: Send) {
   try {

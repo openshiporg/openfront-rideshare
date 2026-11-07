@@ -1,7 +1,7 @@
 import { createTransport } from "nodemailer";
 import type { RequestReceivedMail } from "./request-confirmation";
+import { emailButton, emailLayout, emailMuted, emailPanel, emailParagraph, escapeHtml } from "./email-layout"
 
-const escapeHtml = (value: unknown) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char] as string);
 
 function transport() {
   const port = Number(process.env.SMTP_PORT);
@@ -15,13 +15,15 @@ export async function sendRequestReceivedEmail(mail: RequestReceivedMail): Promi
       to: mail.to,
       from: process.env.SMTP_FROM,
       subject: `Ride request ${mail.requestNumber} received by ${mail.fleetName}`,
-      html: `<body style="font-family:Helvetica,Arial,sans-serif;color:#222;max-width:560px;margin:auto">
-        <h2>Thanks ${escapeHtml(mail.name)}, we received your ride request</h2>
-        <p>Request <strong>${escapeHtml(mail.requestNumber)}</strong> with ${escapeHtml(mail.fleetName)}.<br/>${escapeHtml(mail.whenLabel)}</p>
-        <p>From: ${escapeHtml(mail.pickup)}<br/>To: ${escapeHtml(mail.dropoff)}</p>
-        <p>We will show your driver once one accepts.</p>
-        <p><a href="${escapeHtml(mail.link)}">View your rides</a></p>
-      </body>`,
+      html: emailLayout({
+        storeName: mail.fleetName,
+        preheader: `Ride request ${mail.requestNumber} received`,
+        title: "We received your ride request",
+        body: `${emailParagraph(`Thanks ${escapeHtml(mail.name)}. Request <strong>${escapeHtml(mail.requestNumber)}</strong> with ${escapeHtml(mail.fleetName)}.`)}
+${emailPanel(`${escapeHtml(mail.whenLabel)}<br>From: ${escapeHtml(mail.pickup)}<br>To: ${escapeHtml(mail.dropoff)}`)}
+${emailMuted("We will show your driver once one accepts.")}
+${emailButton("View your rides", mail.link)}`,
+      }),
     });
     return { sent: true, messageId: typeof (info as any)?.messageId === "string" ? (info as any).messageId : undefined, response: typeof (info as any)?.response === "string" ? (info as any).response : undefined };
   } catch (error) {
