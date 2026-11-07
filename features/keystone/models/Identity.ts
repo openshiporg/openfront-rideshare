@@ -6,10 +6,16 @@ import { trackingFields } from './trackingFields'
 import { labels } from './labels'
 import { DEFAULT_STORE_LOGO_ICON, DEFAULT_STORE_LOGO_COLOR, normalizeStoreLogoColor } from '../../platform/settings/branding/store-logo'
 import { sanitizeStoreLogoSvg } from '../utils/storeLogo'
+import { fleetConfigProblems } from '../domain/fleetConfig'
 
 export const Fleet = list({
   ui: { hideCreate: true, hideDelete: true },
   access: fleetScopedAccess('fleetAdmin'),
+  // Receipts format times in the fleet's zone, fares are in its currency and trip locations are kept for its
+  // retention days; createFleet checks them, and so must any later edit, or receipts and location writes break.
+  hooks: { validateInput: ({ resolvedData, addValidationError }) => {
+    for (const message of fleetConfigProblems(resolvedData as Record<string, unknown>)) addValidationError(message)
+  } },
   fields: {
     name: text({ validation: { isRequired: true } }),
     slug: text({ validation: { isRequired: true }, isIndexed: 'unique' }),

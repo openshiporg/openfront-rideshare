@@ -34,7 +34,13 @@ export async function addFleetMember(_root: unknown, args: { fleetId: string; em
   if (!user) fail('No account uses that email. They sign up or are added under People first.')
   const existing = await context.prisma.fleetMembership.findFirst({ where: { fleetId, userId: user.id }, select: { id: true } })
   if (existing) fail('That person is already on this fleet.')
-  return context.prisma.fleetMembership.create({ data: { fleetId, userId: user.id, role, status: 'active', invitedAt: new Date(), acceptedAt: new Date() }, select: { id: true, role: true, status: true } })
+  // One seat per person per fleet is a unique index (FleetMembership_fleet_user_key); a double submit loses here.
+  try {
+    return await context.prisma.fleetMembership.create({ data: { fleetId, userId: user.id, role, status: 'active', invitedAt: new Date(), acceptedAt: new Date() }, select: { id: true, role: true, status: true } })
+  } catch (error) {
+    if ((error as { code?: string })?.code === 'P2002') fail('That person is already on this fleet.')
+    throw error
+  }
 }
 
 export async function updateFleetMember(_root: unknown, args: { membershipId: string; role?: string | null; status?: string | null }, context: any) {
@@ -44,11 +50,16 @@ export async function updateFleetMember(_root: unknown, args: { membershipId: st
   const role = args.role ? oneOf(args.role, MEMBER_ROLES, 'Role') : membership!.role
   const status = args.status ? oneOf(args.status, ['active', 'suspended'] as const, 'Status') : membership!.status
   if (membership!.userId === actor.id && (role !== 'owner' || status !== 'active')) fail('You can’t remove your own owner access.')
-  if (membership!.role === 'owner' && (role !== 'owner' || status !== 'active')) {
-    const owners = await context.prisma.fleetMembership.count({ where: { fleetId, role: 'owner', status: 'active' } })
-    if (owners <= 1) fail('A fleet needs at least one active owner.')
-  }
-  return context.prisma.fleetMembership.update({ where: { id: membership!.id }, data: { role, status }, select: { id: true, role: true, status: true } })
+  // Owner changes on one fleet run one at a time, so two owners demoting each other can't both pass the count.
+  return context.prisma.$transaction(async (tx: any) => {
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`fleet-owners:${fleetId}`}, 0))::text IS NOT NULL`
+    const live = await tx.fleetMembership.findUnique({ where: { id: membership!.id }, select: { role: true, status: true } })
+    if (live?.role === 'owner' && live.status === 'active' && (role !== 'owner' || status !== 'active')) {
+      const owners = await tx.fleetMembership.count({ where: { fleetId, role: 'owner', status: 'active' } })
+      if (owners <= 1) fail('A fleet needs at least one active owner.')
+    }
+    return tx.fleetMembership.update({ where: { id: membership!.id }, data: { role, status }, select: { id: true, role: true, status: true } })
+  })
 }
 
 export async function addDriverTimeOff(_root: unknown, args: { driverId: string; startsAt: string; endsAt: string; kind?: string | null; reason?: string | null }, context: any) {

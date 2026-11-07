@@ -78,6 +78,15 @@ export async function retryStuckNotifications(prisma: PrismaClient, now = new Da
   return retried
 }
 
+/** Trip locations are written with `expiresAt` = recorded time + the fleet's retention days. Past that they are deleted,
+ * so the retention the fleet promises riders is what the database actually holds. Bounded per run. */
+export async function purgeExpiredLocations(prisma: PrismaClient, now = new Date()) {
+  const rows = await prisma.locationEvent.findMany({ where: { expiresAt: { lte: now } }, orderBy: { expiresAt: 'asc' }, take: 500, select: { id: true } })
+  if (!rows.length) return 0
+  const result = await prisma.locationEvent.deleteMany({ where: { id: { in: rows.map(row => row.id) }, expiresAt: { lte: now } } })
+  return result.count
+}
+
 let last = 0
 let running = false
 /** Fire-and-forget from read paths. Never throws and never delays the read. */
@@ -86,7 +95,7 @@ export function runMaintenance(prisma: PrismaClient, { everyMs = 60_000 } = {}) 
   if (running || now - last < everyMs) return
   last = now; running = true
   void (async () => {
-    for (const step of [expireStaleRideRequests, reconcileStaleRefunds, retryStuckNotifications]) {
+    for (const step of [expireStaleRideRequests, reconcileStaleRefunds, retryStuckNotifications, purgeExpiredLocations]) {
       try { await step(prisma) } catch (error) { console.error('Maintenance step failed:', step.name, error instanceof Error ? error.message : 'unknown') }
     }
   })().finally(() => { running = false })

@@ -58,6 +58,8 @@ export function missingDocuments(documents: Array<{ kind: string | null; status:
 
 /** The fleet's single active eligibility policy of a kind, created on first review if the fleet has none. */
 async function eligibilityPolicy(tx: any, fleetId: string, kind: 'driver_eligibility' | 'vehicle_eligibility') {
+  // Two first reviews at once must not both create the policy (then every later review would refuse).
+  await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`policy:${fleetId}:${kind}`}, 0))::text IS NOT NULL`
   const policies = await tx.policy.findMany({ where: { fleetId, kind, status: 'active' }, orderBy: { id: 'asc' }, take: 2, select: { id: true, version: true } })
   if (policies.length > 1) fail('This fleet has more than one active eligibility policy of this kind. Retire one before reviewing.')
   if (policies[0]) return policies[0]
@@ -268,6 +270,8 @@ export async function createFareRule(_root: unknown, args: { serviceId: string; 
     status: oneOf(args.status, ['draft', 'active', 'retired'] as const, 'Status', 'active'),
   }
   return context.prisma.$transaction(async (tx: any) => {
+    // Serialise fare versions per service and area: two saves at once would both read version N and both go active.
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`fare:${service!.id}:${area!.id}`}, 0))::text IS NOT NULL`
     const latest = await tx.fareRule.findFirst({ where: { serviceId: service!.id, serviceAreaId: area!.id }, orderBy: { version: 'desc' }, select: { version: true } })
     const version = (latest?.version || 0) + 1
     try { validateFareRule({ ...data, version } as any) } catch { fail('Check the currency and amounts.') }
