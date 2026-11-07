@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { GraphQLError } from 'graphql'
 import { canAccessFleet, currentHumanActor, type FleetCapability } from '../access'
+import { assertTransition, COLLECTABLE_FARE_TRIP_STATUSES } from '../domain/lifecycles'
 
 // Day-to-day operator commands that the closed generic CRUD can't express: staff seats, driver
 // time off, safety and support triage, review moderation, and settling manual (cash / card on
@@ -69,52 +70,59 @@ export async function removeDriverTimeOff(_root: unknown, args: { exceptionId: s
   return { id: exception!.id, removed: true }
 }
 
-const INCIDENT_FLOW: Record<string, string[]> = { open: ['triage', 'investigating', 'resolved'], triage: ['investigating', 'resolved'], investigating: ['resolved'], resolved: ['closed', 'investigating'], closed: [] }
 export async function updateSafetyIncident(_root: unknown, args: { incidentId: string; status?: string | null; assignToMe?: boolean | null }, context: any) {
   const actor = await requireActor(context)
   const incident = await context.prisma.safetyIncident.findUnique({ where: { id: args.incidentId }, select: { id: true, status: true, trip: { select: { fleetId: true } } } })
   await requireFleet(context, incident?.trip?.fleetId, 'safety')
   const data: Record<string, unknown> = {}
   if (args.status) {
-    if (!(INCIDENT_FLOW[incident!.status || 'open'] || []).includes(args.status)) fail(`A ${incident!.status} incident can’t move to ${args.status}.`)
+    assertTransition('incident', incident!.status || 'open', args.status, 'incident')
     data.status = args.status
     if (args.status === 'resolved') data.resolvedAt = new Date()
   }
   if (args.assignToMe) data.assignedToId = actor.id
   if (!Object.keys(data).length) fail('Nothing to change.')
-  return context.prisma.safetyIncident.update({ where: { id: incident!.id }, data, select: { id: true, status: true } })
+  const guarded = await context.prisma.safetyIncident.updateMany({ where: { id: incident!.id, status: incident!.status }, data })
+  if (guarded.count !== 1) fail('This incident changed. Reload and try again.')
+  return context.prisma.safetyIncident.findUnique({ where: { id: incident!.id }, select: { id: true, status: true } })
 }
 
-const CASE_FLOW: Record<string, string[]> = { open: ['waiting', 'resolved'], waiting: ['open', 'resolved'], resolved: ['closed', 'open'], closed: [] }
 export async function updateSupportCase(_root: unknown, args: { caseId: string; status?: string | null; assignToMe?: boolean | null }, context: any) {
   const actor = await requireActor(context)
   const supportCase = await context.prisma.supportCase.findUnique({ where: { id: args.caseId }, select: { id: true, status: true, trip: { select: { fleetId: true } } } })
   await requireFleet(context, supportCase?.trip?.fleetId, 'safety')
   const data: Record<string, unknown> = {}
   if (args.status) {
-    if (!(CASE_FLOW[supportCase!.status || 'open'] || []).includes(args.status)) fail(`A ${supportCase!.status} case can’t move to ${args.status}.`)
+    assertTransition('supportCase', supportCase!.status || 'open', args.status, 'case')
     data.status = args.status
     if (args.status === 'resolved') data.resolvedAt = new Date()
   }
   if (args.assignToMe) data.assignedToId = actor.id
   if (!Object.keys(data).length) fail('Nothing to change.')
-  return context.prisma.supportCase.update({ where: { id: supportCase!.id }, data, select: { id: true, status: true } })
+  const guarded = await context.prisma.supportCase.updateMany({ where: { id: supportCase!.id, status: supportCase!.status }, data })
+  if (guarded.count !== 1) fail('This case changed. Reload and try again.')
+  return context.prisma.supportCase.findUnique({ where: { id: supportCase!.id }, select: { id: true, status: true } })
 }
 
 export async function moderateReview(_root: unknown, args: { reviewId: string; status: string; reason?: string | null }, context: any) {
   await requireActor(context)
-  const review = await context.prisma.review.findUnique({ where: { id: args.reviewId }, select: { id: true, trip: { select: { fleetId: true } } } })
+  const review = await context.prisma.review.findUnique({ where: { id: args.reviewId }, select: { id: true, status: true, trip: { select: { fleetId: true } } } })
   await requireFleet(context, review?.trip?.fleetId, 'safety')
   const status = oneOf(args.status, ['published', 'hidden', 'removed'] as const, 'Status')
-  return context.prisma.review.update({ where: { id: review!.id }, data: { status, moderatedAt: new Date(), moderationReason: String(args.reason || '').trim().slice(0, 500) }, select: { id: true, status: true } })
+  assertTransition('review', review!.status || 'pending', status, 'review')
+  const moved = await context.prisma.review.updateMany({ where: { id: review!.id, status: review!.status }, data: { status, moderatedAt: new Date(), moderationReason: String(args.reason || '').trim().slice(0, 500) } })
+  if (moved.count !== 1) fail('This review changed. Reload and try again.')
+  return { id: review!.id, status }
 }
 
 /** Manual adapter only: the operator confirms the rider paid in person (cash or card terminal). */
 export async function confirmManualPayment(_root: unknown, args: { paymentId: string; method?: string | null }, context: any) {
   const actor = await requireActor(context)
-  const payment = await context.prisma.payment.findUnique({ where: { id: args.paymentId }, select: { id: true, status: true, amountMinor: true, currencyCode: true, tripId: true, provider: { select: { code: true } }, trip: { select: { fleetId: true } } } })
+  const payment = await context.prisma.payment.findUnique({ where: { id: args.paymentId }, select: { id: true, status: true, purpose: true, amountMinor: true, currencyCode: true, tripId: true, provider: { select: { code: true } }, trip: { select: { fleetId: true, status: true } } } })
   await requireFleet(context, payment?.trip?.fleetId, 'finance')
   if (payment!.provider?.code !== 'pp_manual') fail('Only manual payments are confirmed here.')
+  // A fare is only collected for a ride that is under way or done; a cancelled or no-show trip owes its fee, not its fare.
+  if ((payment!.purpose || 'fare') === 'fare' && !(COLLECTABLE_FARE_TRIP_STATUSES as readonly string[]).includes(payment!.trip?.status || '')) fail('This ride was cancelled, so its fare can’t be collected.')
   if (payment!.status !== 'pending' && payment!.status !== 'authorized') fail(`This payment is already ${String(payment!.status).replaceAll('_', ' ')}.`)
   const method = args.method ? oneOf(args.method, ['cash', 'card_terminal', 'bank_transfer', 'other'] as const, 'Method') : 'cash'
   return context.prisma.$transaction(async (tx: any) => {
@@ -130,7 +138,7 @@ export async function confirmManualPayment(_root: unknown, args: { paymentId: st
 /** Manual adapter only: the operator confirms money was handed back. */
 export async function confirmManualRefund(_root: unknown, args: { refundId: string }, context: any) {
   const actor = await requireActor(context)
-  const refund = await context.prisma.refund.findUnique({ where: { id: args.refundId }, select: { id: true, status: true, amountMinor: true, currencyCode: true, payment: { select: { id: true, tripId: true, amountMinor: true, provider: { select: { code: true } }, trip: { select: { fleetId: true } } } } } })
+  const refund = await context.prisma.refund.findUnique({ where: { id: args.refundId }, select: { id: true, status: true, amountMinor: true, currencyCode: true, payment: { select: { id: true, tripId: true, amountMinor: true, status: true, provider: { select: { code: true } }, trip: { select: { fleetId: true } } } } } })
   await requireFleet(context, refund?.payment?.trip?.fleetId, 'finance')
   if (refund!.payment?.provider?.code !== 'pp_manual') fail('Only manual refunds are confirmed here.')
   if (!['requested', 'processing'].includes(refund!.status || '')) fail(`This refund is already ${String(refund!.status).replaceAll('_', ' ')}.`)
@@ -139,7 +147,11 @@ export async function confirmManualRefund(_root: unknown, args: { refundId: stri
     const updated = await tx.refund.updateMany({ where: { id: refund!.id, status: { in: ['requested', 'processing'] } }, data: { status: 'succeeded', processedAt: new Date() } })
     if (updated.count !== 1) fail('This refund changed. Reload and try again.')
     const refunded = await tx.refund.aggregate({ where: { paymentId: refund!.payment!.id, status: 'succeeded' }, _sum: { amountMinor: true } })
-    await tx.payment.update({ where: { id: refund!.payment!.id }, data: { status: (refunded._sum.amountMinor || 0) >= (refund!.payment!.amountMinor || 0) ? 'refunded' : 'partially_refunded' } })
+    const currentPayment = await tx.payment.findUnique({ where: { id: refund!.payment!.id }, select: { status: true, amountMinor: true } })
+    const nextPayment = (refunded._sum.amountMinor || 0) >= (currentPayment?.amountMinor || 0) ? 'refunded' : 'partially_refunded'
+    if ((refunded._sum.amountMinor || 0) > (currentPayment?.amountMinor || 0)) fail('Refunds would exceed what was paid. Reconcile before marking this refunded.')
+    assertTransition('payment', currentPayment?.status, nextPayment, 'payment')
+    await tx.payment.update({ where: { id: refund!.payment!.id }, data: { status: nextPayment } })
     await tx.paymentObservation.create({ data: { paymentId: refund!.payment!.id, refundId: refund!.id, observationKey: randomUUID(), details: { phase: 'refunded', source: 'operator_confirmation', actorId: actor.id, amountMinor: refund!.amountMinor, observedAt: new Date().toISOString() } } })
     await tx.ledgerEntry.create({ data: { tripId: refund!.payment!.tripId, paymentId: refund!.payment!.id, entryKey: `refund:${refund!.id}:succeeded`, kind: 'refund', account: 'rider_receivable', direction: 'debit', amountMinor: refund!.amountMinor, currencyCode: refund!.currencyCode, memo: 'Refund handed back', metadata: { actorId: actor.id } } })
     return { id: refund!.id, status: 'succeeded' }

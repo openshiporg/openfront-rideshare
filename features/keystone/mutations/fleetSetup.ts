@@ -3,6 +3,7 @@ import { GraphQLError } from 'graphql'
 import { canAccessFleet, currentHumanActor, permissions, type FleetCapability } from '../access'
 import { validateFareRule } from '../domain/fare'
 import { refreshDriverPresentDispatchStatus } from '../domain/driverDispatchPresence'
+import { assertTransition, COMMITTED_TRIP_STATUSES } from '../domain/lifecycles'
 
 // Semantic setup for a fleet's day-one records. Generic CRUD stays closed for tenant
 // relationships (models/*.ts), so these mutations set the fleet server-side after checking
@@ -136,11 +137,26 @@ export async function addComplianceDocument(_root: unknown, args: { driverId?: s
 
 export async function reviewComplianceDocument(_root: unknown, args: { documentId: string; decision: string; notes?: string | null }, context: any) {
   const actor = await requireActor(context)
-  const document = await context.prisma.complianceDocument.findUnique({ where: { id: args.documentId }, select: { id: true, expiresAt: true, driver: { select: { fleetId: true } }, vehicle: { select: { fleetId: true } } } })
-  await requireFleet(context, document?.driver?.fleetId || document?.vehicle?.fleetId, 'drivers')
+  const document = await context.prisma.complianceDocument.findUnique({ where: { id: args.documentId }, select: { id: true, kind: true, expiresAt: true, driverId: true, vehicleId: true, driver: { select: { fleetId: true } }, vehicle: { select: { fleetId: true } } } })
+  const fleetId = await requireFleet(context, document?.driver?.fleetId || document?.vehicle?.fleetId, 'drivers')
   const decision = oneOf(args.decision, ['accepted_evidence', 'rejected_evidence', 'revoked'] as const, 'Decision')
   if (decision === 'accepted_evidence' && document!.expiresAt && new Date(document!.expiresAt).getTime() <= Date.now()) fail('This document has expired and cannot be accepted.')
-  return context.prisma.complianceDocument.update({ where: { id: document!.id }, data: { status: decision, reviewedAt: new Date(), reviewerId: actor.id, reviewNotes: text(args.notes, 'Notes', { max: 1000 }) }, select: { id: true, status: true } })
+  const notes = text(args.notes, 'Notes', { max: 1000 })
+  return context.prisma.$transaction(async (tx: any) => {
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`document:${document!.id}`}, 0))::text IS NOT NULL`
+    const current = await tx.complianceDocument.findUnique({ where: { id: document!.id }, select: { status: true } })
+    assertTransition('document', current?.status, decision, 'document')
+    const updated = await tx.complianceDocument.update({ where: { id: document!.id }, data: { status: decision, reviewedAt: new Date(), reviewerId: actor.id, reviewNotes: notes }, select: { id: true, status: true } })
+    // Dispatch trusts the newest eligibility evaluation, so taking back a required document must take back
+    // the "eligible" verdict too; otherwise a revoked licence keeps taking offers until someone re-reviews.
+    const subject = document!.driverId ? 'driver' : 'vehicle'
+    const required: readonly string[] = subject === 'driver' ? DRIVER_DOCUMENTS : VEHICLE_DOCUMENTS
+    if (decision !== 'accepted_evidence' && required.includes(document!.kind)) {
+      const policy = await eligibilityPolicy(tx, fleetId, subject === 'driver' ? 'driver_eligibility' : 'vehicle_eligibility')
+      await tx.policyEvaluation.create({ data: { policyId: policy.id, [`${subject}Id`]: document!.driverId || document!.vehicleId, outcome: 'ineligible', reasons: [`${String(document!.kind).replaceAll('_', ' ')} ${decision.replaceAll('_', ' ')}.`], evidenceSnapshot: { policyVersion: policy.version, documentId: document!.id, decision }, evaluatedAt: new Date(), evaluatorId: actor.id } })
+    }
+    return updated
+  })
 }
 
 /** Approve, pause or remove a driver. Approval needs accepted licence and insurance and records the eligibility evaluation dispatch reads. */
@@ -149,9 +165,13 @@ export async function reviewDriver(_root: unknown, args: { driverId: string; dec
   const driver = await context.prisma.driverProfile.findUnique({ where: { id: args.driverId }, select: { id: true, fleetId: true, status: true, dispatchStatus: true } })
   const fleetId = await requireFleet(context, driver?.fleetId, 'drivers')
   const decision = oneOf(args.decision, ['active', 'paused', 'ineligible', 'offboarded'] as const, 'Decision')
-  if (decision !== 'active' && ['offered', 'assigned', 'on_trip'].includes(driver!.dispatchStatus || '')) fail('This driver has a live offer or trip. Finish or reassign it first.')
   const notes = text(args.notes, 'Notes', { max: 1000 })
   return context.prisma.$transaction(async (tx: any) => {
+    // The same lock offers and trip changes take, so a driver can't be taken off the road while an offer is landing.
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`driver:${driver!.id}`}, 0))::text IS NOT NULL`
+    const live = await tx.driverProfile.findUnique({ where: { id: driver!.id }, select: { status: true, dispatchStatus: true } })
+    assertTransition('driver', live?.status, decision, 'driver')
+    if (decision !== 'active' && ['offered', 'assigned', 'on_trip'].includes(live?.dispatchStatus || '')) fail('This driver has a live offer or trip. Finish or reassign it first.')
     const documents = await tx.complianceDocument.findMany({ where: { driverId: driver!.id }, select: { kind: true, status: true, expiresAt: true } })
     const missing = missingDocuments(documents, DRIVER_DOCUMENTS)
     if (decision === 'active' && missing.length) fail(`Accept the driver's ${missing.map(kind => kind.replaceAll('_', ' ')).join(' and ')} first.`)
@@ -170,6 +190,14 @@ export async function reviewVehicle(_root: unknown, args: { vehicleId: string; d
   const decision = oneOf(args.decision, ['active', 'maintenance', 'suspended', 'retired'] as const, 'Decision')
   const notes = text(args.notes, 'Notes', { max: 1000 })
   return context.prisma.$transaction(async (tx: any) => {
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`vehicle:${vehicle!.id}`}, 0))::text IS NOT NULL`
+    const live = await tx.vehicle.findUnique({ where: { id: vehicle!.id }, select: { status: true } })
+    assertTransition('vehicle', live?.status, decision, 'vehicle')
+    if (decision !== 'active') {
+      const busy = await tx.trip.findFirst({ where: { vehicleId: vehicle!.id, status: { in: [...COMMITTED_TRIP_STATUSES] } }, select: { id: true } })
+        || await tx.matchOffer.findFirst({ where: { vehicleId: vehicle!.id, status: { in: ['offered', 'accepted'] }, reservationReleasedAt: null }, select: { id: true } })
+      if (busy) fail('This vehicle has a live offer or trip. Finish or reassign it first.')
+    }
     const documents = await tx.complianceDocument.findMany({ where: { vehicleId: vehicle!.id }, select: { kind: true, status: true, expiresAt: true } })
     const missing = missingDocuments(documents, VEHICLE_DOCUMENTS)
     if (decision === 'active' && missing.length) fail(`Accept the vehicle's ${missing.map(kind => kind.replaceAll('_', ' ')).join(' and ')} first.`)

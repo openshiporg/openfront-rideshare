@@ -9,6 +9,7 @@ import { currencyDigits, validMinor } from '../../lib/currency'
 import { randomUUID } from 'node:crypto'
 import { requireFleetOperations } from '../domain/operationalReadiness'
 import { requestBaseUrl } from './onboarding'
+import { assertTransition, COLLECTABLE_FARE_TRIP_STATUSES } from '../domain/lifecycles'
 
 function requireIdempotencyKey(value: unknown) {
   const key = String(value || '').trim()
@@ -52,7 +53,7 @@ export async function initiateTripPayment(_root: unknown, args: { tripId: string
   const trip = preflight.trip
   await requireFleetOperations(prisma, trip.fleet?.id)
   const sudo = context.sudo()
-  if (!['driver_assigned', 'driver_en_route', 'driver_arrived', 'in_progress', 'completed'].includes(trip.status || '')) throw new Error('Trip is not in a payable state.')
+  if (!(COLLECTABLE_FARE_TRIP_STATUSES as readonly string[]).includes(trip.status || '')) throw new Error('Trip is not in a payable state.')
   const { amount, currency } = moneySnapshot(trip.bookingSnapshot)
   const provider = await sudo.query.PaymentProvider.findOne({ where: { code: args.providerCode }, query: 'id code isInstalled createPaymentFunction capturePaymentFunction refundPaymentFunction getPaymentStatusFunction handleWebhookFunction' })
   if (!provider || provider.isInstalled !== 'yes') throw new Error('Payment provider is unavailable.')
@@ -64,7 +65,7 @@ export async function initiateTripPayment(_root: unknown, args: { tripId: string
     const authority = await authorizedTripHeader(tx, context.session, trip.id, 'riderOrOperator', 'finance')
     if (!authority?.bound || !sameTripAuthority(authority.header, preflight.header)) throw new Error('Trip payment authority or assignment changed; reconciliation is required.')
     const currentTrip = await tx.trip.findFirst({ where: tripAuthorityWhere(authority.header), select: { status: true, bookingSnapshot: true } })
-    if (!currentTrip || !['driver_assigned', 'driver_en_route', 'driver_arrived', 'in_progress', 'completed'].includes(currentTrip.status || '')) throw new Error('Trip is not in a payable state.')
+    if (!currentTrip || !(COLLECTABLE_FARE_TRIP_STATUSES as readonly string[]).includes(currentTrip.status || '')) throw new Error('Trip is not in a payable state.')
     const currentMoney = moneySnapshot(currentTrip.bookingSnapshot)
     if (currentMoney.amount !== amount || currentMoney.currency !== currency) throw new Error('Accepted payment economics changed; reconciliation is required.')
     const replay = await tx.payment.findUnique({ where: { idempotencyKey } })
@@ -163,6 +164,7 @@ export async function requestTripRefund(_root: unknown, args: { paymentId: strin
   const original = await tx.refund.findUnique({ where: { id: reservation.refund.id } })
   if (!original || original.paymentId !== payment.id || original.providerId !== provider.id || original.idempotencyKey !== idempotencyKey) throw new Error('Original refund binding is unavailable.')
   if (original.status === 'succeeded') return original
+  if (original.status !== status) assertTransition('refund', original.status, status, 'refund')
   const refund = await tx.refund.update({ where: { id: original.id }, data: {
     status, providerReference: String(evidence.externalId || ''),
     processedAt: status === 'succeeded' ? new Date() : null,
@@ -171,7 +173,9 @@ export async function requestTripRefund(_root: unknown, args: { paymentId: strin
     const current = await tx.payment.findUnique({ where: { id: payment.id } })
     const totalSucceeded = await tx.refund.aggregate({ where: { paymentId: payment.id, status: 'succeeded' }, _sum: { amountMinor: true } })
     if (!current || current.amountMinor == null || (totalSucceeded._sum.amountMinor || 0) > current.amountMinor) throw new Error('Refund evidence exceeds original tender; reconciliation is required.')
-    await tx.payment.update({ where: { id: payment.id }, data: { status: (totalSucceeded._sum.amountMinor || 0) === current.amountMinor ? 'refunded' : 'partially_refunded' } })
+    const nextStatus = (totalSucceeded._sum.amountMinor || 0) === current.amountMinor ? 'refunded' : 'partially_refunded'
+    assertTransition('payment', current.status, nextStatus, 'payment')
+    await tx.payment.update({ where: { id: payment.id }, data: { status: nextStatus } })
   }
   return refund
   }, { isolationLevel: 'Serializable' })
