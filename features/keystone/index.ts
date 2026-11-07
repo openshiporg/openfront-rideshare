@@ -9,6 +9,8 @@ import { extendGraphqlSchema } from './mutations'
 import { sendPasswordResetEmail } from './lib/mail'
 import { permissionNames, permissions } from './access'
 import { pooledDatabaseUrl } from './database-url';
+// Keystone returns failed queries as values; this makes them throw so transactions roll back.
+import { throwKeystonePrismaErrors } from './lib/keystonePrismaErrors'
 
 const production = process.env.NODE_ENV === 'production'
 const databaseURL = process.env.DATABASE_URL || 'postgresql://localhost/openfront_rideshare'
@@ -41,7 +43,7 @@ const storage = {
 }
 
 export default withAuth(config({
-  db: { provider: 'postgresql', url: pooledDatabaseUrl(databaseURL) }, lists: withItemViewAwareUi(withDeleteAwareUi(withCreateAwareUi(models))), session,
+  db: { provider: 'postgresql', url: pooledDatabaseUrl(databaseURL), extendPrismaClient: throwKeystonePrismaErrors }, lists: withItemViewAwareUi(withDeleteAwareUi(withCreateAwareUi(models))), session,
   graphql: { extendGraphqlSchema }, storage,
   ui: { isAccessAllowed: context => permissions.canAccessDashboard({ context, session: context.session }) },
 }))
