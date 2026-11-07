@@ -177,9 +177,18 @@ export async function requestTripRefund(_root: unknown, args: { paymentId: strin
     const nextStatus = (totalSucceeded._sum.amountMinor || 0) === current.amountMinor ? 'refunded' : 'partially_refunded'
     assertTransition('payment', current.status, nextStatus, 'payment')
     await tx.payment.update({ where: { id: payment.id }, data: { status: nextStatus } })
+    await bookRefundLedger(tx, refund, current, 'refund_call')
   }
   return refund
   }, { isolationLevel: 'Serializable' })
+}
+
+/** The ledger side of a settled refund. Keyed by refund, so a replay (webhook + refund call + operator) books it once. */
+export async function bookRefundLedger(tx: any, refund: { id: string; amountMinor: number | null; currencyCode: string | null }, payment: { id: string; tripId: string | null }, source: string) {
+  if (refund.amountMinor == null || refund.amountMinor <= 0) return
+  const entryKey = `refund:${refund.id}:succeeded`
+  if (await tx.ledgerEntry.findUnique({ where: { entryKey }, select: { id: true } })) return
+  await tx.ledgerEntry.create({ data: { tripId: payment.tripId, paymentId: payment.id, entryKey, kind: 'refund', account: 'rider_receivable', direction: 'debit', amountMinor: refund.amountMinor, currencyCode: refund.currencyCode, memo: 'Refunded to card', metadata: { source } } })
 }
 
 /** Settles a refund from what the provider says: the refund call's answer, a webhook, or a later look-up.
@@ -206,6 +215,7 @@ export async function settleRefund(prisma: any, args: { refundId: string; status
         assertTransition('payment', payment.status, next, 'payment')
         await tx.payment.update({ where: { id: payment.id }, data: { status: next } })
       }
+      await bookRefundLedger(tx, refund, payment, args.source)
     }
     return { settled: true as const, status: args.status }
   }, { isolationLevel: 'Serializable' })
