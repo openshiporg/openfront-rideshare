@@ -56,7 +56,7 @@ export async function startRiderCardSetup(_root: unknown, args: { returnTo?: str
   const origin = requestBaseUrl(context.req)
   if (!origin) throw new RideshareRefusal('Saving a card needs the storefront address.')
   const user = await context.prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true } })
-  let profile = await savedCardFor(context.prisma, userId)
+  const profile = await savedCardFor(context.prisma, userId)
   let customerId = profile?.stripeCustomerId || ''
   if (!customerId) {
     customerId = (await createStripeCustomer({ email: user?.email, name: user?.name, userId })).id
