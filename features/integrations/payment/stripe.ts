@@ -166,6 +166,16 @@ export async function chargeSavedCard({ customerId, paymentMethodId, amount, cur
   throw new Error(`Stripe request failed: ${payload?.error?.message ?? response.status}`)
 }
 
+export type StripeRefund = { id: string; status: string; amount: number; currency: string; payment_intent: string | null; failure_reason?: string | null }
+
+export function retrieveRefund(id: string) {
+  if (!/^re_[A-Za-z0-9]+$/.test(id)) throw new Error('Refund is invalid.')
+  return stripeRequest<StripeRefund>(`/refunds/${encodeURIComponent(id)}`)
+}
+
+export { verifyStripeSignature, stripeWebhookSecret } from './stripeSignature'
+
+/** Webhooks are verified and handled at /api/payment-webhooks/stripe, not through the generic adapter hook. */
 export async function handleWebhookFunction() {
-  throw new Error('Stripe payments are confirmed from the Checkout session; webhooks are not accepted.')
+  throw new Error('Stripe events arrive at /api/payment-webhooks/stripe.')
 }

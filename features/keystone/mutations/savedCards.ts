@@ -169,7 +169,7 @@ async function attempt(prisma: PrismaClient, paymentId: string, profile: { strip
   return settleIntent(prisma, payment, intent)
 }
 
-async function settleIntent(prisma: PrismaClient, payment: any, intent: StripePaymentIntent) {
+export async function settleIntent(prisma: PrismaClient, payment: any, intent: StripePaymentIntent) {
   const succeeded = intent.status === 'succeeded'
   const processing = intent.status === 'processing'
   const decline = intent.last_payment_error

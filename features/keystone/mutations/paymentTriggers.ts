@@ -2,6 +2,7 @@ import type { PrismaClient } from '@prisma/client'
 import { moneySnapshot } from './finance'
 import { chargeDue } from './savedCards'
 import { advanceAutoDispatch, advanceFleetAutoDispatch } from './autoDispatch'
+import { runMaintenance } from './maintenance'
 
 // What happens after a ride command commits: auto-dispatch moves to the next driver, and money due on a saved card
 // is charged. Each runs after the original command has committed and never changes its answer; a failure here
@@ -38,6 +39,7 @@ export function autoDispatchAfter<R>(resolver: Resolver<any, R>, kind: 'request'
 export function dispatchOnPoll<R>(resolver: Resolver<any, R>): Resolver<any, R> {
   return async (root, args, context) => {
     const result: any = await resolver(root, args, context)
+    runMaintenance(context.prisma)
     if (result?.requestId && ['requested', 'matching'].includes(result.status)) void advanceAutoDispatch(context.prisma, result.requestId, { throttleMs: 4000 })
     return result
   }
@@ -47,6 +49,7 @@ export function dispatchOnPoll<R>(resolver: Resolver<any, R>): Resolver<any, R> 
 export function dispatchOnDriverRead<R>(resolver: Resolver<any, R>): Resolver<any, R> {
   return async (root, args, context) => {
     const result: any = await resolver(root, args, context)
+    runMaintenance(context.prisma)
     if (result?.driver?.id && result.driver.status === 'active') void fleetOfDriver(context.prisma, result.driver.id).then(fleetId => advanceFleetAutoDispatch(context.prisma, fleetId, { throttleMs: 5000 }))
     return result
   }

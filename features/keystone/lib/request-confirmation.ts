@@ -37,6 +37,8 @@ function receiptLink(request: { id: string; requestNumber: string; riderId: stri
   return `${base}/#receipt=${hash.toString()}`
 }
 
+import { claimNotificationRetry } from "./notification-retry";
+
 export async function deliverRequestReceived(prisma: any, requestId: string, send?: Send, extra: ReceiptExtra = {}) {
   try {
     const request = await prisma.rideRequest.findUnique({
@@ -52,8 +54,11 @@ export async function deliverRequestReceived(prisma: any, requestId: string, sen
         select: { id: true },
       });
     } catch (error) {
-      if ((error as { code?: string })?.code === "P2002") return; // already claimed: replay or concurrent submit
-      throw error;
+      if ((error as { code?: string })?.code !== "P2002") throw error;
+      // Already claimed: a replay does nothing, but a send that died or failed earlier is taken again.
+      const retry = await claimNotificationRetry(prisma, `ride-request-received:${request.id}`);
+      if (!retry) return;
+      row = retry;
     }
     const mark = (status: string, error?: string, messageId?: string, response?: string) => prisma.notification.update({ where: { id: row.id }, data: { status, ...(messageId ? { providerReference: messageId.slice(0, 200) } : {}), ...(response ? { payload: { requestId: request.id, requestNumber: request.requestNumber, ...(extra.receiptEmail ? { receiptEmail: extra.receiptEmail } : {}), smtpResponse: response.slice(0, 300) } } : {}), attemptCount: { increment: 1 }, ...(status === "sent" ? { sentAt: new Date() } : {}), ...(error ? { lastError: error.slice(0, 200) } : {}) } });
     try {

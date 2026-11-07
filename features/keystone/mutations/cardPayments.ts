@@ -44,7 +44,7 @@ function money(trip: any) {
   try { return moneySnapshot(trip.bookingSnapshot) } catch { return null }
 }
 
-async function capture(context: any, payment: any, session: StripeCheckoutSession) {
+export async function capture(context: any, payment: any, session: StripeCheckoutSession) {
   const intent = typeof session.payment_intent === 'string' ? { id: session.payment_intent, latest_charge: null } : session.payment_intent
   const charge = intent?.latest_charge && typeof intent.latest_charge === 'object' ? intent.latest_charge : null
   const card = charge?.payment_method_details?.card
@@ -60,7 +60,7 @@ async function capture(context: any, payment: any, session: StripeCheckoutSessio
   }, { isolationLevel: 'Serializable' })
 }
 
-async function cancelAttempt(context: any, payment: any, reason: string) {
+export async function cancelAttempt(context: any, payment: any, reason: string) {
   await context.prisma.$transaction(async (tx: any) => {
     await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`payment:${payment.id}`}, 0))::text IS NOT NULL`
     const updated = await tx.payment.updateMany({ where: { id: payment.id, status: 'pending' }, data: { status: 'cancelled' } })

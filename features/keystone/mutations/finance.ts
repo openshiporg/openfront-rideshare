@@ -181,3 +181,32 @@ export async function requestTripRefund(_root: unknown, args: { paymentId: strin
   return refund
   }, { isolationLevel: 'Serializable' })
 }
+
+/** Settles a refund from what the provider says: the refund call's answer, a webhook, or a later look-up.
+ * Replays and stale events are harmless: a settled refund never moves, and a payment never leaves refunded. */
+export async function settleRefund(prisma: any, args: { refundId: string; status: 'succeeded' | 'failed' | 'cancelled'; externalId?: string; source: string }) {
+  return prisma.$transaction(async (tx: any) => {
+    const header = await tx.refund.findUnique({ where: { id: args.refundId }, select: { paymentId: true } })
+    if (!header?.paymentId) return { settled: false, reason: 'unknown_refund' as const }
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`payment:${header.paymentId}`}, 0))::text IS NOT NULL`
+    const refund = await tx.refund.findUnique({ where: { id: args.refundId } })
+    if (!refund) return { settled: false, reason: 'unknown_refund' as const }
+    if (refund.status === args.status) return { settled: false, reason: 'already_settled' as const }
+    if (!['requested', 'processing'].includes(refund.status || '')) return { settled: false, reason: 'already_settled' as const }
+    assertTransition('refund', refund.status, args.status, 'refund')
+    await tx.refund.update({ where: { id: refund.id }, data: { status: args.status, ...(args.externalId ? { providerReference: args.externalId } : {}), processedAt: args.status === 'succeeded' ? new Date() : null } })
+    await tx.paymentObservation.create({ data: { paymentId: header.paymentId, refundId: refund.id, observationKey: randomUUID(), details: { phase: args.status, source: args.source, externalId: args.externalId || refund.providerReference || null, observedAt: new Date().toISOString() } } })
+    if (args.status === 'succeeded') {
+      const payment = await tx.payment.findUnique({ where: { id: header.paymentId } })
+      const total = await tx.refund.aggregate({ where: { paymentId: header.paymentId, status: 'succeeded' }, _sum: { amountMinor: true } })
+      const refunded = total._sum.amountMinor || 0
+      if (!payment || payment.amountMinor == null || refunded > payment.amountMinor) throw new GraphQLError('Refund evidence exceeds original tender; reconciliation is required.')
+      const next = refunded === payment.amountMinor ? 'refunded' : 'partially_refunded'
+      if (payment.status !== next) {
+        assertTransition('payment', payment.status, next, 'payment')
+        await tx.payment.update({ where: { id: payment.id }, data: { status: next } })
+      }
+    }
+    return { settled: true as const, status: args.status }
+  }, { isolationLevel: 'Serializable' })
+}
