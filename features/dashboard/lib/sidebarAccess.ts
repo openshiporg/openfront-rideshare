@@ -11,7 +11,7 @@ type SidebarUser = {
 } | null | undefined
 
 /** Platform pages whose screen needs a fleet capability; the sidebar shows them only to people who hold it. */
-const PLATFORM_CAPABILITY: Record<string, string> = {
+export const PLATFORM_CAPABILITY: Record<string, string> = {
   dispatch: 'operations', trips: 'operations', drivers: 'drivers', safety: 'safety', finance: 'finance', team: 'fleetAdmin',
 }
 

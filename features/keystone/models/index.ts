@@ -11,7 +11,7 @@ import { SafetyIncident, SupportCase, Conversation, Message, Review } from './Sa
 import { PaymentProvider, Payment, Refund, LedgerEntry, Payout } from './Finance'
 import { Notification, MarketplaceRegistration } from './Integration'
 
-export const models = {
+const rawModels = {
   User, Role, FleetBrandingChange, Fleet, FleetMembership, DriverProfile, RiderProfile,
   Vehicle, ComplianceDocument, Policy, PolicyEvaluation, ProviderConnection,
   ServiceArea, RideService, AvailabilityRule, AvailabilityException, FareRule, RideQuote,
@@ -20,3 +20,17 @@ export const models = {
   PaymentProvider, Payment, Refund, PaymentObservation, LedgerEntry, Payout,
   Notification, MarketplaceRegistration,
 }
+
+// Sidebar visibility follows the role: a list whose query access denies the session is hidden from navigation
+// (Keystone evaluates ui.isHidden per session in admin meta). Explicit isHidden settings are kept.
+export const models = Object.fromEntries(Object.entries(rawModels).map(([key, config]: [string, any]) => {
+  const query = config?.access?.operation?.query
+  if (typeof query !== 'function') return [key, config]
+  const existing = config?.ui?.isHidden
+  const isHidden = async (args: any) => {
+    if (existing === true) return true
+    if (typeof existing === 'function' && await existing(args)) return true
+    return !(await query(args))
+  }
+  return [key, { ...config, ui: { ...(config.ui ?? {}), isHidden } }]
+})) as typeof rawModels
