@@ -5,7 +5,15 @@
  */
 
 type SidebarList = { path: string; isHidden?: boolean | null }
-type SidebarUser = { role?: { canAccessDashboard?: boolean | null } | null } | null | undefined
+type SidebarUser = {
+  role?: { canAccessDashboard?: boolean | null } | null
+  capabilities?: Record<string, boolean> | null
+} | null | undefined
+
+/** Platform pages whose screen needs a fleet capability; the sidebar shows them only to people who hold it. */
+const PLATFORM_CAPABILITY: Record<string, string> = {
+  dispatch: 'operations', trips: 'operations', drivers: 'drivers', safety: 'safety', finance: 'finance', team: 'fleetAdmin',
+}
 
 /** Only an explicit false hides navigation; an unknown user is left to the middleware. */
 export function canUseDashboardNav(user: SidebarUser) {
@@ -30,6 +38,9 @@ export function visiblePlatformItems<T extends { href: string }>(
   const hiddenPaths = new Set(lists.filter((list) => list.isHidden).map((list) => list.path))
   return items.filter((item) => {
     const slug = item.href.split('/platform/')[1]?.split(/[/?#]/)[0]
-    return !slug || !hiddenPaths.has(slug)
+    if (slug && hiddenPaths.has(slug)) return false
+    const needed = slug ? PLATFORM_CAPABILITY[slug] : undefined
+    // Unknown capabilities (not loaded) leave the link visible; the page itself still enforces access.
+    return !needed || !user?.capabilities || user.capabilities[needed] === true
   })
 }
