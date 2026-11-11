@@ -2,7 +2,6 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createHmac } from 'node:crypto'
 import { verifyStripeSignature } from '../features/integrations/payment/stripeSignature'
-import { claimNotificationRetry, MAX_NOTIFICATION_ATTEMPTS, STALE_SENDING_MS } from '../features/keystone/lib/notification-retry'
 import { applyStripeEvent } from '../features/keystone/mutations/stripeWebhook'
 
 const secret = 'whsec_testsecret123456'
@@ -20,33 +19,6 @@ test('stripe signature: valid passes; tampered body, wrong secret, stale, missin
   assert.equal(verifyStripeSignature(body, 't=abc,v1=zz', secret, now), false)
   assert.equal(verifyStripeSignature(body, `t=${t}`, secret, now), false)
   assert.equal(verifyStripeSignature(body, `t=${t},v1=abcd,${sign(t).split(',')[1]}`, secret, now), true, 'any matching v1 is enough (key rotation)')
-})
-
-function fakeNotifications(row: any) {
-  return { notification: {
-    findUnique: async () => row,
-    updateMany: async ({ where, data }: any) => {
-      if (where.id !== row.id || where.status !== row.status || +where.updatedAt !== +row.updatedAt) return { count: 0 }
-      Object.assign(row, data, { attemptCount: data.attemptCount?.increment ? row.attemptCount + 1 : row.attemptCount }); return { count: 1 }
-    },
-  } }
-}
-const old = () => new Date(Date.now() - STALE_SENDING_MS - 1000)
-
-test('notification retry: a recent sending row is left alone; a stale one is claimed exactly once', async () => {
-  const fresh = { id: 'n1', status: 'sending', attemptCount: 0, updatedAt: new Date() }
-  assert.equal(await claimNotificationRetry(fakeNotifications(fresh), 'k'), null)
-  const stuck = { id: 'n2', status: 'sending', attemptCount: 1, updatedAt: old() }
-  const db = fakeNotifications(stuck)
-  assert.deepEqual(await claimNotificationRetry(db, 'k'), { id: 'n2' })
-  assert.equal(stuck.attemptCount, 2)
-})
-
-test('notification retry: sent and skipped rows are never resent; a stuck row at the cap is marked failed', async () => {
-  for (const status of ['sent', 'skipped_no_recipient', 'skipped_not_configured']) assert.equal(await claimNotificationRetry(fakeNotifications({ id: 'n', status, attemptCount: 0, updatedAt: old() }), 'k'), null)
-  const capped = { id: 'n3', status: 'sending', attemptCount: MAX_NOTIFICATION_ATTEMPTS, updatedAt: old(), lastError: '' }
-  assert.equal(await claimNotificationRetry(fakeNotifications(capped), 'k'), null)
-  assert.equal(capped.status, 'failed')
 })
 
 test('stripe events: malformed, unknown payment and unrelated types change nothing', async () => {
@@ -79,4 +51,11 @@ test('request expiry only touches requests with no trip and no live offer, past 
   assert.equal(+seen.where.OR[0].createdAt.lt, +at - 2 * 3600_000)
   assert.equal(+seen.where.OR[1].requestedFor.lt, +at - 3600_000)
   assert.equal(seen.data.status, 'expired')
+})
+
+test('no timer, worker or retry queue: the notification retry module is gone and maintenance has no notification step', async () => {
+  const { existsSync, readFileSync } = await import('node:fs')
+  assert.equal(existsSync(new URL('../features/keystone/lib/notification-retry.ts', import.meta.url)), false)
+  assert.ok(!/retryStuckNotifications/.test(readFileSync(new URL('../features/keystone/mutations/maintenance.ts', import.meta.url), 'utf8')))
+  assert.equal(existsSync(new URL('../instrumentation.ts', import.meta.url)), false)
 })

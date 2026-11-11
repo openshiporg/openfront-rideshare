@@ -69,7 +69,6 @@ function paymentLine(payments: Array<{ status: string | null; purpose: string | 
   return `${total} is due to the fleet. Pay as agreed with your driver or from your trip page.`
 }
 
-import { claimNotificationRetry } from './notification-retry'
 import { emailButton, emailLayout, emailMuted, emailPanel, emailParagraph, emailTotals } from "./email-layout"
 
 export async function deliverTripReceipt(prisma: any, tripId: string, send?: Send) {
@@ -86,9 +85,7 @@ export async function deliverTripReceipt(prisma: any, tripId: string, send?: Sen
       row = await prisma.notification.create({ data: { tripId: trip.id, recipientId: trip.riderId || null, channel: 'email', templateKey: 'trip_receipt', status: 'sending', payload: { tripId: trip.id, confirmationCode: trip.confirmationCode }, idempotencyKey: `trip-receipt:${trip.id}` }, select: { id: true } })
     } catch (error) {
       if ((error as { code?: string })?.code !== 'P2002') throw error
-      const retry = await claimNotificationRetry(prisma, `trip-receipt:${trip.id}`)
-      if (!retry) return
-      row = retry
+      return
     }
     const mark = (status: string, error?: string, messageId?: string) => prisma.notification.update({ where: { id: row.id }, data: { status, attemptCount: { increment: 1 }, ...(messageId ? { providerReference: messageId.slice(0, 200) } : {}), ...(status === 'sent' ? { sentAt: new Date() } : {}), ...(error ? { lastError: error.slice(0, 200) } : {}) } })
     try {

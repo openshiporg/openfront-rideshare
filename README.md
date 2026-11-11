@@ -72,6 +72,10 @@ Maintain fleet memberships, drivers, vehicles, compliance documents, policies, a
 ### Support, Safety & Finance
 Record cancellations, messages, reviews, support cases, safety incidents, payment observations, refunds, ledger entries, and payouts. The included payment adapter is manual; mapping and notification implementations do not establish live automated dispatch or payment-provider service.
 
+## No background jobs
+
+There is no timer, worker, cron or retry queue. Unserved ride requests expire and old locations are purged on the reads that already poll (rider status, driver workspace); the staff **Refresh** button on Dispatch and Finance runs every step now, including reconciling refunds stuck in processing. See `AGENTS.md`.
+
 ## Architecture
 
 ### Technology Stack

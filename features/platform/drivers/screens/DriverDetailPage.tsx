@@ -1,5 +1,6 @@
 import React from 'react'
 import Link from 'next/link'
+import { notFound } from 'next/navigation'
 import { ArrowUpRight, CarFront, ChevronLeft } from 'lucide-react'
 import { keystoneClient } from '@/features/dashboard/lib/keystoneClient'
 import { PageBreadcrumbs } from '@/features/dashboard/components/PageBreadcrumbs'
@@ -48,6 +49,7 @@ export async function DriverDetailPage({ params }: { params: Promise<{ id: strin
   const { id } = await params
   const response = await keystoneClient(DRIVER_QUERY, { id, now: new Date().toISOString() })
   const driver = response.success ? response.data?.driverProfile : null
+  if (response.success && !driver) notFound()
   const fleetDocuments: Document[] = driver?.documents || []
   const driverGaps = driver ? missing(fleetDocuments, DRIVER_DOCUMENTS) : []
   return <>

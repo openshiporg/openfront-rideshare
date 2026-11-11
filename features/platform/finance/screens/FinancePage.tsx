@@ -1,5 +1,6 @@
 import { parseQueueSearch, queueSearchHref } from '@/features/platform/components/queueSearch'
 import { keystoneClient } from '@/features/dashboard/lib/keystoneClient'
+import { RefreshClocksButton } from '@/features/platform/components/RefreshClocksButton'
 import { OperationsBoard } from '@/features/platform/components/OperationsBoard'
 import Link from 'next/link'
 import { QueueIssues, QueuePagination } from '@/features/platform/components/QueuePagination'
@@ -64,6 +65,7 @@ export async function FinancePage({ searchParams }: { searchParams?: Promise<Fin
 
   return <OperationsBoard
     title="Finance"
+    actions={hasScope ? <RefreshClocksButton /> : undefined}
     meta={loaded ? <span className="tabular-nums">{total} {total === 1 ? 'payment' : 'payments'}</span> : null}
     searchLabel="Payment ID"
     items={items}

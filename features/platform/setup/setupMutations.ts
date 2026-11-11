@@ -35,6 +35,7 @@ export const ops = {
   confirmPayment: (paymentId: string, method: string) => call(`mutation($paymentId: ID!, $method: String) { confirmManualPayment(paymentId: $paymentId, method: $method) }`, { paymentId, method }),
   refund: (paymentId: string, amountMinor: number, reason: string) => call(`mutation($paymentId: ID!, $amountMinor: Int!, $reason: String, $key: String!) { requestTripRefund(paymentId: $paymentId, amountMinor: $amountMinor, reason: $reason, idempotencyKey: $key) { id status } }`, { paymentId, amountMinor, reason, key: `refund:${paymentId}:${crypto.randomUUID()}` }),
   retryCharge: (paymentId: string) => call(`mutation($paymentId: ID!) { retryTripCharge(paymentId: $paymentId) }`, { paymentId }),
+  refreshClocks: () => call(`mutation { refreshRideshareClocks }`, {}),
   confirmRefund: (refundId: string) => call(`mutation($refundId: ID!) { confirmManualRefund(refundId: $refundId) }`, { refundId }),
   message: (tripId: string, body: string) => call(`mutation($tripId: ID!, $body: String!, $key: String!) { sendTripMessage(tripId: $tripId, body: $body, idempotencyKey: $key) { id } }`, { tripId, body, key: `message:${tripId}:${crypto.randomUUID()}` }),
 }

@@ -6,6 +6,7 @@ import { StatusTitle } from '@/features/platform/components/StatusTitle'
 import { RouteLine } from '@/features/platform/components/RouteLine'
 import { statusLabel, statusTone, formatWhen } from '@/features/platform/lib/statusTone'
 import { keystoneClient } from '@/features/dashboard/lib/keystoneClient'
+import { RefreshClocksButton } from '@/features/platform/components/RefreshClocksButton'
 import { OperationsBoard } from '@/features/platform/components/OperationsBoard'
 import { operationsEnabled } from '@/features/keystone/domain/operationalReadiness'
 import { DispatchOfferControl } from '../components/DispatchOfferControl'
@@ -75,7 +76,7 @@ export async function DispatchBoardPage({ searchParams }: { searchParams?: Promi
   const phoneServices = servicesResponse.success && Array.isArray(servicesResponse.data?.rideServices) ? servicesResponse.data.rideServices.map((service: any) => ({ id: service.id, name: service.name, fleetName: service.fleet?.name || '', passengerCapacity: service.passengerCapacity || 4, wheelchairAccessible: service.wheelchairAccessible === true })) : []
   return <OperationsBoard
     title="Dispatch"
-    actions={loaded ? <NewRideSheet services={phoneServices} /> : undefined}
+    actions={loaded ? <><RefreshClocksButton /><NewRideSheet services={phoneServices} /></> : undefined}
     meta={loaded ? <span className="tabular-nums">{total} {['cancelled', 'expired'].includes(selection.status) ? selection.status : 'waiting'}</span> : null}
     searchLabel="Request number"
     items={items}

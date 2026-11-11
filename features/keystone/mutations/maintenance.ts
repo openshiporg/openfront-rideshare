@@ -1,11 +1,13 @@
 import type { PrismaClient } from '@prisma/client'
+import { GraphQLError } from 'graphql'
+import { hasAnyFleetScope } from '../access'
 import { executePaymentAdapter } from '../utils/paymentProviderAdapter'
 import { settleRefund } from './finance'
 import { retrieveRefund, stripeSecretKey } from '../../integrations/payment/stripe'
-import { STALE_SENDING_MS } from '../lib/notification-retry'
 
-// Housekeeping for states that only move when time passes. The app has no scheduler, so these run from the reads
-// that already act as the dispatch clock (rider status poll, driver workspace), at most once a minute per process.
+// Housekeeping for states that only move when time passes. The app has no timer, worker or queue: request expiry and
+// location purge advance on the reads that already act as the dispatch clock (rider status poll, driver workspace),
+// and staff run every step, including the refund reconcile, with the Refresh button on Dispatch and Finance.
 // Each step is a compare-and-set, so two processes or a repeated run do no harm.
 
 const ON_DEMAND_WAIT_MS = 2 * 60 * 60_000      // matches the auto-dispatch horizon: after this nobody is looking for a driver
@@ -60,24 +62,6 @@ export async function reconcileStaleRefunds(prisma: PrismaClient, now = new Date
   return settled
 }
 
-/** Notifications stuck in `sending` or `failed` are retried by re-running their delivery (see notification-retry). */
-export async function retryStuckNotifications(prisma: PrismaClient, now = new Date()) {
-  const stale = new Date(now.getTime() - STALE_SENDING_MS)
-  const rows = await prisma.notification.findMany({
-    where: { status: { in: ['sending', 'failed'] }, updatedAt: { lt: stale }, templateKey: { in: ['ride_request_received', 'trip_receipt'] } },
-    orderBy: { updatedAt: 'asc' }, take: 10, select: { templateKey: true, idempotencyKey: true, tripId: true },
-  })
-  let retried = 0
-  for (const row of rows) {
-    if (row.templateKey === 'trip_receipt' && row.tripId) { const { deliverTripReceipt } = await import('../lib/trip-receipt'); await deliverTripReceipt(prisma, row.tripId); retried++ }
-    else if (row.templateKey === 'ride_request_received') {
-      const requestId = row.idempotencyKey.replace(/^ride-request-received:/, '')
-      const { deliverRequestReceived } = await import('../lib/request-confirmation'); await deliverRequestReceived(prisma, requestId); retried++
-    }
-  }
-  return retried
-}
-
 /** Trip locations are written with `expiresAt` = recorded time + the fleet's retention days. Past that they are deleted,
  * so the retention the fleet promises riders is what the database actually holds. Bounded per run. */
 export async function purgeExpiredLocations(prisma: PrismaClient, now = new Date()) {
@@ -89,14 +73,21 @@ export async function purgeExpiredLocations(prisma: PrismaClient, now = new Date
 
 let last = 0
 let running = false
-/** Fire-and-forget from read paths. Never throws and never delays the read. */
+/** Fire-and-forget from read paths: expires unserved requests and purges old locations. Never throws and never delays the read. */
 export function runMaintenance(prisma: PrismaClient, { everyMs = 60_000 } = {}) {
   const now = Date.now()
   if (running || now - last < everyMs) return
   last = now; running = true
   void (async () => {
-    for (const step of [expireStaleRideRequests, reconcileStaleRefunds, retryStuckNotifications, purgeExpiredLocations]) {
+    for (const step of [expireStaleRideRequests, purgeExpiredLocations]) {
       try { await step(prisma) } catch (error) { console.error('Maintenance step failed:', step.name, error instanceof Error ? error.message : 'unknown') }
     }
   })().finally(() => { running = false })
+}
+
+/** The staff Refresh button: every step now, awaited. Needs operations or finance scope in some fleet. */
+export async function refreshRideshareClocks(_root: unknown, _args: unknown, context: any) {
+  if (!(await hasAnyFleetScope(context, context.session, 'operations')) && !(await hasAnyFleetScope(context, context.session, 'finance'))) throw new GraphQLError('Not found or outside your access.')
+  const prisma = context.prisma as PrismaClient
+  return { expiredRequests: await expireStaleRideRequests(prisma), settledRefunds: await reconcileStaleRefunds(prisma), purgedLocations: await purgeExpiredLocations(prisma) }
 }

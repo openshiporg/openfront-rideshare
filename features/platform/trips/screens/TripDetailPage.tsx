@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { notFound } from 'next/navigation'
 import { CarFront, ChevronLeft, Star, UserRound, Users } from 'lucide-react'
 import { keystoneClient } from '@/features/dashboard/lib/keystoneClient'
 import { PageBreadcrumbs } from '@/features/dashboard/components/PageBreadcrumbs'
@@ -44,6 +45,7 @@ export async function TripDetailPage({ params }: { params: Promise<{ id: string 
   const { id } = await params
   const response = await keystoneClient(TRIP_QUERY, { id })
   const trip = response.success ? response.data?.trip : null
+  if (response.success && !trip) notFound()
   const actorId = response.success ? response.data?.authenticatedItem?.id || '' : ''
   // Same shape finance.ts reads when it records the charge: bookingSnapshot.quote.{totalMinor,currencyCode} or .quote.fare.
   const quote = trip?.bookingSnapshot?.quote || {}

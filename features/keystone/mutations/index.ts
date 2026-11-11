@@ -13,6 +13,7 @@ import { createOperatorRide } from './operatorBooking'
 import { cancelRide, cancelRideRequest, openSupportCase, recordTripLocation, reportSafetyIncident, sendTripMessage, submitTripReview, tripCancellationPreview, riderRequestCancellationPreview } from './tripOperations'
 import { initiateTripPayment, requestTripRefund } from './finance'
 import { confirmTripCardPayment, startTripCardPayment, tripCardPayment } from './cardPayments'
+import { refreshRideshareClocks } from './maintenance'
 import { autoDispatchAfter, chargeAfterCancel, chargeAfterTransition, dispatchOnDriverRead, dispatchOnPoll } from './paymentTriggers'
 import { confirmRiderCardSetup, removeRiderCard, retryTripCharge, riderSavedCard, startRiderCardSetup } from './savedCards'
 import { reportDriverLocation } from './autoDispatch'
@@ -121,6 +122,7 @@ export const typeDefs = graphql`
       saveFleetBranding(fleetId: ID!, expectedUpdatedAt: DateTime!, logoIcon: String!, logoColor: String!, name: String, idempotencyKey: String!, expectedActorId: ID!): JSON!
       dismissRideshareOnboarding: Boolean!
       bootstrapRideshare(mode: String!): RideshareBootstrapResult!
+      refreshRideshareClocks: JSON!
       expireRideOffers(fleetId: ID!): OfferMaintenanceResult!
       expireRequestFleetOffers(requestId: ID!): OfferMaintenanceResult!
       setupFleet(name: String!, publicCity: String, countryCode: String, currencyCode: String, timezone: String): JSON!
@@ -161,6 +163,6 @@ export function extendGraphqlSchema(baseSchema: GraphQLSchema) {
       dispatchQueueScope: (_root, _args, context) => hasAnyFleetScope(context, context.session, 'operations'),
       riderAccountOptions: async (_root, _args, context) => ({ registrationEnabled: await riderSignupsOpen(context.prisma) }),
     },
-    Mutation: { createOperatorRide, startTripCardPayment, confirmTripCardPayment, startRiderCardSetup, confirmRiderCardSetup, removeRiderCard, retryTripCharge, reportDriverLocation, addFleetMember, updateFleetMember, addDriverTimeOff, removeDriverTimeOff, triageSafetyIncident: updateSafetyIncident, triageSupportCase: updateSupportCase, moderateReview, confirmManualPayment, confirmManualRefund, setupFleet: createFleet, addFleetDriver, addFleetVehicle, assignVehicleDrivers, addComplianceDocument, reviewComplianceDocument, reviewDriver, reviewVehicle, setDriverAvailability, setDriverOnline: autoDispatchAfter(setDriverOnline, 'online'), setupServiceArea: createServiceArea, setupRideService: createRideService, setupFareRule: createFareRule, saveFleetBranding, marketplaceRideshareQuote, requestRide: autoDispatchAfter(requestRide, 'request'), resolveRideRequestIntent, offerRideToDriver, respondToRideOffer: autoDispatchAfter(respondToRideOffer, 'response'), transitionTrip: receiptAfterTransition(chargeAfterTransition(transitionTrip)), cancelRideRequest, cancelRide: chargeAfterCancel(cancelRide), recordTripLocation, submitTripReview, reportSafetyIncident, openSupportCase, sendTripMessage, initiateTripPayment, requestTripRefund, bootstrapRideshare, dismissRideshareOnboarding, expireRideOffers, expireRequestFleetOffers },
+    Mutation: { createOperatorRide, startTripCardPayment, confirmTripCardPayment, startRiderCardSetup, confirmRiderCardSetup, removeRiderCard, retryTripCharge, reportDriverLocation, addFleetMember, updateFleetMember, addDriverTimeOff, removeDriverTimeOff, triageSafetyIncident: updateSafetyIncident, triageSupportCase: updateSupportCase, moderateReview, confirmManualPayment, confirmManualRefund, setupFleet: createFleet, addFleetDriver, addFleetVehicle, assignVehicleDrivers, addComplianceDocument, reviewComplianceDocument, reviewDriver, reviewVehicle, setDriverAvailability, setDriverOnline: autoDispatchAfter(setDriverOnline, 'online'), setupServiceArea: createServiceArea, setupRideService: createRideService, setupFareRule: createFareRule, saveFleetBranding, marketplaceRideshareQuote, requestRide: autoDispatchAfter(requestRide, 'request'), resolveRideRequestIntent, offerRideToDriver, respondToRideOffer: autoDispatchAfter(respondToRideOffer, 'response'), transitionTrip: receiptAfterTransition(chargeAfterTransition(transitionTrip)), cancelRideRequest, cancelRide: chargeAfterCancel(cancelRide), recordTripLocation, submitTripReview, reportSafetyIncident, openSupportCase, sendTripMessage, initiateTripPayment, requestTripRefund, bootstrapRideshare, dismissRideshareOnboarding, refreshRideshareClocks, expireRideOffers, expireRequestFleetOffers },
   } })
 }
