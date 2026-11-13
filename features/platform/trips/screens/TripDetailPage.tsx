@@ -25,7 +25,7 @@ const TRIP_QUERY = `query TripDetail($id: ID!) {
     rider { id name email }
     driver { id publicName }
     vehicle { id label plateMasked }
-    events(orderBy: [{ occurredAt: desc }], take: 50) { id eventType toStatus actorType occurredAt }
+    events(orderBy: [{ occurredAt: desc }], take: 50) { id eventType toStatus actorType occurredAt metadata }
     cancellations(take: 10) { id actorType reasonCode reason feeMinor currencyCode refundRequired createdAt }
     payments(take: 10) { id status purpose attempts lastAttemptAt failureCode failureMessage providerEvidence amountMinor currencyCode createdAt capturedAt provider { code name } refunds(take: 20) { id amountMinor currencyCode status reason createdAt } }
     incidents(take: 10) { id caseNumber status severity summary assignedTo { id } }
@@ -39,7 +39,9 @@ const money = (minor: unknown, currency: unknown) => typeof minor === 'number' &
 // Side events (messages, reviews, money) keep the trip's status, so name them by what happened.
 const EVENT_LABELS: Record<string, string> = { 'trip.message_submitted': 'Message', 'trip.support_submitted': 'Help requested', 'trip.review_submitted': 'Reviewed', 'trip.incident_submitted': 'Safety report', 'finance.refund_reserved': 'Refund started' }
 const PURPOSE: Record<string, string> = { fare: 'Fare', cancellation_fee: 'Cancellation fee', no_show_fee: 'No-show fee' }
-const eventLabel = (event: any) => EVENT_LABELS[event.eventType] || (event.toStatus ? statusLabel(event.toStatus) : statusLabel(String(event.eventType).replace(/^(trip|finance)\./, '')))
+// The refund event is written when the refund is reserved; name it by where that refund is now.
+const REFUND_LABELS: Record<string, string> = { succeeded: 'Refunded', failed: 'Refund failed', cancelled: 'Refund cancelled' }
+const eventLabel = (event: any, refunds: any[] = []) => (event.eventType === 'finance.refund_reserved' && REFUND_LABELS[refunds.find(refund => refund.id === event.metadata?.refundId)?.status]) || EVENT_LABELS[event.eventType] || (event.toStatus ? statusLabel(event.toStatus) : statusLabel(String(event.eventType).replace(/^(trip|finance)\./, '')))
 
 export async function TripDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -99,7 +101,7 @@ export async function TripDetailPage({ params }: { params: Promise<{ id: string 
 
         <div className="grid gap-8 lg:grid-cols-2">
           <PlatformSection id="timeline" title="Timeline">
-            {trip.events.length ? <ol className="space-y-2.5 rounded-[6px] border bg-card p-4">{trip.events.map((event: any) => <li key={event.id} className="flex items-center gap-2.5 text-sm"><StatusDot tone={statusTone(event.toStatus || 'requested')} /><span className="font-medium">{eventLabel(event)}</span>{event.actorType && <span className="text-xs text-muted-foreground">{event.actorType}</span>}<span className="ml-auto text-xs tabular-nums text-muted-foreground">{formatWhen(event.occurredAt)}</span></li>)}</ol> : <PlatformEmpty>No events</PlatformEmpty>}
+            {trip.events.length ? <ol className="space-y-2.5 rounded-[6px] border bg-card p-4">{trip.events.map((event: any) => <li key={event.id} className="flex items-center gap-2.5 text-sm"><StatusDot tone={statusTone(event.toStatus || 'requested')} /><span className="font-medium">{eventLabel(event, trip.payments.flatMap((payment: any) => payment.refunds))}</span>{event.actorType && <span className="text-xs text-muted-foreground">{event.actorType}</span>}<span className="ml-auto text-xs tabular-nums text-muted-foreground">{formatWhen(event.occurredAt)}</span></li>)}</ol> : <PlatformEmpty>No events</PlatformEmpty>}
             {trip.cancellations.map((cancellation: any) => <p key={cancellation.id} className="rounded-[6px] border border-amber-500/40 bg-amber-500/10 p-3 text-sm">Cancelled by {cancellation.actorType || 'unknown'} · {statusLabel(cancellation.reasonCode)} · fee {money(cancellation.feeMinor, cancellation.currencyCode)} · refund {statusLabel(cancellation.refundRequired)}</p>)}
           </PlatformSection>
           <PlatformSection id="messages" title="Messages" meta={trip.conversation?.messages.length || undefined}>

@@ -10,6 +10,7 @@ import { routeBetween, validPoint } from '../../integrations/mapping/osm'
 import { requireFleetOperations, rideReadiness } from '../domain/operationalReadiness'
 import { currentRiderId, requestOwnerWhere } from '../domain/requestAuthority'
 import { requireServiceReadiness } from '../domain/serviceReadiness'
+import { rideRequestNumber } from '../domain/requestNumber'
 import { projectFleetBrand } from '../domain/fleetBrand'
 import { POPULAR_PLACE_WINDOW_DAYS, popularPlaces } from '../domain/popularPlaces'
 
@@ -196,14 +197,15 @@ export async function requestRide(_root: unknown, args: { quoteId: string; quote
     if (passengerCount > Number(serviceSnapshot.passengerCapacity || 0)) throw new RideshareRefusal('Passenger count exceeds the quoted service capacity.')
     const accessibilityNeeds = intent.accessibilityNeeds
     if (accessibilityNeeds.wheelchairAccessible === true && serviceSnapshot.wheelchairAccessible !== true) throw new RideshareRefusal('The quoted service does not meet the accessibility requirement.')
-    const requestNumber = `RIDE-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}-${randomUUID().slice(0, 8).toUpperCase()}`
     const proofExpiry = new Date(Date.now() + 24 * 60 * 60_000)
     const requestId = randomUUID()
-    const receiptProof = createRecoverableRequestProof(requestId, requestNumber, proofExpiry, args.quoteProof)
     if (!quote.serviceId) throw new RideshareRefusal('The quote no longer references a service.')
     const service = await requireServiceReadiness(tx, quote.serviceId)
     if (!service?.fleetId) throw new RideshareRefusal('The quoted service is no longer attached to an operating fleet.')
     await requireFleetOperations(tx, service.fleetId)
+    const fleetZone = (await tx.fleet.findUnique({ where: { id: service.fleetId }, select: { timezone: true } }))?.timezone
+    const requestNumber = rideRequestNumber(new Date(), fleetZone, randomUUID().slice(0, 8).toUpperCase())
+    const receiptProof = createRecoverableRequestProof(requestId, requestNumber, proofExpiry, args.quoteProof)
     const request = await tx.rideRequest.create({ data: {
       id: requestId, fleetId: service.fleetId, riderId: intent.riderId, requestNumber, status: 'requested', requestedFor: quote.scheduledFor,
       passengerCount, accessibilityNeeds, riderNotes: intent.riderNotes,

@@ -125,7 +125,7 @@ export function RidePanel({ requestId, receipt, identity, fleetName, onInfo, onD
   const signedInOwner = Boolean(identity)
   const headline: Record<RideStage, string> = {
     finding: 'Finding your driver', reassigning: 'Finding you another driver', scheduled: view.requestedFor ? `Pickup ${dayAndTime(view.requestedFor)}` : 'Ride scheduled',
-    assigned: driver ? `${firstName(driver.publicName)} is on the way` : 'Your driver is on the way', arrived: 'Your driver has arrived', onTrip: `Heading to ${shortPlace(view.dropoffLabel) || 'your destination'}`,
+    assigned: view.trip?.status === 'driver_en_route' ? (driver ? `${firstName(driver.publicName)} is on the way` : 'Your driver is on the way') : (driver ? `${firstName(driver.publicName)} is your driver` : 'Driver assigned'), arrived: 'Your driver has arrived', onTrip: `Heading to ${shortPlace(view.dropoffLabel) || 'your destination'}`,
     completed: 'You’ve arrived', cancelled: 'Ride cancelled', noDriver: 'No drivers were available', unknown: 'Ride update',
   }
   const sub: Partial<Record<RideStage, string>> = {
@@ -136,6 +136,7 @@ export function RidePanel({ requestId, receipt, identity, fleetName, onInfo, onD
     noDriver: 'You weren’t charged. Try requesting again.',
     cancelled: 'You won’t be charged unless a cancellation fee was shown.',
   }
+  const paid = Boolean(card?.enabled && (card.status === 'captured' || card.status === 'refunded'))
   const canCancelRequest = ['requested', 'matching'].includes(view.status) && (!view.trip || view.trip.status === 'cancelled')
   const canCancelTrip = Boolean(view.trip && ['driver_assigned', 'driver_en_route', 'driver_arrived'].includes(view.trip.status))
 
@@ -166,7 +167,7 @@ export function RidePanel({ requestId, receipt, identity, fleetName, onInfo, onD
       </div>
     </div>
     <div className="mt-4 flex items-center justify-between gap-3 border-t border-rule pt-4 text-[15px]">
-      <span className="min-w-0 truncate">{stage === 'completed' ? (serviceName ? `${serviceName} · fare` : 'Fare') : serviceName ? `${serviceName} · estimate` : 'Fare estimate'}</span>
+      <span className="min-w-0 truncate">{stage === 'completed' || paid ? (serviceName ? `${serviceName} · fare` : 'Fare') : serviceName ? `${serviceName} · estimate` : 'Fare estimate'}</span>
       <span className="shrink-0 font-semibold tabular-nums">{fareText || '—'}</span>
     </div>
 
@@ -178,7 +179,7 @@ export function RidePanel({ requestId, receipt, identity, fleetName, onInfo, onD
       <span className="flex items-center gap-2 text-[15px]"><Icon.card className="size-5" />Pay by card</span>
       <PayButton tripId={tripId!} onError={setNotice} />
     </div>}
-    {identity && saved.enabled && saved.loaded && ((!saved.card && LIVE.includes(stage)) || (card?.failure && card.status !== 'captured')) && <div className="mt-3">
+    {identity && saved.enabled && saved.loaded && ((!saved.card && LIVE.includes(stage) && !paid) || (card?.failure && card.status !== 'captured')) && <div className="mt-3">
       {!saved.card && <p className="mb-2 text-[14px] text-ink-2">Save a card and {fleetName} charges the fare when you arrive. No paying at the end.</p>}
       <SavedCardRow card={saved.card} returnTo={returnTo} label="Save a card" onError={setNotice} />
     </div>}
