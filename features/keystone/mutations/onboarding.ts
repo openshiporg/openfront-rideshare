@@ -26,7 +26,7 @@ export async function dismissRideshareOnboarding(_root: unknown, _args: unknown,
 
 export async function bootstrapRideshare(_root: unknown, args: { mode: string }, context: any) {
   if (!context.session?.itemId || !await permissions.canManageOnboarding({ context, session: context.session })) throw new Error('Onboarding permission is required.')
-  if (args.mode !== 'minimal' && args.mode !== 'full') throw new Error('Demo setup mode must be minimal or full.')
+  if (args.mode !== 'minimal' && args.mode !== 'full') throw new Error('Setup mode must be minimal or full.')
 
   const userId = context.session.itemId
   const demoSlug = `harbor-mobility-${userId}`
@@ -94,8 +94,8 @@ export async function bootstrapRideshare(_root: unknown, args: { mode: string },
     await transactionContext.prisma.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${'provider:pp_manual'}, 0))::text IS NOT NULL`
     const manualProvider = await transactionSudo.query.PaymentProvider.findOne({ where: { code: 'pp_manual' }, query: 'id' })
     if (!manualProvider) await transactionSudo.query.PaymentProvider.createOne({ data: { name: 'Manual payments', code: 'pp_manual', isInstalled: 'yes', createPaymentFunction: 'manual', capturePaymentFunction: 'manual', refundPaymentFunction: 'manual', getPaymentStatusFunction: 'manual', handleWebhookFunction: 'manual', metadata: { disclosure: 'Records payment evidence only; does not move money.' } } })
-    for (const [name, kind, adapter] of [['Manual route estimate', 'mapping', 'manual'], ['Console notifications', 'notification', 'console'], ['Unconfigured identity evidence', 'identity', 'manual'], ['Unconfigured background-check evidence', 'background_check', 'manual']] as const) {
-      await transactionSudo.query.ProviderConnection.createOne({ data: { fleet: { connect: { id: fleet.id } }, name, kind, adapter, status: kind === 'mapping' || kind === 'notification' ? 'sandbox' : 'unconfigured', capabilities: [], evidencePolicyUrl: '' } })
+    for (const [name, kind, adapter] of [['Open map routing', 'mapping', 'osm'], ['Unconfigured identity evidence', 'identity', 'manual'], ['Unconfigured background-check evidence', 'background_check', 'manual']] as const) {
+      await transactionSudo.query.ProviderConnection.createOne({ data: { fleet: { connect: { id: fleet.id } }, name, kind, adapter, status: kind === 'mapping' ? 'active' : 'unconfigured', capabilities: [], evidencePolicyUrl: '' } })
     }
     await transactionSudo.query.MarketplaceRegistration.createOne({ data: { fleet: { connect: { id: fleet.id } }, sourceId: `source-rideshare-${fleet.id}`, platform: 'openfront-rideshare', status: 'active', manifestVersion: '1', publicBaseUrl: requestBaseUrl(context.req), capabilities: ['marketplace.discovery', 'rideshare.quote', 'rideshare.request', 'rideshare.trip.view'], verificationEvidence: { localContractTestsRequired: true } } })
     const persistedFleet = await transactionSudo.query.Fleet.findOne({ where: { id: fleet.id }, query: demoSeedInspectionSelections.fleet })

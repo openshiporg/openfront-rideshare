@@ -6,7 +6,6 @@ import { createOwnershipProof, createRecoverableRequestProof, verifyOwnershipPro
 import { normalizeReceiptEmail } from '../lib/request-confirmation'
 import { receiptBinding, recoverRequestReceipt, requestIntent, requestIntentHash } from '../domain/requestReceipt'
 import { riderRequestStatus } from './riderReceipts'
-import { estimateRoute } from '../../integrations/mapping/manual'
 import { routeBetween, validPoint } from '../../integrations/mapping/osm'
 import { requireFleetOperations, rideReadiness } from '../domain/operationalReadiness'
 import { currentRiderId, requestOwnerWhere } from '../domain/requestAuthority'
@@ -124,7 +123,7 @@ async function quoteRoute(pickupLabel: string, dropoffLabel: string, pickupPoint
       evidence: { provider: path.provider === 'osrm' ? 'osrm' : 'straight-line', observedAt: new Date().toISOString(), authoritative: false, disclosure: 'Estimated from the driving route between your pickup and destination.', ...points },
     }
   }
-  return estimateRoute({ pickupLabel, dropoffLabel })
+  throw new RideshareRefusal('Choose the pickup and destination on the map.')
 }
 
 export async function marketplaceRideshareQuote(_root: unknown, args: { serviceId: string; pickupLabel: string; dropoffLabel: string; pickupPoint?: unknown; dropoffPoint?: unknown; scheduledFor?: string | null; passengerCount?: number | null; wheelchairAccessible?: boolean | null; handoffId?: string | null }, context: any) {

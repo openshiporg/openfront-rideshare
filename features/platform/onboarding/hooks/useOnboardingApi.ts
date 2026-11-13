@@ -26,7 +26,7 @@ export function useOnboardingApi() {
       const payload: unknown = await response.json()
       setResult(requireOnboardingBootstrapResult(response.ok, response.status, payload))
     } catch (caught: unknown) {
-      setError(caught instanceof Error ? caught.message : 'Demo setup could not be confirmed.')
+      setError(caught instanceof Error ? caught.message : 'Setup could not be confirmed.')
     } finally {
       inFlight.current = false
       setIsLoading(false)

@@ -67,7 +67,7 @@ export const ProviderConnection = list({
   fields: {
     fleet: relationship({ ...relationFilter('Fleet'), ref: 'Fleet.providers', access: { create: () => false, update: () => false } }), name: text({ validation: { isRequired: true } }),
     kind: select({ options: ['mapping', 'payment', 'communications', 'identity', 'background_check', 'location', 'notification'].map(value => ({ label: value, value })) }),
-    adapter: text({ validation: { isRequired: true } }), status: select({ options: ['unconfigured', 'sandbox', 'active', 'disabled'].map(value => ({ label: value, value })), defaultValue: 'unconfigured' }),
+    adapter: text({ validation: { isRequired: true } }), status: select({ options: ['unconfigured', 'active', 'disabled'].map(value => ({ label: value, value })), defaultValue: 'unconfigured' }),
     config: json({ defaultValue: {} }), secretReference: text({ isFilterable: false, isOrderable: false, access: { read: denyAll } }),
     evidencePolicyUrl: text(), lastVerifiedAt: timestamp(), capabilities: json({ defaultValue: [] }),
     ...trackingFields,

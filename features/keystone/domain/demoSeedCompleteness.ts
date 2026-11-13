@@ -235,7 +235,7 @@ export async function inspectExistingDemoFleet(
   }
 
   if (fleet && !hasExpectedProviderFixtures(fleet.providers)) {
-    missing.push('Provider connections (mapping, notifications, identity, background check)')
+    missing.push('Provider connections (mapping, identity, background check)')
   }
   const registration = fleet.marketplaceRegistration
   if (!registration || !['source-openfront-rideshare-local', `source-rideshare-${fleetId}`].includes(registration.sourceId)
@@ -253,8 +253,7 @@ export async function inspectExistingDemoFleet(
 function hasExpectedProviderFixtures(value: unknown) {
   if (!Array.isArray(value)) return false
   const expected = [
-    ['mapping', 'manual', 'sandbox'],
-    ['notification', 'console', 'sandbox'],
+    ['mapping', 'osm', 'active'],
     ['identity', 'manual', 'unconfigured'],
     ['background_check', 'manual', 'unconfigured'],
   ]

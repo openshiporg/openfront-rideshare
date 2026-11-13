@@ -366,7 +366,7 @@ export function Sidebar({ adminMeta, user, onOpenDialog }: SidebarProps) {
             steps={[{
               href: '#onboarding',
               title: 'Welcome to Openfront Rideshare',
-              description: 'Your fleet is empty. Click get started to create services, fares, evidence policies, and a demo driver.',
+              description: 'Your fleet is empty. Click get started to create services, fares, evidence policies, and a first driver.',
             }]}
             onboardingStatus={user?.onboardingStatus}
             userRole={user?.role}

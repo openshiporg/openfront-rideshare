@@ -16,12 +16,12 @@ export function requireOnboardingBootstrapResult(
   httpStatus: number,
   payload: unknown,
 ): OnboardingBootstrapResult {
-  if (!httpOk) throw new Error(`Demo setup could not be confirmed (HTTP ${httpStatus}).`)
+  if (!httpOk) throw new Error(`Setup could not be confirmed (HTTP ${httpStatus}).`)
 
   const response = asRecord(payload)
-  if (!response) throw new Error('Demo setup returned an invalid response; success was not confirmed.')
+  if (!response) throw new Error('Setup returned an invalid response; success was not confirmed.')
   if (response.errors !== undefined && response.errors !== null) {
-    if (!Array.isArray(response.errors)) throw new Error('Demo setup returned malformed GraphQL errors; success was not confirmed.')
+    if (!Array.isArray(response.errors)) throw new Error('Setup returned malformed GraphQL errors; success was not confirmed.')
     if (response.errors.length > 0) {
       throw new Error('Setup outcome is unconfirmed. Reconcile the original setup before starting another.')
     }
@@ -32,7 +32,7 @@ export function requireOnboardingBootstrapResult(
   const summary = asRecord(result?.summary)
   if (typeof result?.fleetId !== 'string' || !result.fleetId.trim()
     || typeof result.created !== 'boolean' || !summary) {
-    throw new Error('Demo setup returned an incomplete result; success was not confirmed.')
+    throw new Error('Setup returned an incomplete result; success was not confirmed.')
   }
 
   const setupComplete = summary.setupComplete

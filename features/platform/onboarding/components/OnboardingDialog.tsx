@@ -14,7 +14,7 @@ export default function OnboardingDialog({ isOpen, onClose }: { isOpen: boolean;
   const summary = result?.summary ?? {}
   const missing: string[] = Array.isArray(summary.missing) ? summary.missing.filter((item: unknown): item is string => typeof item === 'string') : []
   const title = summary.setupComplete === true
-    ? 'Sample setup structure checked'
+    ? 'Setup checked'
     : result?.created === true
       ? 'Setup saved; requirements remain'
       : 'Setup requirements remain'
@@ -25,13 +25,13 @@ export default function OnboardingDialog({ isOpen, onClose }: { isOpen: boolean;
         <DialogHeader>
           <DialogTitle>Set up Openfront Rideshare</DialogTitle>
           <DialogDescription>
-            Set up sample services and a driver. Sample evidence does not authorize real rides.
+            Set up your first services, fares and driver. Real operation still needs verified provider and driver documents.
           </DialogDescription>
         </DialogHeader>
         {result ? (
           <div className="space-y-3 rounded-lg border bg-muted/50 p-4">
             <p className="font-medium">{title}</p>
-            <p className="text-sm text-muted-foreground">{summary.setupComplete === true ? 'Sample records are structurally complete. Real operations still require verified providers and admission.' : 'Review the remaining requirements below.'}</p>
+            <p className="text-sm text-muted-foreground">{summary.setupComplete === true ? 'Setup records are complete. Real operations still require verified providers and admission.' : 'Review the remaining requirements below.'}</p>
             {missing.length > 0 && (
               <div>
                 <p className="text-sm font-medium">Missing or unverified</p>
@@ -41,7 +41,7 @@ export default function OnboardingDialog({ isOpen, onClose }: { isOpen: boolean;
               </div>
             )}
             <p className="text-xs text-muted-foreground">
-              Sample evidence is not licensing, insurance, provider approval or driver admission.
+              Setup records are not licensing, insurance, provider approval or driver admission.
             </p>
             <div className="flex flex-wrap gap-2"><Button disabled={isLoading} className="mt-2" onClick={() => void runOnboarding(mode)}>Check existing setup</Button><Button variant="outline" asChild><Link href="/dashboard/platform/settings#operations">Open fleet settings</Link></Button></div>
           </div>
@@ -50,7 +50,7 @@ export default function OnboardingDialog({ isOpen, onClose }: { isOpen: boolean;
             <RadioGroup value={mode} disabled={isLoading} onValueChange={value => { if (!isLoading && (value === 'minimal' || value === 'full')) setMode(value) }} aria-label="Setup template" className="grid grid-cols-2 gap-3">{(['minimal','full'] as const).map(value => <Label key={value} htmlFor={`setup-${value}`} className="flex items-start gap-3 rounded-lg border p-4"><RadioGroupItem id={`setup-${value}`} value={value} /><span><span className="font-medium capitalize">{value}</span><span className="mt-1 block text-xs font-normal text-muted-foreground">{value === 'minimal' ? 'One sample service.' : 'Standard and accessible samples.'}</span></span></Label>)}</RadioGroup>
             <div className="flex flex-wrap gap-2">
               <Button disabled={isLoading} onClick={() => runOnboarding(mode)}>
-                {isLoading ? 'Saving sample setup…' : 'Continue sample setup'}
+                {isLoading ? 'Saving setup…' : 'Continue setup'}
               </Button>
             </div>
             {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
