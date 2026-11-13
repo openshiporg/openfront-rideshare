@@ -171,9 +171,9 @@ test('sidebar hides platform pages the person holds no fleet capability for', ()
   const access = sandbox().load('features/dashboard/lib/sidebarAccess.ts');
   const items = ['dispatch', 'trips', 'drivers', 'safety', 'finance', 'team', 'settings', 'reviews'].map(slug => ({ href: `/dashboard/platform/${slug}` }));
   const viewer = { role: { canAccessDashboard: true }, capabilities: { operations: false, drivers: false, finance: false, safety: false, fleetAdmin: false } };
-  assert.deepEqual(plain(access.visiblePlatformItems(items, [], viewer)).map(item => item.href.split('/').pop()), ['settings', 'reviews']);
+  assert.deepEqual(plain(access.visiblePlatformItems(items, [], viewer)).map(item => item.href.split('/').pop()), []);
   const finance = { role: { canAccessDashboard: true }, capabilities: { ...viewer.capabilities, finance: true } };
-  assert.deepEqual(plain(access.visiblePlatformItems(items, [], finance)).map(item => item.href.split('/').pop()), ['finance', 'settings', 'reviews']);
+  assert.deepEqual(plain(access.visiblePlatformItems(items, [], finance)).map(item => item.href.split('/').pop()), ['finance']);
 });
 
 test('formatInZone: viewer zone by default, explicit zone when given, labelled', () => {

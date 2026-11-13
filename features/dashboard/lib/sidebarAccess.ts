@@ -13,6 +13,7 @@ type SidebarUser = {
 /** Platform pages whose screen needs a fleet capability; the sidebar shows them only to people who hold it. */
 export const PLATFORM_CAPABILITY: Record<string, string> = {
   dispatch: 'operations', trips: 'operations', drivers: 'drivers', safety: 'safety', finance: 'finance', team: 'fleetAdmin',
+  vehicles: 'operations', reviews: 'operations', services: 'operations', settings: 'fleetAdmin', 'my-driving': 'driver',
 }
 
 /** Only an explicit false hides navigation; an unknown user is left to the middleware. */

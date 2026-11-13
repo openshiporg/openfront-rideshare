@@ -1,7 +1,7 @@
 import { fleetBranding, saveFleetBranding } from './fleetBranding'
 import { mergeSchemas } from '@graphql-tools/schema'
 import type { GraphQLSchema } from 'graphql'
-import { hasAnyFleetScope } from '../access'
+import { hasAnyFleetScope, humanSessionId } from '../access'
 import redirectToInit from './redirectToInit'
 import { dateTimeFieldResolvers } from '../domain/dateTimeFields'
 import { riderSignupsOpen } from '../domain/riderAccounts'
@@ -157,7 +157,10 @@ export function extendGraphqlSchema(baseSchema: GraphQLSchema) {
       redirectToInit, marketplaceRideshareServices, marketplaceRideshareService, marketplaceRideshareServiceAreas, marketplaceRidesharePopularPlaces, marketplaceRideshareEstimates, publicRideshareTrip, publicRideshareRequest, myDriverWorkspace: dispatchOnDriverRead(myDriverWorkspace), myRideshareTrips, riderRequestStatus: dispatchOnPoll(riderRequestStatus), myRideshareRequests, operatorTripHandoff,
       safetyQueueScope: (_root, _args, context) => hasAnyFleetScope(context, context.session, 'safety'),
       financeQueueScope: (_root, _args, context) => hasAnyFleetScope(context, context.session, 'finance'),
-      rideshareCapabilities: async (_root, _args, context) => Object.fromEntries(await Promise.all((['operations', 'drivers', 'finance', 'safety', 'fleetAdmin'] as const).map(async capability => [capability, await hasAnyFleetScope(context, context.session, capability)]))),
+      rideshareCapabilities: async (_root, _args, context) => ({
+        ...Object.fromEntries(await Promise.all((['operations', 'drivers', 'finance', 'safety', 'fleetAdmin'] as const).map(async capability => [capability, await hasAnyFleetScope(context, context.session, capability)]))),
+        driver: Boolean(humanSessionId(context.session)) && Boolean(await context.prisma.driverProfile.findFirst({ where: { userId: humanSessionId(context.session)! }, select: { id: true } })),
+      }),
       driverEarningsReport,
       tripCardPayment, riderSavedCard, tripCancellationPreview, riderRequestCancellationPreview, riderTripHistory, fleetBranding, dispatchCandidatePage,
       dispatchQueueScope: (_root, _args, context) => hasAnyFleetScope(context, context.session, 'operations'),

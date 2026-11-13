@@ -170,9 +170,10 @@ export function RidePanel({ requestId, receipt, identity, fleetName, onInfo, onD
       <span className="shrink-0 font-semibold tabular-nums">{fareText || '—'}</span>
     </div>
 
+    {card?.enabled && card.status === 'refunded' && <div className="mt-3 flex items-center gap-2 rounded-[16px] bg-white px-4 py-3 text-[15px] ring-1 ring-rule"><Icon.check className="size-5 text-tide" />Refunded{card.amountMinor != null && card.currencyCode ? ` · ${formatMoney(card.amountMinor, card.currencyCode)}` : ''}</div>}
     {card?.enabled && card.status === 'captured' && <div className="mt-3 flex items-center gap-2 rounded-[16px] bg-white px-4 py-3 text-[15px] ring-1 ring-rule"><Icon.check className="size-5 text-tide" />{card.savedCard ? `Paid · ${cardName(card.savedCard)}` : 'Paid by card'}</div>}
     {card?.enabled && card.status !== 'captured' && card.failure && <p role="alert" className="mt-3 rounded-[16px] bg-[#fbeceb] px-4 py-3 text-[14px] text-alert">Your card was declined.{declineReason(card.failure) ? ` ${declineReason(card.failure)}` : ''} Pay below, or add another card.</p>}
-    {card?.enabled && card.status !== 'captured' && card.savedCard && !card.failure && !['cancelled'].includes(stage) && <div className="mt-3 flex items-center gap-2 rounded-[16px] bg-white px-4 py-3 text-[15px] ring-1 ring-rule"><Icon.card className="size-5 shrink-0" /><span className="truncate">{stage === 'completed' ? `Charging ${cardName(card.savedCard)}…` : `${cardName(card.savedCard)} is charged after the ride`}</span></div>}
+    {card?.enabled && card.status !== 'captured' && card.status !== 'refunded' && card.savedCard && !card.failure && !['cancelled'].includes(stage) && <div className="mt-3 flex items-center gap-2 rounded-[16px] bg-white px-4 py-3 text-[15px] ring-1 ring-rule"><Icon.card className="size-5 shrink-0" /><span className="truncate">{stage === 'completed' ? `Charging ${cardName(card.savedCard)}…` : `${cardName(card.savedCard)} is charged after the ride`}</span></div>}
     {card?.enabled && card.payable && card.status !== 'captured' && <div className="mt-3 flex items-center justify-between gap-3 rounded-[16px] bg-white ring-1 ring-rule px-4 py-3">
       <span className="flex items-center gap-2 text-[15px]"><Icon.card className="size-5" />Pay by card</span>
       <PayButton tripId={tripId!} onError={setNotice} />

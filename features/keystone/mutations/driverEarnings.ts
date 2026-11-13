@@ -89,8 +89,9 @@ export async function driverEarningsReport(_root: unknown, args: { from?: string
     }
     row.collectedMinor += collected
     row.refundedMinor += refunded
-    // Outstanding: what the trip earned that is not held as net payment (cash in the driver's hand, or owed).
-    row.uncollectedMinor += Math.max(0, due - (collected - refunded))
+    // Outstanding: what the trip earned that was never charged (cash in the driver's hand, or owed). A refund
+    // returns money the rider paid; it does not make the fare owed again.
+    row.uncollectedMinor += Math.max(0, due - collected)
     rows.set(key, row)
   }
   const drivers = [...rows.values()].sort((a, b) => b.faresMinor + b.feesMinor - (a.faresMinor + a.feesMinor) || a.driverName.localeCompare(b.driverName))

@@ -14,7 +14,7 @@ import { savedCardFare } from './savedCards'
 const STRIPE_CODE = 'pp_stripe'
 import { COLLECTABLE_FARE_TRIP_STATUSES } from '../domain/lifecycles'
 const PAYABLE: readonly string[] = COLLECTABLE_FARE_TRIP_STATUSES
-const ACTIVE = ['pending', 'authorized', 'captured', 'partially_refunded']
+const ACTIVE = ['pending', 'authorized', 'captured', 'partially_refunded', 'refunded']
 
 type CardPaymentView = { enabled: boolean; payable: boolean; status: string | null; amountMinor: number | null; currencyCode: string | null; url: string | null; savedCard?: { brand: string; last4: string; expMonth: number | null; expYear: number | null } | null; failure?: string | null }
 
