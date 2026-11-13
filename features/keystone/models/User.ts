@@ -1,7 +1,7 @@
 import { list } from '@keystone-6/core'
 import { denyAll } from '@keystone-6/core/access'
 import { password, relationship, select, text } from '@keystone-6/core/fields'
-import { isSignedIn, permissionNames, permissions, type AccessArgs } from '../access'
+import { isSignedIn, permissionNames, permissions, type AccessArgs, relationFilter } from '../access'
 import { trackingFields } from './trackingFields'
 import { riderSignupsOpen } from '../domain/riderAccounts'
 
@@ -37,19 +37,19 @@ export const User = list({
   fields: {
     name: text({ validation: { isRequired: true } }),
     email: text({ validation: { isRequired: true }, isIndexed: 'unique' }),
-    password: password({ validation: { isRequired: true, length: { min: 10 } }, access: { read: denyAll } }),
-    phone: text({ access: { read: selfField, update: selfField } }),
-    role: relationship({ ref: 'Role.assignedTo', access: { create: permissions.canManageRoles, update: permissions.canManageRoles } }),
+    password: password({ validation: { isRequired: true, length: { min: 10 } }, isFilterable: false, isOrderable: false, access: { read: denyAll } }),
+    phone: text({ isFilterable: permissions.canManagePeople, isOrderable: permissions.canManagePeople, access: { read: selfField, update: selfField } }),
+    role: relationship({ ...relationFilter('Role'), ref: 'Role.assignedTo', access: { create: permissions.canManageRoles, update: permissions.canManageRoles } }),
     onboardingStatus: select({ options: [
       { label: 'Not started', value: 'not_started' }, { label: 'In progress', value: 'in_progress' },
       { label: 'Completed', value: 'completed' }, { label: 'Dismissed', value: 'dismissed' },
     ], defaultValue: 'not_started', access: { create: () => false, update: () => false } }),
-    fleetMemberships: relationship({ ref: 'FleetMembership.user', many: true, access: { create: () => false, update: () => false } }),
-    driverProfile: relationship({ ref: 'DriverProfile.user', access: { create: () => false, update: () => false } }),
-    riderProfile: relationship({ ref: 'RiderProfile.user', access: { create: () => false, update: () => false } }),
-    requestedRides: relationship({ ref: 'RideRequest.rider', many: true, access: { create: () => false, update: () => false } }),
-    trips: relationship({ ref: 'Trip.rider', many: true, access: { create: () => false, update: () => false } }),
-    reviews: relationship({ ref: 'Review.author', many: true, access: { create: () => false, update: () => false } }),
+    fleetMemberships: relationship({ ...relationFilter('FleetMembership'), ref: 'FleetMembership.user', many: true, access: { create: () => false, update: () => false } }),
+    driverProfile: relationship({ ...relationFilter('DriverProfile'), ref: 'DriverProfile.user', access: { create: () => false, update: () => false } }),
+    riderProfile: relationship({ ...relationFilter('RiderProfile'), ref: 'RiderProfile.user', access: { create: () => false, update: () => false } }),
+    requestedRides: relationship({ ...relationFilter('RideRequest'), ref: 'RideRequest.rider', many: true, access: { create: () => false, update: () => false } }),
+    trips: relationship({ ...relationFilter('Trip'), ref: 'Trip.rider', many: true, access: { create: () => false, update: () => false } }),
+    reviews: relationship({ ...relationFilter('Review'), ref: 'Review.author', many: true, access: { create: () => false, update: () => false } }),
     ...trackingFields,
   },
 })

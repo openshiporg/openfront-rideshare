@@ -1,5 +1,6 @@
 import { list } from '@keystone-6/core'
 import { json, relationship, text } from '@keystone-6/core/fields'
+import { relationFilter } from '../access'
 import { trackingFields } from './trackingFields'
 import { labels } from './labels'
 
@@ -10,7 +11,7 @@ export const RequestCancellationCommand = list({
   access: { operation: { query: () => false, create: () => false, update: () => false, delete: () => false } },
   fields: {
     label: labels.requestCancellationCommand,
-    request: relationship({ ref: 'RideRequest', access: { create: () => false, update: () => false } }),
+    request: relationship({ ...relationFilter('RideRequest'), ref: 'RideRequest', access: { create: () => false, update: () => false } }),
     idempotencyKey: text({ isIndexed: 'unique', validation: { isRequired: true } }),
     command: json({ defaultValue: {} }), result: json({ defaultValue: {} }),
     ...trackingFields,

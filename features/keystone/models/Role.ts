@@ -1,6 +1,6 @@
 import { list } from '@keystone-6/core'
 import { checkbox, relationship, text } from '@keystone-6/core/fields'
-import { isSignedIn, permissionNames, permissions } from '../access'
+import { isSignedIn, permissionNames, permissions, relationFilter } from '../access'
 import { trackingFields } from './trackingFields'
 
 export const Role = list({
@@ -8,7 +8,7 @@ export const Role = list({
   fields: {
     name: text({ validation: { isRequired: true }, isIndexed: 'unique' }),
     ...Object.fromEntries(permissionNames.map(name => [name, checkbox({ defaultValue: false })])),
-    assignedTo: relationship({ ref: 'User.role', many: true, access: { create: permissions.canManageRoles, update: permissions.canManageRoles } }),
+    assignedTo: relationship({ ...relationFilter('User'), ref: 'User.role', many: true, access: { create: permissions.canManageRoles, update: permissions.canManageRoles } }),
     ...trackingFields,
   },
 })

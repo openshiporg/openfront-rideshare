@@ -1212,8 +1212,6 @@ input RiderProfileWhereInput {
   homeFleet: FleetWhereInput
   displayName: StringFilter
   emergencyContactEncryptedRef: StringFilter
-  stripeCustomerId: StringFilter
-  cardPaymentMethodId: StringFilter
   cardBrand: StringFilter
   cardLast4: StringFilter
   cardExpMonth: IntNullableFilter
@@ -1238,8 +1236,6 @@ input RiderProfileOrderByInput {
   id: OrderDirection
   displayName: OrderDirection
   emergencyContactEncryptedRef: OrderDirection
-  stripeCustomerId: OrderDirection
-  cardPaymentMethodId: OrderDirection
   cardBrand: OrderDirection
   cardLast4: OrderDirection
   cardExpMonth: OrderDirection
@@ -1335,8 +1331,6 @@ input VehicleWhereInput {
   year: IntNullableFilter
   color: StringFilter
   plateMasked: StringFilter
-  plateEncryptedRef: StringFilter
-  vinEncryptedRef: StringFilter
   capacity: IntNullableFilter
   wheelchairAccessible: BooleanFilter
   status: StringNullableFilter
@@ -1355,8 +1349,6 @@ input VehicleOrderByInput {
   year: OrderDirection
   color: OrderDirection
   plateMasked: OrderDirection
-  plateEncryptedRef: OrderDirection
-  vinEncryptedRef: OrderDirection
   capacity: OrderDirection
   wheelchairAccessible: OrderDirection
   status: OrderDirection
@@ -1446,7 +1438,6 @@ input ComplianceDocumentWhereInput {
   status: StringNullableFilter
   issuer: StringFilter
   referenceMasked: StringFilter
-  secureFileRef: StringFilter
   issuedAt: DateTimeNullableFilter
   expiresAt: DateTimeNullableFilter
   reviewedAt: DateTimeNullableFilter
@@ -1462,7 +1453,6 @@ input ComplianceDocumentOrderByInput {
   status: OrderDirection
   issuer: OrderDirection
   referenceMasked: OrderDirection
-  secureFileRef: OrderDirection
   issuedAt: OrderDirection
   expiresAt: OrderDirection
   reviewedAt: OrderDirection
@@ -1727,7 +1717,6 @@ input ProviderConnectionWhereInput {
   kind: StringNullableFilter
   adapter: StringFilter
   status: StringNullableFilter
-  secretReference: StringFilter
   evidencePolicyUrl: StringFilter
   lastVerifiedAt: DateTimeNullableFilter
   createdAt: DateTimeNullableFilter
@@ -1740,7 +1729,6 @@ input ProviderConnectionOrderByInput {
   kind: OrderDirection
   adapter: OrderDirection
   status: OrderDirection
-  secretReference: OrderDirection
   evidencePolicyUrl: OrderDirection
   lastVerifiedAt: OrderDirection
   createdAt: OrderDirection
@@ -1813,7 +1801,6 @@ input ServiceAreaWhereInput {
   publicRegionLabel: StringFilter
   countryCode: StringFilter
   status: StringNullableFilter
-  providerGeometryRef: StringFilter
   services: RideServiceManyRelationFilter
   fareRules: FareRuleManyRelationFilter
   createdAt: DateTimeNullableFilter
@@ -1826,7 +1813,6 @@ input ServiceAreaOrderByInput {
   publicRegionLabel: OrderDirection
   countryCode: OrderDirection
   status: OrderDirection
-  providerGeometryRef: OrderDirection
   createdAt: OrderDirection
   updatedAt: OrderDirection
 }
@@ -2332,14 +2318,12 @@ input RideQuoteWhereInput {
   status: StringNullableFilter
   pickupLabel: StringFilter
   dropoffLabel: StringFilter
-  routeInputHash: StringFilter
   estimatedDistanceMeters: IntNullableFilter
   estimatedDurationSeconds: IntNullableFilter
   totalMinor: IntNullableFilter
   currencyCode: StringFilter
   scheduledFor: DateTimeNullableFilter
   expiresAt: DateTimeFilter
-  guestProofHash: StringFilter
   rider: UserWhereInput
   request: RideRequestWhereInput
   createdAt: DateTimeNullableFilter
@@ -2353,14 +2337,12 @@ input RideQuoteOrderByInput {
   status: OrderDirection
   pickupLabel: OrderDirection
   dropoffLabel: OrderDirection
-  routeInputHash: OrderDirection
   estimatedDistanceMeters: OrderDirection
   estimatedDurationSeconds: OrderDirection
   totalMinor: OrderDirection
   currencyCode: OrderDirection
   scheduledFor: OrderDirection
   expiresAt: OrderDirection
-  guestProofHash: OrderDirection
   createdAt: OrderDirection
   updatedAt: OrderDirection
 }
@@ -2486,8 +2468,6 @@ input RideRequestWhereInput {
   riderNotes: StringFilter
   pickupLabel: StringFilter
   dropoffLabel: StringFilter
-  preciseRouteEncryptedRef: StringFilter
-  guestProofHash: StringFilter
   guestProofExpiresAt: DateTimeNullableFilter
   matchOffers: MatchOfferManyRelationFilter
   trip: TripWhereInput
@@ -2504,8 +2484,6 @@ input RideRequestOrderByInput {
   riderNotes: OrderDirection
   pickupLabel: OrderDirection
   dropoffLabel: OrderDirection
-  preciseRouteEncryptedRef: OrderDirection
-  guestProofHash: OrderDirection
   guestProofExpiresAt: OrderDirection
   createdAt: OrderDirection
   updatedAt: OrderDirection
@@ -2661,7 +2639,6 @@ type MatchOffer {
 
 input MatchOfferWhereUniqueInput {
   id: ID
-  idempotencyKey: String
   acceptedTrip: TripWhereUniqueInput
 }
 
@@ -2675,12 +2652,9 @@ input MatchOfferWhereInput {
   vehicle: VehicleWhereInput
   status: StringNullableFilter
   offeredAt: DateTimeNullableFilter
-  reservationStartAt: DateTimeFilter
-  reservationReleasedAt: DateTimeNullableFilter
   expiresAt: DateTimeFilter
   respondedAt: DateTimeNullableFilter
   declineReason: StringFilter
-  idempotencyKey: StringFilter
   acceptedTrip: TripWhereInput
   createdAt: DateTimeNullableFilter
   updatedAt: DateTimeNullableFilter
@@ -2690,12 +2664,9 @@ input MatchOfferOrderByInput {
   id: OrderDirection
   status: OrderDirection
   offeredAt: OrderDirection
-  reservationStartAt: OrderDirection
-  reservationReleasedAt: OrderDirection
   expiresAt: OrderDirection
   respondedAt: OrderDirection
   declineReason: OrderDirection
-  idempotencyKey: OrderDirection
   createdAt: OrderDirection
   updatedAt: OrderDirection
 }
@@ -2816,7 +2787,6 @@ input TripWhereInput {
   cancelledAt: DateTimeNullableFilter
   pickupLabel: StringFilter
   dropoffLabel: StringFilter
-  managementTokenHash: StringFilter
   managementTokenExpiresAt: DateTimeNullableFilter
   managementTokenRevokedAt: DateTimeNullableFilter
   events: TripEventManyRelationFilter
@@ -2887,7 +2857,6 @@ input TripOrderByInput {
   cancelledAt: OrderDirection
   pickupLabel: OrderDirection
   dropoffLabel: OrderDirection
-  managementTokenHash: OrderDirection
   managementTokenExpiresAt: OrderDirection
   managementTokenRevokedAt: OrderDirection
   createdAt: OrderDirection
@@ -3187,7 +3156,6 @@ input LocationEventWhereInput {
   actorType: StringNullableFilter
   recordedAt: DateTimeFilter
   coarseGeohash: StringFilter
-  encryptedCoordinateRef: StringFilter
   accuracyMeters: IntNullableFilter
   expiresAt: DateTimeNullableFilter
   createdAt: DateTimeNullableFilter
@@ -3199,7 +3167,6 @@ input LocationEventOrderByInput {
   actorType: OrderDirection
   recordedAt: OrderDirection
   coarseGeohash: OrderDirection
-  encryptedCoordinateRef: OrderDirection
   accuracyMeters: OrderDirection
   expiresAt: OrderDirection
   createdAt: OrderDirection
@@ -3599,7 +3566,6 @@ input MessageWhereInput {
   senderType: StringNullableFilter
   sender: UserWhereInput
   body: StringFilter
-  relayProviderReference: StringFilter
   status: StringNullableFilter
   sentAt: DateTimeNullableFilter
   createdAt: DateTimeNullableFilter
@@ -3610,7 +3576,6 @@ input MessageOrderByInput {
   id: OrderDirection
   senderType: OrderDirection
   body: OrderDirection
-  relayProviderReference: OrderDirection
   status: OrderDirection
   sentAt: OrderDirection
   createdAt: OrderDirection
@@ -3767,7 +3732,6 @@ input PaymentProviderWhereInput {
   name: StringFilter
   code: StringFilter
   isInstalled: StringNullableFilter
-  credentialsReference: StringFilter
   createPaymentFunction: StringFilter
   capturePaymentFunction: StringFilter
   refundPaymentFunction: StringFilter
@@ -3797,7 +3761,6 @@ input PaymentProviderOrderByInput {
   name: OrderDirection
   code: OrderDirection
   isInstalled: OrderDirection
-  credentialsReference: OrderDirection
   createPaymentFunction: OrderDirection
   capturePaymentFunction: OrderDirection
   refundPaymentFunction: OrderDirection
@@ -3899,7 +3862,6 @@ type Payment {
 
 input PaymentWhereUniqueInput {
   id: ID
-  idempotencyKey: String
 }
 
 input PaymentWhereInput {
@@ -3913,7 +3875,6 @@ input PaymentWhereInput {
   currencyCode: StringFilter
   status: StringNullableFilter
   providerReference: StringFilter
-  idempotencyKey: StringFilter
   capturedAt: DateTimeNullableFilter
   purpose: StringNullableFilter
   attempts: IntNullableFilter
@@ -3932,7 +3893,6 @@ input PaymentOrderByInput {
   currencyCode: OrderDirection
   status: OrderDirection
   providerReference: OrderDirection
-  idempotencyKey: OrderDirection
   capturedAt: OrderDirection
   purpose: OrderDirection
   attempts: OrderDirection
@@ -4019,7 +3979,6 @@ type Refund {
 
 input RefundWhereUniqueInput {
   id: ID
-  idempotencyKey: String
 }
 
 input RefundWhereInput {
@@ -4034,7 +3993,6 @@ input RefundWhereInput {
   reason: StringFilter
   status: StringNullableFilter
   providerReference: StringFilter
-  idempotencyKey: StringFilter
   processedAt: DateTimeNullableFilter
   createdAt: DateTimeNullableFilter
   updatedAt: DateTimeNullableFilter
@@ -4047,7 +4005,6 @@ input RefundOrderByInput {
   reason: OrderDirection
   status: OrderDirection
   providerReference: OrderDirection
-  idempotencyKey: OrderDirection
   processedAt: OrderDirection
   createdAt: OrderDirection
   updatedAt: OrderDirection
@@ -4398,7 +4355,6 @@ input NotificationWhereInput {
   channel: StringNullableFilter
   templateKey: StringFilter
   status: StringNullableFilter
-  providerReference: StringFilter
   idempotencyKey: StringFilter
   sentAt: DateTimeNullableFilter
   lastError: StringFilter
@@ -4411,7 +4367,6 @@ input NotificationOrderByInput {
   channel: OrderDirection
   templateKey: OrderDirection
   status: OrderDirection
-  providerReference: OrderDirection
   idempotencyKey: OrderDirection
   sentAt: OrderDirection
   lastError: OrderDirection

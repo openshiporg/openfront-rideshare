@@ -1,6 +1,6 @@
 import { list } from '@keystone-6/core'
 import { json, relationship, text } from '@keystone-6/core/fields'
-import { financeAccess } from '../access'
+import { financeAccess, relationFilter } from '../access'
 import { trackingFields } from './trackingFields'
 import { labels } from './labels'
 
@@ -11,8 +11,8 @@ export const PaymentObservation = list({
   access: financeAccess,
   fields: {
     label: labels.paymentObservation,
-    payment: relationship({ ref: 'Payment', access: { create: () => false, update: () => false } }),
-    refund: relationship({ ref: 'Refund', access: { create: () => false, update: () => false } }),
+    payment: relationship({ ...relationFilter('Payment'), ref: 'Payment', access: { create: () => false, update: () => false } }),
+    refund: relationship({ ...relationFilter('Refund'), ref: 'Refund', access: { create: () => false, update: () => false } }),
     observationKey: text({ isIndexed: 'unique', validation: { isRequired: true } }),
     details: json({ defaultValue: {} }),
     ...trackingFields,

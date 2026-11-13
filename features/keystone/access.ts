@@ -194,3 +194,19 @@ export const financeAccess = {
   operation: { query: ({ context, session }: AccessArgs) => hasAnyFleetScope(context, session, 'finance'), create: () => false, update: () => false, delete: () => false },
 }
 export const safetyAccess = fleetScopedAccess('safety')
+
+// Relation where-filters (and read-gated scalar filters) need the same permission as reading the target list,
+// or a count through the relation answers questions about rows and values the role cannot read.
+const never = () => false
+const anyFleet = (capability: FleetCapability) => ({ context, session }: AccessArgs) => hasAnyFleetScope(context, session, capability)
+const readsTarget: Record<string, (args: AccessArgs) => boolean | Promise<boolean>> = {
+  User: args => permissions.canManagePeople(args), Role: isSignedIn, RequestCancellationCommand: never,
+  Fleet: anyFleet('fleetAdmin'), Policy: anyFleet('fleetAdmin'), ProviderConnection: anyFleet('fleetAdmin'), FareRule: anyFleet('fleetAdmin'),
+  Notification: anyFleet('fleetAdmin'), MarketplaceRegistration: anyFleet('fleetAdmin'), FleetBrandingChange: anyFleet('fleetAdmin'),
+  DriverProfile: anyFleet('drivers'), ComplianceDocument: anyFleet('drivers'), PolicyEvaluation: anyFleet('drivers'),
+  RiderProfile: anyFleet('safety'), SafetyIncident: anyFleet('safety'), SupportCase: anyFleet('safety'),
+  PaymentProvider: args => permissions.canManageFinance(args),
+  Payment: anyFleet('finance'), Refund: anyFleet('finance'), PaymentObservation: anyFleet('finance'), LedgerEntry: anyFleet('finance'), Payout: anyFleet('finance'),
+}
+export const canFilterThrough = (list: string) => readsTarget[list] ?? anyFleet('operations')
+export const relationFilter = (list: string) => ({ isFilterable: canFilterThrough(list) })
