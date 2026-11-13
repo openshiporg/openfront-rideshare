@@ -1,6 +1,6 @@
 import { list } from '@keystone-6/core'
 import { denyAll } from '@keystone-6/core/access'
-import { integer, json, relationship, select, text, timestamp } from '@keystone-6/core/fields'
+import { json, relationship, select, text, timestamp } from '@keystone-6/core/fields'
 import { lockedFleetAccess } from '../access'
 import { trackingFields } from './trackingFields'
 import { labels } from './labels'
@@ -12,7 +12,7 @@ export const Notification = list({
     label: labels.notification,
     trip: relationship({ ref: 'Trip', access: { create: () => false, update: () => false } }), recipient: relationship({ ref: 'User', access: { create: () => false, update: () => false } }), channel: select({ options: ['email', 'sms', 'push', 'webhook'].map(value => ({ label: value, value })) }), templateKey: text(),
     status: select({ options: ['queued', 'sending', 'sent', 'delivered', 'failed', 'dead_letter'].map(value => ({ label: value, value })), defaultValue: 'queued' }),
-    payload: json({ defaultValue: {} }), providerReference: text({ access: { read: denyAll } }), idempotencyKey: text({ isIndexed: 'unique' }), attemptCount: integer({ defaultValue: 0 }), nextAttemptAt: timestamp(), sentAt: timestamp(), lastError: text(), ...trackingFields,
+    payload: json({ defaultValue: {} }), providerReference: text({ access: { read: denyAll } }), idempotencyKey: text({ isIndexed: 'unique' }), sentAt: timestamp(), lastError: text(), ...trackingFields,
   },
 })
 

@@ -87,7 +87,7 @@ export async function deliverTripReceipt(prisma: any, tripId: string, send?: Sen
       if ((error as { code?: string })?.code !== 'P2002') throw error
       return
     }
-    const mark = (status: string, error?: string, messageId?: string) => prisma.notification.update({ where: { id: row.id }, data: { status, attemptCount: { increment: 1 }, ...(messageId ? { providerReference: messageId.slice(0, 200) } : {}), ...(status === 'sent' ? { sentAt: new Date() } : {}), ...(error ? { lastError: error.slice(0, 200) } : {}) } })
+    const mark = (status: string, error?: string, messageId?: string) => prisma.notification.update({ where: { id: row.id }, data: { status, ...(messageId ? { providerReference: messageId.slice(0, 200) } : {}), ...(status === 'sent' ? { sentAt: new Date() } : {}), ...(error ? { lastError: error.slice(0, 200) } : {}) } })
     try {
       const guest = !trip.rider?.email && trip.requestId
         ? await prisma.notification.findUnique({ where: { idempotencyKey: `ride-request-received:${trip.requestId}` }, select: { payload: true } })

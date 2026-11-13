@@ -4377,8 +4377,6 @@ type Notification {
   payload: JSON
   providerReference: String
   idempotencyKey: String
-  attemptCount: Int
-  nextAttemptAt: DateTime
   sentAt: DateTime
   lastError: String
   createdAt: DateTime
@@ -4402,8 +4400,6 @@ input NotificationWhereInput {
   status: StringNullableFilter
   providerReference: StringFilter
   idempotencyKey: StringFilter
-  attemptCount: IntNullableFilter
-  nextAttemptAt: DateTimeNullableFilter
   sentAt: DateTimeNullableFilter
   lastError: StringFilter
   createdAt: DateTimeNullableFilter
@@ -4417,8 +4413,6 @@ input NotificationOrderByInput {
   status: OrderDirection
   providerReference: OrderDirection
   idempotencyKey: OrderDirection
-  attemptCount: OrderDirection
-  nextAttemptAt: OrderDirection
   sentAt: OrderDirection
   lastError: OrderDirection
   createdAt: OrderDirection
@@ -4434,8 +4428,6 @@ input NotificationUpdateInput {
   payload: JSON
   providerReference: String
   idempotencyKey: String
-  attemptCount: Int
-  nextAttemptAt: DateTime
   sentAt: DateTime
   lastError: String
   createdAt: DateTime
@@ -4456,8 +4448,6 @@ input NotificationCreateInput {
   payload: JSON
   providerReference: String
   idempotencyKey: String
-  attemptCount: Int
-  nextAttemptAt: DateTime
   sentAt: DateTime
   lastError: String
   createdAt: DateTime
@@ -4553,7 +4543,6 @@ The `JSON` scalar type represents JSON values as specified by [ECMA-404](http://
 scalar JSON @specifiedBy(url: "http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf")
 
 type Mutation {
-  createOperatorRide(idempotencyKey: String!, serviceId: ID!, pickupLabel: String!, dropoffLabel: String!, pickupPoint: JSON, dropoffPoint: JSON, scheduledFor: DateTime, passengerCount: Int, wheelchairAccessible: Boolean, riderName: String!, riderPhone: String!, receiptEmail: String, notes: String): JSON!
   createUser(data: UserCreateInput!): User
   createUsers(data: [UserCreateInput!]!): [User]
   updateUser(where: UserWhereUniqueInput!, data: UserUpdateInput!): User
@@ -4787,6 +4776,7 @@ type Mutation {
   createInitialUser(data: CreateInitialUserInput!): UserAuthenticationWithPasswordSuccess!
   sendUserPasswordResetLink(email: String!): Boolean!
   redeemUserPasswordResetToken(email: String!, token: String!, password: String!): RedeemUserPasswordResetTokenResult
+  createOperatorRide(idempotencyKey: String!, serviceId: ID!, pickupLabel: String!, dropoffLabel: String!, pickupPoint: JSON, dropoffPoint: JSON, scheduledFor: DateTime, passengerCount: Int, wheelchairAccessible: Boolean, riderName: String!, riderPhone: String!, receiptEmail: String, notes: String): JSON!
   marketplaceRideshareQuote(serviceId: ID!, pickupLabel: String!, dropoffLabel: String!, pickupPoint: JSON, dropoffPoint: JSON, scheduledFor: DateTime, passengerCount: Int, wheelchairAccessible: Boolean, handoffId: String): MarketplaceRideQuote!
   requestRide(quoteId: ID!, quoteProof: String!, passengerCount: Int, accessibilityNeeds: JSON, riderNotes: String, preciseRouteEncryptedRef: String, receiptEmail: String): RideRequestReceipt!
   resolveRideRequestIntent(quoteId: ID!, quoteProof: String!, passengerCount: Int, accessibilityNeeds: JSON, riderNotes: String, preciseRouteEncryptedRef: String): RideIntentResolution!
@@ -4812,6 +4802,7 @@ type Mutation {
   saveFleetBranding(fleetId: ID!, expectedUpdatedAt: DateTime!, logoIcon: String!, logoColor: String!, name: String, idempotencyKey: String!, expectedActorId: ID!): JSON!
   dismissRideshareOnboarding: Boolean!
   bootstrapRideshare(mode: String!): RideshareBootstrapResult!
+  refreshRideshareClocks: JSON!
   expireRideOffers(fleetId: ID!): OfferMaintenanceResult!
   expireRequestFleetOffers(requestId: ID!): OfferMaintenanceResult!
   setupFleet(name: String!, publicCity: String, countryCode: String, currencyCode: String, timezone: String): JSON!
@@ -4999,7 +4990,6 @@ type Query {
   myRideshareTrips: [RiderTripSummary!]!
   safetyQueueScope: Boolean!
   financeQueueScope: Boolean!
-  driverEarningsReport(from: String, to: String): JSON!
   rideshareCapabilities: JSON!
   riderAccountOptions: JSON!
   fleetBranding(fleetId: ID!): JSON
@@ -5010,6 +5000,7 @@ type Query {
   dispatchQueueScope: Boolean!
   tripCardPayment(tripId: ID!): TripCardPayment!
   riderSavedCard: RiderSavedCard!
+  driverEarningsReport(from: String, to: String): JSON!
 }
 
 union AuthenticatedItem = User

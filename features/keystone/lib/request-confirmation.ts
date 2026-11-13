@@ -55,7 +55,7 @@ export async function deliverRequestReceived(prisma: any, requestId: string, sen
       if ((error as { code?: string })?.code !== "P2002") throw error;
       return; // Already claimed: a replay does nothing.
     }
-    const mark = (status: string, error?: string, messageId?: string, response?: string) => prisma.notification.update({ where: { id: row.id }, data: { status, ...(messageId ? { providerReference: messageId.slice(0, 200) } : {}), ...(response ? { payload: { requestId: request.id, requestNumber: request.requestNumber, ...(extra.receiptEmail ? { receiptEmail: extra.receiptEmail } : {}), smtpResponse: response.slice(0, 300) } } : {}), attemptCount: { increment: 1 }, ...(status === "sent" ? { sentAt: new Date() } : {}), ...(error ? { lastError: error.slice(0, 200) } : {}) } });
+    const mark = (status: string, error?: string, messageId?: string, response?: string) => prisma.notification.update({ where: { id: row.id }, data: { status, ...(messageId ? { providerReference: messageId.slice(0, 200) } : {}), ...(response ? { payload: { requestId: request.id, requestNumber: request.requestNumber, ...(extra.receiptEmail ? { receiptEmail: extra.receiptEmail } : {}), smtpResponse: response.slice(0, 300) } } : {}), ...(status === "sent" ? { sentAt: new Date() } : {}), ...(error ? { lastError: error.slice(0, 200) } : {}) } });
     try {
       const email = extra.receiptEmail || request.rider?.email;
       if (!email) { await mark("skipped_no_recipient"); return; }

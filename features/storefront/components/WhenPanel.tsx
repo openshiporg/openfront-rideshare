@@ -63,7 +63,7 @@ export function WhenPanel({ when, leadMinutes, onDone, onCancel }: { when: strin
  */
 export function WhenSwitch({ when, onNow, onSchedule, className }: { when: string | null; onNow: () => void; onSchedule: () => void; className?: string }) {
   const later = Boolean(when)
-  return <div role="radiogroup" aria-label="Pickup time" className={cx('relative grid h-11 grid-cols-2 rounded-[14px] bg-[#e9e5da] p-1', className)}>
+  return <div role="radiogroup" aria-label="Pickup time" className={cx('relative grid h-[52px] grid-cols-2 rounded-[14px] bg-[#e9e5da] p-1', className)}>
     <span aria-hidden="true" className={cx('when-thumb absolute inset-y-1 left-1 w-[calc(50%-4px)] rounded-[11px] bg-white shadow-[0_1px_2px_rgba(16,35,31,0.12),0_2px_8px_-2px_rgba(16,35,31,0.18)]', later && 'translate-x-full')} />
     <button type="button" role="radio" aria-checked={!later} onClick={onNow}
       className={cx('press relative z-10 flex min-w-0 items-center justify-center gap-1.5 rounded-[11px] px-2 text-[14px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-tide', later ? 'text-ink-2' : 'text-ink')}>

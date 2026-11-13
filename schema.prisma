@@ -937,8 +937,6 @@ model Notification {
   payload           Json?     @default("{}")
   providerReference String    @default("")
   idempotencyKey    String    @unique @default("")
-  attemptCount      Int?      @default(0)
-  nextAttemptAt     DateTime?
   sentAt            DateTime?
   lastError         String    @default("")
   createdAt         DateTime? @default(now())

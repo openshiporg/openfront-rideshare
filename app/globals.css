@@ -177,7 +177,7 @@ html:has(.rider.fixed) { overflow: hidden; overscroll-behavior: none; }
 }
 
 /* Map marks: your teal location dot, a ringed pickup, an amber drop-off pin. */
-.rider-marker-user { width: 40px; height: 40px; border-radius: 9999px; background: rgba(15, 92, 85, 0.16); display: grid; place-items: center; }
+.rider-marker-user { width: 44px; height: 44px; border-radius: 9999px; background: rgba(15, 92, 85, 0.16); display: grid; place-items: center; }
 .rider-marker-user > span { width: 14px; height: 14px; border-radius: 9999px; background: #0f5c55; box-shadow: 0 0 0 3px #fff, 0 1px 4px rgba(16, 35, 31, 0.35); }
 .rider-marker-pickup { position: relative; width: 22px; height: 22px; border-radius: 9999px; background: #fff; display: grid; place-items: center; box-shadow: 0 0 0 1px rgba(16, 35, 31, 0.08), 0 2px 6px rgba(16, 35, 31, 0.3); }
 .rider-marker-pickup > span { width: 10px; height: 10px; border-radius: 9999px; background: #0f5c55; }
