@@ -135,6 +135,9 @@ export function earliestScheduled(now: Date, leadMinutes: number) {
 }
 
 /** Rider-facing words for where the ride is. Never operator labels. */
+/** A fare card payment counts as paid once captured, including after a full or partial refund. */
+export const isFarePaid = (status: string | null | undefined) => status === 'captured' || status === 'partially_refunded' || status === 'refunded'
+
 export type RideStage = 'finding' | 'scheduled' | 'assigned' | 'arrived' | 'onTrip' | 'completed' | 'cancelled' | 'noDriver' | 'reassigning' | 'unknown'
 export function rideStage(requestStatus: string | null | undefined, tripStatus: string | null | undefined, handoffState?: string | null, requestedFor?: string | null, now = Date.now()): RideStage {
   if (handoffState === 'reassignment_pending') return 'reassigning'

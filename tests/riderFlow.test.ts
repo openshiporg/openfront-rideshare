@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { defaultServiceId, earliestScheduled, initialFlow, rideStage, riderFlow, type FlowEvent, type FlowState } from '../features/storefront/domain/riderFlow'
+import { defaultServiceId, isFarePaid, earliestScheduled, initialFlow, rideStage, riderFlow, type FlowEvent, type FlowState } from '../features/storefront/domain/riderFlow'
 
 const here = { label: '3009 Opal St, Harbor City', name: '3009 Opal St', detail: 'Harbor City', point: [-118.3, 33.79] as [number, number] }
 const mall = { label: 'Del Amo Fashion Center, 3525 West Carson Street', name: 'Del Amo Fashion Center', detail: 'Torrance', point: [-118.35, 33.83] as [number, number] }
@@ -77,4 +77,12 @@ test('a scheduled ride starts no sooner than the lead time, on a 5-minute mark',
   assert.equal(at.getHours(), 9)
   assert.equal(at.getMinutes(), 35)
   assert.equal(earliestScheduled(new Date(2026, 10, 4, 9, 2), 0).getMinutes(), 20)
+})
+
+test('a partly refunded fare card payment still counts as paid and is not read as refunded', () => {
+  assert.equal(isFarePaid('partially_refunded'), true)
+  assert.equal(isFarePaid('captured'), true)
+  assert.equal(isFarePaid('refunded'), true)
+  assert.equal(isFarePaid('pending'), false)
+  assert.equal(isFarePaid(null), false)
 })
