@@ -3,7 +3,8 @@ import { GraphQLError } from 'graphql'
 import { hasAnyFleetScope } from '../access'
 import { executePaymentAdapter } from '../utils/paymentProviderAdapter'
 import { settleRefund } from './finance'
-import { retrieveRefund, stripeSecretKey } from '../../integrations/payment/stripe'
+import { findRefundByKey, retrieveRefund, stripeSecretKey } from '../../integrations/payment/stripe'
+import { LATE_SCHEDULED_GRACE_MS } from '../domain/dispatchSchedule'
 
 // Housekeeping for states that only move when time passes. The app has no timer, worker or queue: request expiry and
 // location purge advance on the reads that already act as the dispatch clock (rider status poll, driver workspace),
@@ -11,7 +12,7 @@ import { retrieveRefund, stripeSecretKey } from '../../integrations/payment/stri
 // Each step is a compare-and-set, so two processes or a repeated run do no harm.
 
 const ON_DEMAND_WAIT_MS = 2 * 60 * 60_000      // matches the auto-dispatch horizon: after this nobody is looking for a driver
-const SCHEDULED_GRACE_MS = 60 * 60_000          // a booked pickup time that passed an hour ago without a driver
+const SCHEDULED_GRACE_MS = LATE_SCHEDULED_GRACE_MS // a booked pickup time that passed an hour ago without a driver
 const STALE_REFUND_MS = 5 * 60_000
 
 /** Requests nobody served become `expired`. Never while an offer is live or a trip exists. Returns the count. */
@@ -21,9 +22,12 @@ export async function expireStaleRideRequests(prisma: PrismaClient, now = new Da
   const result = await prisma.rideRequest.updateMany({
     where: {
       status: { in: ['requested', 'matching'] },
-      trip: { is: null },
       matchOffers: { none: { status: { in: ['offered', 'accepted'] } } },
-      OR: [{ requestedFor: null, createdAt: { lt: onDemandBefore } }, { requestedFor: { lt: scheduledBefore } }],
+      OR: [
+        { trip: { is: null }, OR: [{ requestedFor: null, createdAt: { lt: onDemandBefore } }, { requestedFor: { lt: scheduledBefore } }] },
+        // Sent back for reassignment and nobody took it: timed from when it was reopened.
+        { trip: { is: { status: 'cancelled' } }, OR: [{ requestedFor: null, updatedAt: { lt: onDemandBefore } }, { requestedFor: { lt: scheduledBefore } }] },
+      ],
     },
     data: { status: 'expired' },
   })
@@ -50,6 +54,11 @@ export async function reconcileStaleRefunds(prisma: PrismaClient, now = new Date
         const live = await retrieveRefund(refund.providerReference)
         status = live.status; externalId = live.id
       } else {
+        // Stripe may already have made this refund; read it before asking again.
+        const found = refund.payment?.providerReference ? await findRefundByKey(refund.payment.providerReference, refund.idempotencyKey) : null
+        if (found) { status = found.status; externalId = found.id }
+      }
+      if (!status) {
         const evidence = await executePaymentAdapter({ provider: refund.provider, functionName: 'refundPaymentFunction', args: { paymentId: refund.payment?.providerReference, amount: refund.amountMinor, currency: refund.currencyCode, idempotencyKey: refund.idempotencyKey } })
         status = evidence.status === 'succeeded' ? 'succeeded' : 'pending'; externalId = String(evidence.externalId || '')
       }

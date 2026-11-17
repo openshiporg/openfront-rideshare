@@ -29,7 +29,12 @@ export async function applyStripeEvent(prisma: PrismaClient, event: { id?: strin
 
   if (event.type === 'payment_intent.succeeded' || event.type === 'payment_intent.payment_failed' || event.type === 'payment_intent.canceled') {
     const intent = object as StripePaymentIntent
-    const payment = await prisma.payment.findFirst({ where: { providerReference: intent.id, provider: { is: { code: 'pp_stripe' } } }, select: { id: true, tripId: true, status: true, amountMinor: true, currencyCode: true, attempts: true, purpose: true } })
+    const select = { id: true, tripId: true, status: true, amountMinor: true, currencyCode: true, attempts: true, purpose: true }
+    // A saved-card attempt whose answer was lost has no reference yet: match it by payment id and attempt number.
+    const payment = await prisma.payment.findFirst({ where: { providerReference: intent.id, provider: { is: { code: 'pp_stripe' } } }, select })
+      ?? (intent.metadata?.paymentId && intent.metadata?.attempt
+        ? await prisma.payment.findFirst({ where: { id: intent.metadata.paymentId, providerReference: '', attempts: Number(intent.metadata.attempt) || -1, provider: { is: { code: 'pp_stripe' } } }, select })
+        : null)
     if (!payment) return { handled: false, reason: 'unknown_payment' as const }
     await settleIntent(prisma, payment, intent)
     return { handled: true, paymentId: payment.id }

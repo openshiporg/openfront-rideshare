@@ -15,6 +15,16 @@ export function isFutureScheduledRequest(requestedFor: Date | string | null | un
   return Number.isFinite(scheduledAt) && Number.isFinite(nowAt) && scheduledAt > nowAt
 }
 
+/** How long after a booked pickup time a ride can still get a driver; the request expires after this. */
+export const LATE_SCHEDULED_GRACE_MS = 60 * 60_000
+
+/** A booked pickup time that has passed but is still inside the grace: dispatched like an immediate ride. */
+export function isLateScheduledRequest(requestedFor: Date | string | null | undefined, now: Date) {
+  const scheduledAt = timeOf(requestedFor)
+  const nowAt = now.getTime()
+  return Number.isFinite(scheduledAt) && Number.isFinite(nowAt) && scheduledAt <= nowAt && nowAt - scheduledAt < LATE_SCHEDULED_GRACE_MS
+}
+
 /** Immediate requests have no scheduled lead-time requirement. Invalid scheduled
  * times or invalid service lead-time configuration fail closed. */
 export function meetsAdvanceBookingWindow(

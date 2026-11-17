@@ -9,7 +9,7 @@ import { isCurrentlyAvailableAt } from '../domain/currentAvailability'
 import { canAccessFleet, currentHumanActor, type AccessArgs } from '../access'
 import { authorizedTripHeader, sameTripAuthority, tripAuthorityWhere } from '../domain/tripAuthority'
 import { refreshDriverPresentDispatchStatus } from '../domain/driverDispatchPresence'
-import { isFutureScheduledRequest, overlapsFixedDispatchWindow } from '../domain/dispatchSchedule'
+import { isFutureScheduledRequest, isLateScheduledRequest, overlapsFixedDispatchWindow } from '../domain/dispatchSchedule'
 import { loadCurrentEligibility } from '../domain/eligibility'
 import { fenceHumanAuthority } from '../domain/authorityFence'
 import { requireServiceReadiness } from '../domain/serviceReadiness'
@@ -96,8 +96,9 @@ export async function placeRideOffer(prisma: PrismaClient, args: { requestId: st
     const driverEligible = request.fleetId && await loadCurrentEligibility(tx, 'driver', args.driverId, request.fleetId, dispatchNow)
     const vehicleEligible = request.fleetId && await loadCurrentEligibility(tx, 'vehicle', args.vehicleId, request.fleetId, dispatchNow)
     const freshPresence = await tx.driverProfile.findUnique({ where: { id: args.driverId }, select: { dispatchStatus: true } })
-    const requestedAt = request.requestedFor || dispatchNow
     const isFutureScheduled = isFutureScheduledRequest(request.requestedFor, dispatchNow)
+    // A pickup time that just passed is dispatched now, like an immediate ride.
+    const requestedAt = isFutureScheduled ? request.requestedFor! : dispatchNow
     const dispatchStateAllowsRequest = isFutureScheduled
       ? ['available', 'offered', 'assigned', 'on_trip'].includes(freshPresence?.dispatchStatus || '')
       : freshPresence?.dispatchStatus === 'available'
@@ -107,7 +108,7 @@ export async function placeRideOffer(prisma: PrismaClient, args: { requestId: st
     }
     const accessibilityNeeds = request.accessibilityNeeds && typeof request.accessibilityNeeds === 'object' && !Array.isArray(request.accessibilityNeeds) ? request.accessibilityNeeds as Record<string, unknown> : {}
     if ((request.passengerCount || 1) > (service.passengerCapacity || 0) || (request.passengerCount || 1) > (vehicle.capacity || 0) || (service.wheelchairAccessible && !vehicle.wheelchairAccessible) || (accessibilityNeeds.wheelchairAccessible === true && !vehicle.wheelchairAccessible)) throw new GraphQLError('The selected vehicle does not meet this service request.')
-    if (request.requestedFor && (!driver.acceptsScheduled || !isFutureScheduledRequest(request.requestedFor, dispatchNow))) throw new GraphQLError('This driver or service does not accept the requested schedule.')
+    if (request.requestedFor && (isFutureScheduled ? !driver.acceptsScheduled : !isLateScheduledRequest(request.requestedFor, dispatchNow))) throw new GraphQLError('This driver or service does not accept the requested schedule.')
     if (!await isCurrentlyAvailableAt(tx, driver.id, requestedAt)) throw new GraphQLError('Driver is not available for the requested time.')
 
     const activeTrips = await tx.trip.findMany({ where: { status: { in: ['driver_assigned', 'driver_en_route', 'driver_arrived', 'in_progress'] }, OR: [{ driverId: driver.id }, { vehicleId: vehicle.id }] }, select: { driverId: true, vehicleId: true, scheduledFor: true, acceptedAt: true } })
@@ -202,8 +203,8 @@ export async function respondToRideOffer(_root: unknown, args: { offerId: string
     const needs = offer.request.accessibilityNeeds && typeof offer.request.accessibilityNeeds === 'object' && !Array.isArray(offer.request.accessibilityNeeds) ? offer.request.accessibilityNeeds as Record<string, unknown> : {}
     if (!service || service.status !== 'active') throw new GraphQLError('The quoted service is no longer active.')
     if ((offer.request.passengerCount || 1) > (acceptedVehicle.capacity || 0) || (offer.request.passengerCount || 1) > (service.passengerCapacity || 0) || (service.wheelchairAccessible && !acceptedVehicle.wheelchairAccessible) || (needs.wheelchairAccessible === true && !acceptedVehicle.wheelchairAccessible)) throw new GraphQLError('The assigned vehicle no longer meets the quoted service requirements.')
-    if (offer.request.requestedFor && (!currentState.acceptsScheduled || !isFutureScheduledRequest(offer.request.requestedFor, now))) throw new GraphQLError('Driver or service schedule eligibility changed.')
-    const acceptanceTime = offer.request.requestedFor || now
+    if (offer.request.requestedFor && (isFutureScheduled ? !currentState.acceptsScheduled : !isLateScheduledRequest(offer.request.requestedFor, now))) throw new GraphQLError('Driver or service schedule eligibility changed.')
+    const acceptanceTime = isFutureScheduled ? offer.request.requestedFor! : now
     if (!await isCurrentlyAvailableAt(tx, driver.id, acceptanceTime)) throw new GraphQLError('Driver is no longer available for the requested time.')
     const reservations = await tx.trip.findMany({ where: { status: { in: ['driver_assigned', 'driver_en_route', 'driver_arrived', 'in_progress'] }, OR: [{ driverId: driver.id }, { vehicleId: acceptedVehicle.id }] }, select: { scheduledFor: true, acceptedAt: true } })
     if (reservations.some(item => overlapsFixedDispatchWindow(acceptanceTime, item.scheduledFor || item.acceptedAt))) throw new GraphQLError('Driver or vehicle already has an overlapping active reservation.')
@@ -213,7 +214,7 @@ export async function respondToRideOffer(_root: unknown, args: { offerId: string
     if (offer.expiresAt <= acceptedAt) throw new GraphQLError('Offer lease expired before assignment; recover the original response, not a new command.')
     const requestClaim = await tx.rideRequest.updateMany({ where: { id: offer.request.id, status: 'matching' }, data: { status: 'matched' } })
     if (requestClaim.count !== 1) throw new GraphQLError('Ride request was resolved concurrently; refresh before retrying.')
-    const offerClaim = await tx.matchOffer.updateMany({ where: { id: offer.id, requestId: offer.request.id, driverId: driver.id, status: 'offered', expiresAt: { gt: acceptedAt } }, data: { status: 'accepted', reservationStartAt: offer.request.requestedFor || acceptedAt, respondedAt: acceptedAt, eligibilitySnapshot: { ...((offer.eligibilitySnapshot || {}) as object), responseCommand: { idempotencyKey: args.idempotencyKey, actorId: context.session.itemId, response: 'accept' } } } })
+    const offerClaim = await tx.matchOffer.updateMany({ where: { id: offer.id, requestId: offer.request.id, driverId: driver.id, status: 'offered', expiresAt: { gt: acceptedAt } }, data: { status: 'accepted', reservationStartAt: isFutureScheduled ? offer.request.requestedFor! : acceptedAt, respondedAt: acceptedAt, eligibilitySnapshot: { ...((offer.eligibilitySnapshot || {}) as object), responseCommand: { idempotencyKey: args.idempotencyKey, actorId: context.session.itemId, response: 'accept' } } } })
     if (offerClaim.count !== 1) throw new GraphQLError('Offer was withdrawn or answered concurrently.')
     const tripData = {
       fleetId: offer.request.fleetId, riderId: offer.request.riderId, driverId: driver.id, vehicleId: offer.vehicleId,

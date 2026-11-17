@@ -39,17 +39,21 @@ test('stripe events: a session for a different trip is refused before any money 
   assert.deepEqual(wrongAmount, { handled: false, reason: 'amount_mismatch' })
 })
 
-test('request expiry only touches requests with no trip and no live offer, past the waiting window', async () => {
+test('request expiry touches requests with no live offer, past the waiting window: never-served ones and ones sent back for reassignment', async () => {
   const { expireStaleRideRequests } = await import('../features/keystone/mutations/maintenance')
   let seen: any
   const prisma: any = { rideRequest: { updateMany: async (q: any) => { seen = q; return { count: 3 } } } }
   const at = new Date('2026-11-07T12:00:00Z')
   assert.equal(await expireStaleRideRequests(prisma, at), 3)
   assert.deepEqual(seen.where.status, { in: ['requested', 'matching'] })
-  assert.deepEqual(seen.where.trip, { is: null })
   assert.deepEqual(seen.where.matchOffers, { none: { status: { in: ['offered', 'accepted'] } } })
-  assert.equal(+seen.where.OR[0].createdAt.lt, +at - 2 * 3600_000)
-  assert.equal(+seen.where.OR[1].requestedFor.lt, +at - 3600_000)
+  const [fresh, reopened] = seen.where.OR
+  assert.deepEqual(fresh.trip, { is: null })
+  assert.equal(+fresh.OR[0].createdAt.lt, +at - 2 * 3600_000)
+  assert.equal(+fresh.OR[1].requestedFor.lt, +at - 3600_000)
+  assert.deepEqual(reopened.trip, { is: { status: 'cancelled' } })
+  assert.equal(+reopened.OR[0].updatedAt.lt, +at - 2 * 3600_000)
+  assert.equal(+reopened.OR[1].requestedFor.lt, +at - 3600_000)
   assert.equal(seen.data.status, 'expired')
 })
 

@@ -3,7 +3,7 @@ import { fenceHumanAuthority } from '../domain/authorityFence'
 import { loadCurrentEligibility } from '../domain/eligibility'
 import { isCurrentlyAvailableAt } from '../domain/currentAvailability'
 import { decodeKeyset, encodeKeyset } from '../domain/keysetCursor'
-import { isFutureScheduledRequest } from '../domain/dispatchSchedule'
+import { isFutureScheduledRequest, isLateScheduledRequest } from '../domain/dispatchSchedule'
 
 /** Dedicated operations-purpose DTO. Dispatchers never need generic owner-only
  * Fleet/Policy reads, raw evaluations, evidence, contacts or provider config. */
@@ -30,8 +30,9 @@ export async function dispatchCandidatePage(_root: unknown, args: { requestId: s
       if (boundary.time !== null || !Array.isArray(after) || after.length !== 2 || typeof after[0] !== 'string' || !after[0] || (after[1] !== null && (typeof after[1] !== 'string' || !after[1]))) throw new Error('Invalid candidate cursor.')
     }
     const base = { requestId: header.id, actorId, evaluatedAt: now.toISOString(), items: [] as any[], nextCursor: null as string | null }
-    const scheduled = Boolean(request.requestedFor)
-    if (!['requested','matching'].includes(request.status) || fleet?.status !== 'active' || !service || service.status !== 'active' || service.fleetId !== header.fleetId || (scheduled && !isFutureScheduledRequest(request.requestedFor, now))) return { ...base, blockedReason: 'The request or its service is unavailable for a new offer.' }
+    // A pickup time that just passed is matched now, like an immediate ride.
+    const scheduled = isFutureScheduledRequest(request.requestedFor, now)
+    if (!['requested','matching'].includes(request.status) || fleet?.status !== 'active' || !service || service.status !== 'active' || service.fleetId !== header.fleetId || (Boolean(request.requestedFor) && !scheduled && !isLateScheduledRequest(request.requestedFor, now))) return { ...base, blockedReason: 'The request or its service is unavailable for a new offer.' }
     const at = scheduled ? new Date(request.requestedFor) : now
     const needs = request.accessibilityNeeds && typeof request.accessibilityNeeds === 'object' ? request.accessibilityNeeds : {}
     if (!Number.isSafeInteger(request.passengerCount) || request.passengerCount < 1 || request.passengerCount > service.passengerCapacity) return { ...base, blockedReason: 'Passenger capacity evidence is unavailable.' }

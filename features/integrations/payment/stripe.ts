@@ -173,7 +173,23 @@ export async function chargeSavedCard({ customerId, paymentMethodId, amount, cur
   throw new Error(`Stripe request failed: ${payload?.error?.message ?? response.status}`)
 }
 
-export type StripeRefund = { id: string; status: string; amount: number; currency: string; payment_intent: string | null; failure_reason?: string | null }
+export type StripeRefund = { id: string; status: string; amount: number; currency: string; payment_intent: string | null; failure_reason?: string | null; metadata?: Record<string, string> | null }
+
+/** A refund already made for this key, if Stripe has one. Used before resending a refund whose answer was lost,
+ * because Stripe may forget an idempotency key after a day. */
+export async function findRefundByKey(reference: string, refundKey: string) {
+  const intent = await paymentIntentId(reference)
+  if (!intent) return null
+  const list = await stripeRequest<{ data: StripeRefund[] }>(`/refunds?payment_intent=${encodeURIComponent(intent)}&limit=100`)
+  return list.data.find(refund => refund.metadata?.refundKey === refundKey) ?? null
+}
+
+/** A saved-card charge Stripe made for this payment since `since`, if any (same reason as above). */
+export async function findSavedCardIntent(customerId: string, paymentId: string, attempt: number, since: Date) {
+  const created = Math.floor(new Date(since).getTime() / 1000) - 60
+  const list = await stripeRequest<{ data: StripePaymentIntent[] }>(`/payment_intents?customer=${encodeURIComponent(customerId)}&created[gte]=${created}&limit=100`)
+  return list.data.find(intent => intent.metadata?.paymentId === paymentId && intent.metadata?.attempt === String(attempt)) ?? null
+}
 
 export function retrieveRefund(id: string) {
   if (!/^re_[A-Za-z0-9]+$/.test(id)) throw new Error('Refund is invalid.')

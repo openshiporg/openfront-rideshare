@@ -4,7 +4,7 @@ import type { PrismaClient } from '@prisma/client'
 import { currentHumanActor } from '../access'
 import { authorizedTripHeader } from '../domain/tripAuthority'
 import { requestBaseUrl } from './onboarding'
-import { chargeSavedCard, createCardSetupSession, createStripeCustomer, detachPaymentMethod, retrievePaymentIntent, retrieveSetupSession, stripeSecretKey, type StripeCard, type StripePaymentIntent } from '../../integrations/payment/stripe'
+import { chargeSavedCard, findSavedCardIntent, createCardSetupSession, createStripeCustomer, detachPaymentMethod, retrievePaymentIntent, retrieveSetupSession, stripeSecretKey, type StripeCard, type StripePaymentIntent } from '../../integrations/payment/stripe'
 
 // A rider's card on file. Saved once through Stripe Checkout in setup mode (a SetupIntent; Stripe runs any
 // 3-D Secure step), then the fare is charged off-session when the trip completes and the cancellation or
@@ -145,10 +145,12 @@ async function attempt(prisma: PrismaClient, paymentId: string, profile: { strip
     const payment = await tx.payment.findUnique({ where: { id: paymentId } })
     if (!payment) return null
     if (again ? payment.status !== 'failed' : payment.status !== 'pending') return { payment, run: false }
+    const resend = !again && Boolean(payment.attempts)
     const attempts = again || !payment.attempts ? (payment.attempts || 0) + 1 : payment.attempts
     const evidence = (payment.providerEvidence || {}) as Record<string, unknown>
-    const updated = await tx.payment.update({ where: { id: paymentId }, data: { status: 'pending', attempts, lastAttemptAt: new Date(), providerEvidence: { ...evidence, card: { brand: profile.cardBrand ?? null, last4: profile.cardLast4 ?? null } } } })
-    return { payment: updated, run: true }
+    // A new attempt forgets the previous attempt's intent, so a later check never reads the old answer.
+    const updated = await tx.payment.update({ where: { id: paymentId }, data: { status: 'pending', attempts, ...(again ? { providerReference: '' } : {}), lastAttemptAt: new Date(), providerEvidence: { ...evidence, card: { brand: profile.cardBrand ?? null, last4: profile.cardLast4 ?? null } } } })
+    return { payment: updated, run: true, resend, since: payment.createdAt || new Date(0) }
   }, { isolationLevel: 'Serializable' })
   if (!claimed) return { skipped: 'missing' }
   if (!claimed.run) return { status: claimed.payment.status, paymentId }
@@ -156,10 +158,12 @@ async function attempt(prisma: PrismaClient, paymentId: string, profile: { strip
   const trip = payment.tripId ? await prisma.trip.findUnique({ where: { id: payment.tripId }, select: { confirmationCode: true } }) : null
   let intent: StripePaymentIntent
   try {
-    intent = await chargeSavedCard({
+    // Resending an attempt whose answer was lost: Stripe may have forgotten the key after a day, so look first.
+    const earlier = claimed.resend ? await findSavedCardIntent(profile.stripeCustomerId!, payment.id, payment.attempts!, claimed.since) : null
+    intent = earlier ?? await chargeSavedCard({
       customerId: profile.stripeCustomerId!, paymentMethodId: profile.cardPaymentMethodId!, amount: payment.amountMinor!, currency: payment.currencyCode!,
       description: `${MEMO[(payment.purpose || 'fare') as ChargePurpose].split(',')[0]} · ${trip?.confirmationCode || 'ride'}`,
-      metadata: { tripId: payment.tripId || '', paymentId: payment.id, purpose: payment.purpose || 'fare' },
+      metadata: { tripId: payment.tripId || '', paymentId: payment.id, purpose: payment.purpose || 'fare', attempt: String(payment.attempts) },
       idempotencyKey: `saved-card:${payment.id}:${payment.attempts}`,
     })
   } catch {
