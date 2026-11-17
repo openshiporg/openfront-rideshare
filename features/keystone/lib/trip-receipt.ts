@@ -3,6 +3,7 @@
 // The Notification row (unique idempotencyKey per trip) is the dedupe record. Recipient: the rider
 // account's email, else the guest's "Email for receipt" kept on the request-received notification.
 import { requestConfirmationConfigured } from './request-confirmation'
+import { formatMoney } from '../../lib/currency'
 
 export type TripReceiptMail = {
   to: string; fleetName: string; confirmationCode: string; name: string; whenLabel: string; pickup: string; dropoff: string;
@@ -13,7 +14,7 @@ type Send = (mail: TripReceiptMail) => Promise<{ sent: boolean; error?: string; 
 const escapeHtml = (value: unknown) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char] as string)
 
 export function money(minor: number, currency: string) {
-  try { return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(minor / 100) } catch { return `${(minor / 100).toFixed(2)} ${currency}` }
+  return formatMoney(minor, currency)
 }
 
 /** The fare lines a rider expects on a receipt, from the fare snapshot the trip completed with. */
