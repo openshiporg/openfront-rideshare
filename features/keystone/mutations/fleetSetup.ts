@@ -3,6 +3,7 @@ import { GraphQLError } from 'graphql'
 import { canAccessFleet, currentHumanActor, permissions, type FleetCapability } from '../access'
 import { validateFareRule } from '../domain/fare'
 import { refreshDriverPresentDispatchStatus } from '../domain/driverDispatchPresence'
+import { releaseElapsedOffers } from './offerMaintenance'
 import { assertTransition, COMMITTED_TRIP_STATUSES } from '../domain/lifecycles'
 
 // Semantic setup for a fleet's day-one records. Generic CRUD stays closed for tenant
@@ -291,6 +292,8 @@ export async function setDriverOnline(_root: unknown, args: { online: boolean; d
   if (!driver) fail('No driver profile found.')
   if (args.driverId) await requireFleet(context, driver!.fleetId, 'operations')
   if (driver!.status !== 'active') fail('Only approved drivers can go online.')
+  // An offer the driver let run out no longer holds them: release it first so they can go offline.
+  if (!args.online && driver!.fleetId) await releaseElapsedOffers(context.prisma, { fleetId: driver!.fleetId, driverId: driver!.id })
   return context.prisma.$transaction(async (tx: any) => {
     if (args.online) {
       await tx.driverProfile.updateMany({ where: { id: driver!.id, status: 'active', dispatchStatus: 'offline' }, data: { dispatchStatus: 'available' } })
