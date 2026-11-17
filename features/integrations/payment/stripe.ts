@@ -101,11 +101,18 @@ async function paymentIntentId(reference: string) {
   return typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id ?? null
 }
 
+/** Returns a whole Checkout payment the app could not accept (its ride was cancelled or reassigned first). */
+export function refundLateCheckout({ paymentIntentId, paymentId }: { paymentIntentId: string; paymentId: string }) {
+  return stripeRequest<{ id: string; status: string }>('/refunds', {
+    method: 'POST', idempotencyKey: `late-checkout-refund:${paymentId}`, body: form({ payment_intent: paymentIntentId, 'metadata[paymentId]': paymentId, 'metadata[reason]': 'ride_closed_before_payment' }),
+  })
+}
+
 export async function refundPaymentFunction({ paymentId, amount, idempotencyKey }: Input) {
   const intent = await paymentIntentId(String(paymentId || ''))
   if (!intent) throw new Error('This checkout has no payment to refund.')
   const refund = await stripeRequest<{ id: string; status: string }>('/refunds', {
-    method: 'POST', idempotencyKey: `trip-refund:${idempotencyKey}`, body: form({ payment_intent: intent, amount }),
+    method: 'POST', idempotencyKey: `trip-refund:${idempotencyKey}`, body: form({ payment_intent: intent, amount, 'metadata[refundKey]': idempotencyKey }),
   })
   return { status: refund.status === 'succeeded' ? 'succeeded' : 'processing', externalId: refund.id, amount }
 }

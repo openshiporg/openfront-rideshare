@@ -2,7 +2,7 @@ import { GraphQLError } from 'graphql'
 import { randomUUID } from 'node:crypto'
 import { humanSessionId } from '../access'
 import { authorizedTripHeader } from '../domain/tripAuthority'
-import { retrieveCheckoutSession, stripeSecretKey, type StripeCheckoutSession } from '../../integrations/payment/stripe'
+import { refundLateCheckout, retrieveCheckoutSession, stripeSecretKey, type StripeCheckoutSession } from '../../integrations/payment/stripe'
 import { initiateTripPayment, moneySnapshot } from './finance'
 import { savedCardFare } from './savedCards'
 
@@ -48,16 +48,24 @@ export async function capture(context: any, payment: any, session: StripeCheckou
   const intent = typeof session.payment_intent === 'string' ? { id: session.payment_intent, latest_charge: null } : session.payment_intent
   const charge = intent?.latest_charge && typeof intent.latest_charge === 'object' ? intent.latest_charge : null
   const card = charge?.payment_method_details?.card
-  await context.prisma.$transaction(async (tx: any) => {
+  const late = await context.prisma.$transaction(async (tx: any) => {
     await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`payment:${payment.id}`}, 0))::text IS NOT NULL`
     const updated = await tx.payment.updateMany({ where: { id: payment.id, status: { in: ['pending', 'authorized'] } }, data: { status: 'captured', capturedAt: new Date() } })
-    if (updated.count !== 1) return
+    if (updated.count !== 1) return (await tx.payment.findUnique({ where: { id: payment.id }, select: { status: true } }))?.status === 'cancelled'
     await tx.paymentObservation.create({ data: { paymentId: payment.id, observationKey: randomUUID(), details: {
       phase: 'captured', source: 'stripe_checkout', checkoutSessionId: session.id, paymentIntentId: intent?.id ?? null, chargeId: charge?.id ?? null,
       card: card ? { brand: card.brand ?? null, last4: card.last4 ?? null } : null, amountMinor: payment.amountMinor, currencyCode: payment.currencyCode, observedAt: new Date().toISOString(),
     } } })
     await tx.ledgerEntry.create({ data: { tripId: payment.tripId, paymentId: payment.id, entryKey: `payment:${payment.id}:captured`, kind: 'rider_charge', account: 'rider_receivable', direction: 'credit', amountMinor: payment.amountMinor, currencyCode: payment.currencyCode, memo: 'Paid by card online', metadata: { checkoutSessionId: session.id, paymentIntentId: intent?.id ?? null } } })
+    return false
   }, { isolationLevel: 'Serializable' })
+  // Paid after the ride was cancelled or reassigned: the app can't take that money, so Stripe gives it all back.
+  if (late && intent?.id) {
+    const refund = await refundLateCheckout({ paymentIntentId: intent.id, paymentId: payment.id })
+    await context.prisma.paymentObservation.create({ data: { paymentId: payment.id, observationKey: `late-checkout-refund:${payment.id}`, details: {
+      phase: 'late_payment_refunded', source: 'stripe_checkout', checkoutSessionId: session.id, paymentIntentId: intent.id, refundId: refund.id, refundStatus: refund.status, amountMinor: payment.amountMinor, currencyCode: payment.currencyCode, observedAt: new Date().toISOString(),
+    } } }).catch(() => undefined)
+  }
 }
 
 export async function cancelAttempt(context: any, payment: any, reason: string) {
