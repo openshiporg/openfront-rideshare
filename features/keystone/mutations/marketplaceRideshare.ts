@@ -197,7 +197,8 @@ export async function requestRide(_root: unknown, args: { quoteId: string; quote
     if (passengerCount > Number(serviceSnapshot.passengerCapacity || 0)) throw new RideshareRefusal('Passenger count exceeds the quoted service capacity.')
     const accessibilityNeeds = intent.accessibilityNeeds
     if (accessibilityNeeds.wheelchairAccessible === true && serviceSnapshot.wheelchairAccessible !== true) throw new RideshareRefusal('The quoted service does not meet the accessibility requirement.')
-    const proofExpiry = new Date(Date.now() + 24 * 60 * 60_000)
+    // The guest's ride link lasts a day past the pickup time, so a ride booked days ahead stays reachable.
+    const proofExpiry = new Date(Math.max(Date.now(), quote.scheduledFor ? new Date(quote.scheduledFor).getTime() : 0) + 24 * 60 * 60_000)
     const requestId = randomUUID()
     if (!quote.serviceId) throw new RideshareRefusal('The quote no longer references a service.')
     const service = await requireServiceReadiness(tx, quote.serviceId)
