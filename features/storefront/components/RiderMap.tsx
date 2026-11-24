@@ -173,9 +173,10 @@ function Framing({ user, pickup, dropoff, route, top, bottom, pin }: Pick<Props,
       return
     }
     const lngs = points.map(point => point[0]), lats = points.map(point => point[1])
-    // Room for the pins, their name labels and the map controls at the right edge.
-    const pad = Math.min(72, open / 4)
-    map.fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], { padding: { top: top + pad, bottom: bottom + pad, left: 88 + side, right: 96 }, maxZoom: 15.5, duration })
+    // Room for the destination pin and its name above the point, the pickup's name below it, and the map
+    // controls at the right edge; less of each when the sheet leaves only a strip of map.
+    const above = Math.min(84, open * 0.42), below = Math.min(44, open * 0.2), sides = w < 480 ? Math.min(88, w / 5) : 96
+    map.fitBounds([[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]], { padding: { top: top + above, bottom: bottom + below, left: sides + side, right: sides + 8 }, maxZoom: 15.5, duration })
   }, [map, isLoaded, frameKey]) // eslint-disable-line react-hooks/exhaustive-deps
   return null
 }

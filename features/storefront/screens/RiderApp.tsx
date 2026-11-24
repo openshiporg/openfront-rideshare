@@ -242,7 +242,8 @@ export default function RiderApp({ initialRide, initialServiceId }: { initialRid
     void drivingRoute(rideInfo.pickup, rideInfo.dropoff, controller.signal).then(path => { if (!controller.signal.aborted) setRideRoute(path?.coordinates || null) })
     return () => controller.abort()
   }, [inRide, rideInfo?.pickup?.join(), rideInfo?.dropoff?.join()]) // eslint-disable-line react-hooks/exhaustive-deps
-  const mapRoute = inRide ? rideRoute : phase === 'home' ? null : route?.coordinates || null
+  // While a driver is being found the trip has no route of its own yet, so the planned one stays on the map.
+  const mapRoute = inRide ? rideRoute || (flow.dropoff ? route?.coordinates : null) || null : phase === 'home' ? null : route?.coordinates || null
   const searching = inRide && (rideInfo?.stage === 'finding' || rideInfo?.stage === 'reassigning')
   const near = flow.pickup?.point || user
 

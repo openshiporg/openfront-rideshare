@@ -13,7 +13,7 @@ const tones: Record<Tone, string> = {
   plain: 'bg-transparent text-ink hover:bg-ink/5',
 }
 const sizes = { lg: 'h-14 px-6 text-[17px] rounded-full', md: 'h-12 px-5 text-[16px] rounded-full', sm: 'h-11 px-4 text-[15px] rounded-full' }
-const base = 'press inline-flex select-none items-center justify-center gap-2 whitespace-nowrap font-semibold outline-none focus-visible:ring-2 focus-visible:ring-tide focus-visible:ring-offset-2 disabled:cursor-not-allowed'
+const base = 'press inline-flex select-none items-center justify-center gap-2 whitespace-nowrap font-semibold [&>svg]:shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-tide focus-visible:ring-offset-2 disabled:cursor-not-allowed'
 
 export const Button = forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement> & { tone?: Tone; size?: keyof typeof sizes }>(
   function Button({ tone = 'primary', size = 'md', className, type = 'button', ...props }, ref) {
@@ -44,7 +44,7 @@ export function Sheet({ children, onHeight, label, className }: { children: Reac
     return () => { observer.disconnect(); window.removeEventListener('resize', measure) }
   }, [])
   return <section ref={ref} aria-label={label} className={cx(
-    'sheet-in absolute inset-x-0 bottom-0 z-20 flex max-h-[calc(100dvh-76px)] flex-col rounded-t-[28px] bg-paper pb-[max(env(safe-area-inset-bottom),14px)] shadow-[0_-1px_0_rgba(16,35,31,0.06),0_-16px_40px_-16px_rgba(16,35,31,0.4)]',
+    'sheet-in absolute inset-x-0 bottom-0 z-20 flex max-h-[min(calc(100dvh-76px),76dvh)] flex-col rounded-t-[28px] bg-paper pb-[max(env(safe-area-inset-bottom),14px)] shadow-[0_-1px_0_rgba(16,35,31,0.06),0_-16px_40px_-16px_rgba(16,35,31,0.4)]',
     'lg:bottom-auto lg:left-6 lg:right-auto lg:top-[84px] lg:max-h-[calc(100dvh-108px)] lg:w-[420px] lg:rounded-[28px] lg:pb-5 lg:shadow-[0_0_0_1px_rgba(16,35,31,0.06),0_24px_60px_-20px_rgba(16,35,31,0.45)]',
     className)}>
     <span aria-hidden="true" className="mx-auto mb-2 mt-2.5 block h-1 w-9 shrink-0 rounded-full bg-[#cfcabd] lg:hidden" />

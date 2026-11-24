@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { gql, whoAmI, type Identity } from '../lib/api'
+import { initials } from '../lib/format'
 import { RiderPage } from '../components/RiderPage'
 import { Button, ButtonLink, Icon, Spinner } from '../components/ui'
 import { SavedCardRow, finishCardSetup, useSavedCard } from '../components/SavedCard'
@@ -65,7 +66,7 @@ export default function RiderAccount({ register = false }: { register?: boolean 
   if (identity === undefined) return <RiderPage title="Account" identity={identity}><p className="flex items-center gap-3 text-[16px]"><Spinner />Loading…</p></RiderPage>
   if (identity) return <RiderPage title="Account" identity={identity}>
     <div className="flex items-center gap-4">
-      <span aria-hidden="true" className="grid size-16 shrink-0 place-items-center rounded-full bg-tide-soft text-tide"><Icon.person className="size-8" /></span>
+      <span aria-hidden="true" className="display grid size-16 shrink-0 place-items-center rounded-full bg-tide text-[22px] font-bold text-white">{initials(identity.name) || <Icon.person className="size-8" />}</span>
       <div className="min-w-0"><p className="truncate text-[20px] font-bold">{identity.name}</p><p className="truncate text-[15px] text-ink-2">{identity.email}</p></div>
     </div>
     {saved.enabled && <section className="mt-6" aria-labelledby="payment-heading">
