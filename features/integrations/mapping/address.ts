@@ -89,3 +89,23 @@ export function formatPlace(p: PhotonProps, typed?: string | null): FormattedPla
   const detail = tidy(detailParts).join(' · ') || clean(p.state)
   return { label, name: title, detail }
 }
+
+/**
+ * One row per place: results that share a name and sit within about 0.2 miles of each other are the same
+ * place mapped twice (a building and its shop entry). The fuller address is kept, in the first one's position.
+ */
+export function dedupeNearby<T extends { name: string; label: string; point: [number, number] }>(places: T[], withinMiles = 0.2): T[] {
+  const kept: T[] = []
+  for (const place of places) {
+    const name = place.name.trim().toLowerCase()
+    const twin = kept.findIndex(other => other.name.trim().toLowerCase() === name && milesApart(other.point, place.point) <= withinMiles)
+    if (twin === -1) kept.push(place)
+    else if (place.label.length > kept[twin].label.length) kept[twin] = place
+  }
+  return kept
+}
+function milesApart(a: [number, number], b: [number, number]) {
+  const rad = Math.PI / 180
+  const h = Math.sin((b[1] - a[1]) * rad / 2) ** 2 + Math.cos(a[1] * rad) * Math.cos(b[1] * rad) * Math.sin((b[0] - a[0]) * rad / 2) ** 2
+  return 3958.8 * 2 * Math.asin(Math.sqrt(h))
+}

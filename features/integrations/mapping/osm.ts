@@ -11,7 +11,7 @@ export type LngLat = [number, number]
 export type Place = { label: string; name: string; detail: string; point: LngLat; kind: string }
 export type RoutedPath = { distanceMeters: number; durationSeconds: number; coordinates: LngLat[]; provider: 'osrm' | 'straight-line' }
 
-import { formatPlace } from './address'
+import { dedupeNearby, formatPlace } from './address'
 
 const USER_AGENT = 'openfront-rideshare/1.0 (+https://github.com/openshiporg/openfront-rideshare)'
 const photonBase = () => (process.env.PHOTON_URL || 'https://photon.komoot.io').replace(/\/+$/, '')
@@ -88,8 +88,9 @@ async function photon(path: string, params: URLSearchParams, typed?: string) {
       if (!place || seen.has(place.label)) return false
       seen.add(place.label); return true
     })
-    placeCache.set(key, places)
-    return places
+    const unique = dedupeNearby(places as Place[])
+    placeCache.set(key, unique)
+    return unique
   } catch { return [] as Place[] }
 }
 

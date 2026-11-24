@@ -45,3 +45,14 @@ test('street and house-number helpers', () => {
   assert.equal(typedHouseNumber('Pier 33'), null)
   assert.equal(typedHouseNumber('7 Eleven'), '7')
 })
+
+test('the same place mapped twice is listed once, with the fuller address', async () => {
+  const { dedupeNearby } = await import('../features/integrations/mapping/address')
+  const rows = dedupeNearby([
+    { name: 'Del Amo Fashion Center', label: 'Del Amo Fashion Center, W Carson St, Torrance', point: [-118.3520, 33.8310] as [number, number] },
+    { name: 'Plaza del Amo', label: 'Plaza del Amo, Torrance', point: [-118.3400, 33.8270] as [number, number] },
+    { name: 'Del Amo Fashion Center', label: 'Del Amo Fashion Center, 3525 W Carson St, Torrance', point: [-118.3526, 33.8312] as [number, number] },
+    { name: 'Del Amo Fashion Center', label: 'Del Amo Fashion Center, Lakewood', point: [-118.1400, 33.8500] as [number, number] },
+  ])
+  assert.deepEqual(rows.map(row => row.label), ['Del Amo Fashion Center, 3525 W Carson St, Torrance', 'Plaza del Amo, Torrance', 'Del Amo Fashion Center, Lakewood'])
+})
