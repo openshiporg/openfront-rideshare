@@ -30,11 +30,13 @@ export function ButtonLink({ tone = 'primary', size = 'md', className, ...props 
  * It reports its covered height so the map frames the trip above it. On wide screens it is a floating
  * left-hand panel, as tall as its content.
  */
-export function Sheet({ children, onHeight, label, className }: { children: React.ReactNode; onHeight: (px: number) => void; label: string; className?: string }) {
+export function Sheet({ children, onHeight, label, className, startOpen = false }: { children: React.ReactNode; onHeight: (px: number) => void; label: string; className?: string; startOpen?: boolean }) {
   const ref = useRef<HTMLElement>(null)
   const report = useRef(onHeight)
   const [open, setOpen] = useState(false)
   const drag = useRef<{ y: number; moved: boolean } | null>(null)
+  // A finished ride has nothing left to watch on the map, so its receipt opens in full.
+  useEffect(() => { if (startOpen) setOpen(true) }, [startOpen])
   useLayoutEffect(() => { report.current = onHeight })
   useLayoutEffect(() => {
     const node = ref.current
