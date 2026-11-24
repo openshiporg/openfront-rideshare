@@ -63,14 +63,14 @@ export default function RiderRides() {
 
 function Section({ title, items, stageOf }: { title: string; items: RequestView[]; stageOf: (item: RequestView) => RideStage }) {
   return <section className="mb-6" aria-label={title}>
-    <h2 className="mb-1 text-[12px] font-semibold uppercase tracking-[0.06em] text-ink-3">{title}</h2>
+    <h2 className="mb-1 text-[13px] font-semibold text-ink-3">{title}</h2>
     <ul className="divide-y divide-rule">
       {items.map(item => {
         const href = item.trip ? riderStatusHref(item.trip.confirmationCode, item.requestId) : null
         const body = <>
           <span className="grid size-12 shrink-0 place-items-center rounded-full bg-tide-soft text-tide"><Icon.pin className="size-5" /></span>
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-[16px] font-semibold">{shortPlace(item.dropoffLabel) || 'Ride'}</span>
+            <span className="block truncate text-[16px] font-medium">{shortPlace(item.dropoffLabel) || 'Ride'}</span>
             <span className="block truncate text-[14px] text-ink-2">{dayAndTime(item.requestedFor || item.createdAt)} · {WORDS[stageOf(item)]}</span>
           </span>
           {href && <Icon.chevronRight className="size-4 shrink-0 text-ink-3" />}

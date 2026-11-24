@@ -42,13 +42,15 @@ export function RiderMap({ user, pickup, dropoff, route, bottom, top = 72, pin, 
   const showUser = user && !(sameAsPickup && dropoff) ? user : null
   const showPickup = pin === 'pickup' || (!dropoff && sameAsPickup) ? null : pickup || null
   const showDropoff = pin === 'dropoff' ? null : dropoff || null
-  const labelled = Boolean(showPickup && showDropoff)
+  // Place names need room: with only a strip of map above the sheet the pins stand alone.
+  const roomy = typeof window === 'undefined' || window.innerHeight - top - bottom >= 230
+  const labelled = Boolean(showPickup && showDropoff) && roomy
   const line = route && route.length >= 2 ? route : NO_ROUTE
   const space = [showUser && { kind: 'user', point: showUser }, showPickup && { kind: 'pickup', point: showPickup.point }, showDropoff && { kind: 'dropoff', point: showDropoff.point }].filter(Boolean) as MarkerSpace[]
 
   return <div role="region" aria-label="Map" className="absolute inset-0 bg-[#eeece6]" style={{ ['--sheet' as string]: `${bottom}px`, ['--map-top' as string]: `${top}px` }}>
     <MapBoundary onError={() => setFailed(true)}>
-      <Map className="rider-map" theme="light" styles={{ light: STYLE, dark: STYLE }} center={[-98.5, 39.5]} zoom={3} dragRotate={false} pitchWithRotate={false} touchPitch={false} fadeDuration={reduced() ? 0 : 200}>
+      <Map className="rider-map" theme="light" styles={{ light: STYLE, dark: STYLE }} center={[-98.5, 39.5]} zoom={3} attributionControl={false} dragRotate={false} pitchWithRotate={false} touchPitch={false} fadeDuration={reduced() ? 0 : 200}>
         <MapSetup space={space} onFailed={() => setFailed(true)} />
         <Framing user={user} pickup={pickup} dropoff={dropoff} route={route} top={top} bottom={bottom} pin={pin} />
         <PinTracker pin={pin} top={top} bottom={bottom} onMoving={setMoving} onPinMove={onPinMove} />
@@ -66,7 +68,7 @@ export function RiderMap({ user, pickup, dropoff, route, bottom, top = 72, pin, 
         {showDropoff && <MapMarker key="dropoff" longitude={showDropoff.point[0]} latitude={showDropoff.point[1]} anchor="bottom">
           <MarkerContent className="cursor-default">
             <div aria-hidden="true" className="rider-marker rider-marker-dropoff"><span><span /></span></div>
-            {showDropoff.label && <MarkerLabel position="top" className="rider-marker-label mb-1.5 bg-ink text-[12px] font-semibold text-white">{showDropoff.label}</MarkerLabel>}
+            {showDropoff.label && roomy && <MarkerLabel position="top" className="rider-marker-label mb-1.5 bg-ink text-[12px] font-semibold text-white">{showDropoff.label}</MarkerLabel>}
           </MarkerContent>
         </MapMarker>}
         <MapControls position="bottom-right" showZoom={desktop} showLocate onLocate={({ longitude, latitude }) => onLocate?.([round(longitude), round(latitude)])} className="rider-map-controls" />
@@ -126,7 +128,13 @@ function MapSetup({ space, onFailed }: { space: MarkerSpace[]; onFailed: () => v
   useEffect(() => {
     if (!map || !isLoaded) return
     monochrome(map)
-    map.getContainer().querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show')
+    // The map credit sits bottom left, clear of the locate and zoom controls on the right.
+    let cancelled = false
+    if (!map.getContainer().querySelector('.maplibregl-ctrl-attrib')) void import('maplibre-gl').then(lib => {
+      if (cancelled || map.getContainer().querySelector('.maplibregl-ctrl-attrib')) return
+      map.addControl(new lib.AttributionControl({ compact: true }), 'bottom-left')
+      map.getContainer().querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show')
+    }).catch(() => {})
     try {
       // Markers are HTML overlays, which map labels don't avoid. An invisible symbol at each marker takes part
       // in label placement instead, so a town name never sits under the pickup or destination.
@@ -139,6 +147,7 @@ function MapSetup({ space, onFailed }: { space: MarkerSpace[]; onFailed: () => v
         'icon-anchor': ['match', ['get', 'kind'], 'dropoff', 'bottom', 'center'],
       } })
     } catch { /* labels may overlap a marker; nothing else depends on this */ }
+    return () => { cancelled = true }
   }, [map, isLoaded])
 
   const key = space.map(item => `${item.kind}:${item.point.join()}`).join('|')

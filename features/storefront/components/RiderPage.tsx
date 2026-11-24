@@ -24,7 +24,7 @@ export function RiderPage(props: { title: string; children: React.ReactNode; bac
     <main className="mx-auto w-full max-w-[560px] flex-1 px-4 pb-16 pt-3 lg:pt-10">
       <div className="lg:rounded-[28px] lg:bg-paper lg:p-8 lg:shadow-[0_1px_0_rgba(16,35,31,0.04),0_24px_48px_-32px_rgba(16,35,31,0.35)] lg:ring-1 lg:ring-rule">
         <button type="button" aria-label="Back" onClick={() => (window.history.length > 1 ? router.back() : router.push(back))} className="press -ml-2.5 grid size-11 place-items-center rounded-full outline-none hover:bg-ink/5 focus-visible:ring-2 focus-visible:ring-tide"><Icon.back className="size-6" /></button>
-        <h1 className="display mt-1 text-[32px] font-bold leading-10 tracking-[-0.03em]">{title}</h1>
+        <h1 className="display mt-1 text-[28px] font-bold leading-9 tracking-[-0.02em]">{title}</h1>
         <div className="mt-6">{children}</div>
       </div>
     </main>

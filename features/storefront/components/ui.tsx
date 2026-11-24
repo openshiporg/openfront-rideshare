@@ -95,17 +95,17 @@ export const Icon = {
   wheelchair: (p: IconProps = {}) => svg(<><circle cx="11" cy="4.5" r="1.6" /><path d="M11 7.5v6h5.5l2.5 5" /><path d="M8 10.5a5.5 5.5 0 1 0 6.6 7" /></>, p),
 }
 
-/** Pickup is a teal ring, drop-off an amber dot: the two marks used on the map and in every list. */
+/** Pickup is a round mark, the destination a square one, joined by a line: the same pair in every list. */
 export function PickupMark({ className }: { className?: string }) {
-  return <span aria-hidden="true" className={cx('grid size-3 shrink-0 place-items-center rounded-full bg-white ring-[2.5px] ring-tide', className)} />
+  return <span aria-hidden="true" className={cx('block size-2.5 shrink-0 rounded-full bg-ink', className)} />
 }
 export function DropoffMark({ className }: { className?: string }) {
-  return <span aria-hidden="true" className={cx('block size-3 shrink-0 rounded-full bg-signal', className)} />
+  return <span aria-hidden="true" className={cx('block size-2.5 shrink-0 rounded-[2px] bg-ink', className)} />
 }
 export function RouteMarks({ className }: { className?: string }) {
-  return <span aria-hidden="true" className={cx('flex w-3 shrink-0 flex-col items-center', className)}>
+  return <span aria-hidden="true" className={cx('flex w-2.5 shrink-0 flex-col items-center', className)}>
     <PickupMark />
-    <span className="my-1 w-0 flex-1 border-l-2 border-dotted border-[#c9c4b6]" />
+    <span className="my-1 w-px flex-1 bg-[#b9b3a4]" />
     <DropoffMark />
   </span>
 }

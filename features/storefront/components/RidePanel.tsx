@@ -111,7 +111,7 @@ export function RidePanel({ requestId, receipt, identity, fleetName, onInfo, onD
 
   if (!view) return <div className="px-4 pb-4 pt-3">
     {failed ? <div className="space-y-4">
-      <h2 className="display text-[24px] font-bold tracking-[-0.02em]">Ride not available</h2>
+      <h2 className="display text-[22px] font-bold leading-7 tracking-[-0.02em]">Ride not available</h2>
       <p className="text-[15px] text-ink-2">Sign in with the account you booked with, or open it in the browser you booked in.</p>
       <div className="grid grid-cols-2 gap-2"><Button tone="secondary" onClick={onDone}>Book a ride</Button><ButtonLinkPrimary href="/account/signin">Sign in</ButtonLinkPrimary></div>
     </div> : <div className="flex items-center gap-3 py-6 text-[16px]"><Spinner />Loading your ride…</div>}
@@ -143,10 +143,9 @@ export function RidePanel({ requestId, receipt, identity, fleetName, onInfo, onD
   return <div className="flex min-h-0 flex-col overflow-y-auto px-4 pb-2 pt-2 lg:px-5 lg:pt-5">
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
-        <h2 className="display text-[24px] font-bold leading-8 tracking-[-0.02em]" aria-live="polite">{headline[stage]}</h2>
+        <h2 className="display text-[22px] font-bold leading-7 tracking-[-0.02em]" aria-live="polite">{headline[stage]}</h2>
         {sub[stage] && <p className="mt-1 text-[15px] text-ink-2">{sub[stage]}</p>}
       </div>
-      {stage === 'arrived' && <span className="mt-1 shrink-0 rounded-full bg-signal px-3 py-1 text-[13px] font-semibold text-white">Now</span>}
     </div>
     {(stage === 'finding' || stage === 'reassigning') && <div className="progress mt-4" role="progressbar" aria-label="Finding a driver"><span /></div>}
 
@@ -156,13 +155,13 @@ export function RidePanel({ requestId, receipt, identity, fleetName, onInfo, onD
         <p className="truncate text-[17px] font-semibold">{driver?.publicName || 'Your driver'}{driver?.rating != null && <span className="ml-2 inline-flex items-center gap-0.5 text-[14px] font-medium"><Icon.star className="size-3.5" />{driver.rating.toFixed(2)}</span>}</p>
         <p className="truncate text-[14px] text-ink-2">{vehicleName(vehicle) || serviceName}</p>
       </div>
-      {vehicle?.plateMasked && <span className="shrink-0 rounded-[10px] bg-ink px-2.5 py-1.5 font-mono text-[15px] font-bold tracking-wide text-white">{vehicle.plateMasked}</span>}
+      {vehicle?.plateMasked && <span className="shrink-0 rounded-[10px] bg-paper px-2.5 py-1.5 text-[15px] font-semibold tabular-nums tracking-wide ring-1 ring-inset ring-rule">{vehicle.plateMasked}</span>}
     </div>}
 
     <div className="mt-3 rounded-[20px] bg-white ring-1 ring-rule">
       <div className="flex gap-3 px-4 py-3.5">
         <RouteMarks className="py-[5px]" />
-        <div className="min-w-0 flex-1 space-y-2.5 text-[15px] font-medium leading-5">
+        <div className="min-w-0 flex-1 space-y-3 text-[15px] font-medium leading-5">
           <p className="truncate">{view.pickupLabel || 'Pickup'}</p>
           <p className="truncate">{view.dropoffLabel || 'Destination'}</p>
         </div>
@@ -176,22 +175,22 @@ export function RidePanel({ requestId, receipt, identity, fleetName, onInfo, onD
     {card?.enabled && card.status === 'refunded' && <div className="mt-3 flex items-center gap-2 rounded-[18px] bg-white px-4 py-3 text-[15px] ring-1 ring-rule"><Icon.check className="size-5 text-tide" />Refunded{card.amountMinor != null && card.currencyCode ? ` · ${formatMoney(card.amountMinor, card.currencyCode)}` : ''}</div>}
     {card?.enabled && card.status === 'partially_refunded' && <div className="mt-3 flex items-center gap-2 rounded-[18px] bg-white px-4 py-3 text-[15px] ring-1 ring-rule"><Icon.check className="size-5 text-tide" />Partly refunded</div>}
     {card?.enabled && card.status === 'captured' && <div className="mt-3 flex items-center gap-2 rounded-[18px] bg-white px-4 py-3 text-[15px] ring-1 ring-rule"><Icon.check className="size-5 text-tide" />{card.savedCard ? `Paid · ${cardName(card.savedCard)}` : 'Paid by card'}</div>}
-    {card?.enabled && card.status !== 'captured' && card.failure && <p role="alert" className="mt-3 rounded-[16px] bg-[#fbeceb] px-4 py-3 text-[14px] text-alert">Your card was declined.{declineReason(card.failure) ? ` ${declineReason(card.failure)}` : ''} Pay below, or add another card.</p>}
+    {card?.enabled && card.status !== 'captured' && card.failure && <p role="alert" className="mt-3 rounded-[18px] bg-[#fbeceb] px-4 py-3 text-[14px] text-alert">Your card was declined.{declineReason(card.failure) ? ` ${declineReason(card.failure)}` : ''} Pay below, or add another card.</p>}
     {card?.enabled && !isFarePaid(card.status) && card.savedCard && !card.failure && !['cancelled'].includes(stage) && <div className="mt-3 flex items-center gap-2 rounded-[18px] bg-white px-4 py-3 text-[15px] ring-1 ring-rule"><Icon.card className="size-5 shrink-0" /><span className="truncate">{stage === 'completed' ? `Charging ${cardName(card.savedCard)}…` : `${cardName(card.savedCard)} is charged after the ride`}</span></div>}
-    {card?.enabled && card.payable && card.status !== 'captured' && <div className="mt-3 flex items-center justify-between gap-3 rounded-[16px] bg-white ring-1 ring-rule px-4 py-3">
+    {card?.enabled && card.payable && card.status !== 'captured' && <div className="mt-3 flex items-center justify-between gap-3 rounded-[18px] bg-white py-2.5 pl-4 pr-2.5 ring-1 ring-rule">
       <span className="flex items-center gap-2 text-[15px]"><Icon.card className="size-5" />Pay by card</span>
       <PayButton tripId={tripId!} onError={setNotice} />
     </div>}
     {identity && saved.enabled && saved.loaded && ((!saved.card && LIVE.includes(stage) && !paid) || (card?.failure && card.status !== 'captured')) && <div className="mt-3">
-      {!saved.card && <p className="mb-2 text-[14px] text-ink-2">Save a card and {fleetName} charges the fare when you arrive. No paying at the end.</p>}
-      <SavedCardRow card={saved.card} returnTo={returnTo} label="Save a card" onError={setNotice} />
+      <SavedCardRow card={saved.card} returnTo={returnTo} label="Save a card" quiet={Boolean(card?.payable)} onError={setNotice} />
+      {!saved.card && <p className="mt-2 text-[13px] leading-[18px] text-ink-3">With a saved card, {fleetName} charges the fare when you arrive.</p>}
     </div>}
     {notice && <p role="status" className="mt-3 text-[14px] text-ink-2">{notice}</p>}
 
     {stage === 'completed' && tripId && <RateRide tripId={tripId} signedIn={signedInOwner} driverName={driver ? firstName(driver.publicName) : null} />}
 
     <div className="mt-4 space-y-2">
-      {live && <div className={cx('grid gap-2', signedInOwner && view.trip ? 'grid-cols-3' : 'grid-cols-2')}>
+      {live && <div className={cx('grid gap-2 [&>button]:px-2 [&>button]:text-[15px]', signedInOwner && view.trip ? 'grid-cols-3' : 'grid-cols-2')}>
         <ShareButton requestId={requestId} code={tripCode} />
         {signedInOwner && view.trip && <MessageButton tripId={view.trip.id} />}
         {(canCancelRequest || canCancelTrip) ? <Button tone="danger" onClick={() => setConfirming(true)}>Cancel</Button> : <Button tone="secondary" onClick={() => setTick(t => t + 1)}>Refresh</Button>}
@@ -257,7 +256,7 @@ function MessageButton({ tripId }: { tripId: string }) {
   return <>
     <Button tone="secondary" onClick={() => { setOpen(true); setState('idle') }}><Icon.message className="size-[18px]" />Message</Button>
     {open && <Overlay label="Message your driver" onClose={() => setOpen(false)}>
-      <h3 className="display text-[20px] font-bold">Message your driver</h3>
+      <h3 className="display text-[22px] font-bold leading-7 tracking-[-0.02em]">Message your driver</h3>
       <textarea value={text} onChange={event => setText(event.target.value)} rows={3} maxLength={2000} placeholder="I’m by the main entrance" className="mt-3 w-full rounded-[16px] bg-white ring-1 ring-inset ring-rule px-4 py-3 text-[16px] outline-none focus-visible:ring-2 focus-visible:ring-tide" />
       {state === 'sent' && <p role="status" className="mt-2 text-[14px]">Sent.</p>}
       {state === 'failed' && <p role="alert" className="mt-2 text-[14px] text-alert">Not sent. Try again.</p>}
@@ -336,7 +335,7 @@ function CancelConfirm({ requestId, proof, tripId, requestCancellable, onClose, 
   }
   const fee = preview?.kind === 'trip' && preview.feeMinor > 0 ? formatMoney(preview.feeMinor, preview.currencyCode) : null
   return <Overlay label="Cancel ride" onClose={state === 'sending' ? () => {} : onClose}>
-    <h3 className="display text-[20px] font-bold">Cancel your ride?</h3>
+    <h3 className="display text-[22px] font-bold leading-7 tracking-[-0.02em]">Cancel your ride?</h3>
     <p className="mt-2 text-[15px] text-ink-2">{state === 'loading' ? 'Checking…' : state === 'unavailable' ? 'This ride can’t be cancelled here any more. It may already have a driver.' : fee ? `Your driver is already on the way, so a ${fee} cancellation fee applies.` : 'You won’t be charged.'}</p>
     {state === 'failed' && <p role="alert" className="mt-2 text-[14px] text-alert">We couldn’t confirm the cancellation. Try again.</p>}
     <div className="mt-4 grid gap-2">

@@ -50,14 +50,14 @@ export async function finishCardSetup(): Promise<{ saved: boolean; card: SavedCa
 }
 
 /** A compact row: the card on file, or a button to add one. */
-export function SavedCardRow({ card, returnTo, label = 'Add a card', className, onError }: { card: SavedCard | null | undefined; returnTo: string; label?: string; className?: string; onError?: (text: string) => void }) {
+export function SavedCardRow({ card, returnTo, label = 'Add a card', quiet = false, className, onError }: { card: SavedCard | null | undefined; returnTo: string; label?: string; quiet?: boolean; className?: string; onError?: (text: string) => void }) {
   const [busy, setBusy] = useState(false)
   async function add() {
     setBusy(true)
     try { await startCardSetup(returnTo) } catch (cause) { onError?.(cause instanceof Error ? cause.message : 'Card setup couldn’t start.'); setBusy(false) }
   }
-  return <div className={cx('flex items-center justify-between gap-3 rounded-[16px] bg-white px-4 py-3 ring-1 ring-rule', className)}>
+  return <div className={cx('flex items-center justify-between gap-3 rounded-[18px] bg-white py-2.5 pl-4 pr-2.5 ring-1 ring-rule', className)}>
     <span className="flex min-w-0 items-center gap-2 text-[15px]"><Icon.card className="size-5 shrink-0" /><span className="truncate">{card ? cardName(card) : 'No card saved'}</span></span>
-    <Button size="sm" tone={card ? 'secondary' : 'primary'} disabled={busy} onClick={() => void add()}>{busy ? <Spinner className="size-4" /> : card ? 'Change' : label}</Button>
+    <Button size="sm" tone={card || quiet ? 'secondary' : 'primary'} disabled={busy} onClick={() => void add()}>{busy ? <Spinner className="size-4" /> : card ? 'Change' : label}</Button>
   </div>
 }
