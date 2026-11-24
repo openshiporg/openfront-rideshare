@@ -4,7 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, u
 import { useRouter } from 'next/navigation'
 import { gql, QUOTE_FIELDS, SERVICE_FIELDS, whoAmI, type Estimates, type Identity, type LngLat, type Place, type Quote, type Service } from '../lib/api'
 import { cityPoint, drivingRoute, locate, placeAt, rememberPlace, useRecentPlaces, type RoutePath } from '../lib/places'
-import { clock, formatMoney, minutes, shortPlace } from '../lib/format'
+import { clock, dayAndTime, formatMoney, minutes, shortPlace } from '../lib/format'
 import { vehicleArt } from '@/features/lib/vehicles'
 import { defaultServiceId, initialFlow, riderFlow } from '../domain/riderFlow'
 import { archiveReceipt, parsePendingRequest, parseRiderReceipt, pendingRequestStorageKey, persistPendingRequest, receiptFromFragment, receiptStorageKey, storedReceipt, type RiderReceipt } from '../domain/riderReceiptStorage'
@@ -268,7 +268,7 @@ export default function RiderApp({ initialRide, initialServiceId }: { initialRid
     </div>}
 
     {phase === 'home' && <Sheet key="home" label="Get a ride" onHeight={setSheet}>
-      <div className="px-4 pb-2 pt-1 lg:px-5 lg:pt-5">
+      <div className="min-h-0 overflow-y-auto overscroll-contain px-4 pb-2 pt-1 lg:px-5 lg:pt-5">
         <h1 className="display text-[22px] font-bold leading-7 tracking-[-0.02em]">Get a ride</h1>
         <div className="relative mt-3 overflow-hidden rounded-[20px] bg-white shadow-[0_1px_0_rgba(16,35,31,0.04),0_10px_24px_-18px_rgba(16,35,31,0.35)] ring-1 ring-rule">
           {/* One line joins the two marks, so they read as the trip's two ends. */}
@@ -303,7 +303,7 @@ export default function RiderApp({ initialRide, initialServiceId }: { initialRid
     </Sheet>}
 
     {phase === 'pin' && <Sheet key="pin" label="Set location on map" onHeight={setSheet}>
-      <div className="px-4 pb-2 pt-1 lg:px-5 lg:pt-4">
+      <div className="min-h-0 overflow-y-auto overscroll-contain px-4 pb-2 pt-1 lg:px-5 lg:pt-4">
         <SheetTitle onBack={() => dispatch({ type: 'back' })}>{pinField === 'pickup' ? 'Set your pickup spot' : 'Set your destination'}</SheetTitle>
         <p className="mt-1 text-[14px] text-ink-2">Drag the map to move the pin</p>
         <div className="mt-3 flex min-h-[62px] items-center gap-3.5 rounded-[20px] bg-white px-4 ring-1 ring-rule">
@@ -316,8 +316,8 @@ export default function RiderApp({ initialRide, initialServiceId }: { initialRid
     </Sheet>}
 
     {(phase === 'choose' || phase === 'requesting') && <Sheet key="choose" label="Choose a ride" onHeight={setSheet}>
-      <div className="px-4 pt-1 lg:px-5 lg:pt-4">
-        <SheetTitle onBack={phase === 'choose' ? () => dispatch({ type: 'back' }) : undefined} aside={tripSeconds != null ? <>{minutes(tripSeconds)}{tripMiles && <span className="hidden min-[360px]:inline"> · {tripMiles} mi</span>}</> : null}>{phase === 'requesting' ? 'Requesting your ride…' : 'Choose a ride'}</SheetTitle>
+      <div className="shrink-0 px-4 lg:px-5 lg:pt-4">
+        <SheetTitle onBack={phase === 'choose' ? () => dispatch({ type: 'back' }) : undefined} aside={<button type="button" disabled={phase === 'requesting'} onClick={() => setWhenOpen(true)} aria-label={flow.when ? `Scheduled ${dayAndTime(flow.when)}. Change time` : 'Leaving now. Schedule for later'} className="press flex h-11 max-w-[11rem] items-center gap-1 rounded-full bg-white pl-3.5 pr-2.5 text-[14px] font-semibold outline-none ring-1 ring-inset ring-rule hover:bg-tide-soft focus-visible:ring-2 focus-visible:ring-tide"><span className="truncate">{flow.when ? dayAndTime(flow.when) : 'Now'}</span><Icon.chevronDown className="size-4 shrink-0 text-ink-3" /></button>}>{phase === 'requesting' ? 'Requesting your ride…' : 'Choose a ride'}</SheetTitle>
         {/* The trip, one tap from changing either end. */}
         <button type="button" disabled={phase === 'requesting'} onClick={() => dispatch({ type: 'back' })} aria-label="Change pickup or destination" className="press mt-3 hidden w-full items-stretch gap-3 rounded-[16px] bg-white px-3.5 py-2.5 lg:flex text-left outline-none ring-1 ring-rule hover:ring-[#cfc9ba] focus-visible:ring-2 focus-visible:ring-tide">
           <RouteMarks className="py-[5px]" />
@@ -354,9 +354,8 @@ export default function RiderApp({ initialRide, initialServiceId }: { initialRid
           </li>
         })}
       </RideList>
-      <div className="mt-2 border-t border-rule px-4 pt-3 lg:px-5">
-        <WhenSwitch when={flow.when} onNow={() => dispatch({ type: 'setWhen', when: null })} onSchedule={() => setWhenOpen(true)} />
-        <p className="mt-2.5 flex min-h-6 items-center gap-2 text-[13px] font-medium text-ink-2"><Icon.card className="size-4 shrink-0" /><span className="truncate">{saved.card ? `${cardName(saved.card)} · charged after the ride` : identity ? 'Card, after your driver is assigned' : 'Pay after your driver is assigned'}</span></p>
+      <div className="mt-1 shrink-0 border-t border-rule px-4 pt-2.5 lg:px-5">
+        <p className="flex min-h-6 items-center gap-2 text-[13px] font-medium text-ink-2"><Icon.card className="size-4 shrink-0" /><span className="min-w-0 flex-1 truncate">{saved.card ? `${cardName(saved.card)} · charged after the ride` : identity ? 'Card, after your driver is assigned' : 'Pay after your driver is assigned'}</span>{tripSeconds != null && <span className="shrink-0 tabular-nums text-ink-3">{minutes(tripSeconds)}{tripMiles ? ` · ${tripMiles} mi` : ''}</span>}</p>
         {flow.error && <p role="alert" className="mt-2 rounded-[14px] bg-[#fbeceb] px-3.5 py-2.5 text-[14px] text-alert">{flow.error}</p>}
         <Button size="lg" className="mt-2.5 w-full" disabled={!selected || phase === 'requesting' || !selected.readiness?.bookingEnabled} onClick={() => void request()}>
           {phase === 'requesting' ? <><Spinner className="size-5" />Requesting…</> : <>
@@ -370,7 +369,7 @@ export default function RiderApp({ initialRide, initialServiceId }: { initialRid
     </Sheet>}
 
     {phase === 'unconfirmed' && <Sheet key="unconfirmed" label="Request status" onHeight={setSheet}>
-      <div className="px-4 pb-2 pt-2 lg:px-5 lg:pt-5">
+      <div className="min-h-0 overflow-y-auto overscroll-contain px-4 pb-2 pt-1 lg:px-5 lg:pt-5">
         <h2 className="display text-[22px] font-bold leading-7 tracking-[-0.02em]">Checking your request</h2>
         <p className="mt-1 text-[15px] text-ink-2">The connection dropped before we heard back. Check it before requesting again, so you aren’t booked twice.</p>
         <Button size="lg" className="mt-4 w-full" disabled={resolving || !pendingBinding} onClick={() => void resolvePending()}>{resolving ? <><Spinner className="size-5" />Checking…</> : 'Check request'}</Button>
@@ -389,7 +388,7 @@ function SheetTitle({ children, onBack, aside }: { children: React.ReactNode; on
   return <div className="flex min-h-11 items-center gap-1">
     {onBack && <button type="button" aria-label="Back" onClick={onBack} className="press -ml-2.5 grid size-11 shrink-0 place-items-center rounded-full outline-none hover:bg-ink/5 focus-visible:ring-2 focus-visible:ring-tide"><Icon.back className="size-[22px]" /></button>}
     <h2 className="display min-w-0 flex-1 truncate text-[22px] font-bold leading-7 tracking-[-0.02em]">{children}</h2>
-    {aside && <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[13px] font-semibold tabular-nums text-ink-2 ring-1 ring-rule">{aside}</span>}
+    {aside}
   </div>
 }
 
@@ -413,7 +412,7 @@ function RideList({ count, children }: { count: number; children: React.ReactNod
     return () => { observer.disconnect(); list.removeEventListener('scroll', measure) }
   }, [count])
   return <div className="relative flex min-h-0 shrink flex-col">
-    <ul ref={ref} role="radiogroup" aria-label="Rides" className={cx('mt-3 grid max-h-[44dvh] min-h-[80px] shrink grid-cols-1 gap-2 overflow-y-auto overscroll-contain px-4 pb-1 [@media(max-height:700px)]:max-h-[27dvh] lg:px-5', hidden > 0 && '[mask-image:linear-gradient(to_bottom,#000_calc(100%-28px),transparent)]')}>{children}</ul>
+    <ul ref={ref} role="radiogroup" aria-label="Rides" className={cx('mt-2 grid min-h-[80px] shrink grid-cols-1 gap-2 overflow-y-auto overscroll-contain px-4 pb-1 lg:max-h-[44dvh] lg:px-5', hidden > 0 && '[mask-image:linear-gradient(to_bottom,#000_calc(100%-28px),transparent)]')}>{children}</ul>
     {hidden > 0 && <button type="button" onClick={() => ref.current?.scrollBy({ top: ref.current.clientHeight * 0.8, behavior: reduced() ? 'auto' : 'smooth' })}
       className="press absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 flex min-h-11 items-center rounded-full bg-white px-3 text-[13px] font-semibold text-ink shadow-[0_2px_8px_-2px_rgba(16,35,31,0.35)] ring-1 ring-rule">
       {hidden} more {hidden === 1 ? 'ride' : 'rides'}<Icon.chevronDown className="ml-1 inline size-3.5" />

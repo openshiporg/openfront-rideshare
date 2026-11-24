@@ -1,6 +1,6 @@
 'use client'
 
-import { forwardRef, useEffect, useLayoutEffect, useRef } from 'react'
+import { forwardRef, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 
 const cx = (...parts: Array<string | false | null | undefined>) => parts.filter(Boolean).join(' ')
@@ -25,13 +25,16 @@ export function ButtonLink({ tone = 'primary', size = 'md', className, ...props 
 }
 
 /**
- * The paper sheet over the map. Its height is its content (each state sets its own size), it rises in
- * with an ease-out, and it reports its covered height so the map frames the trip above it. On wide
- * screens it becomes a floating left-hand panel.
+ * The paper sheet over the map. On a phone it rests at under half the screen so the map stays the main
+ * thing; its content scrolls inside, and a tap or drag on the handle opens it to full height and back.
+ * It reports its covered height so the map frames the trip above it. On wide screens it is a floating
+ * left-hand panel, as tall as its content.
  */
 export function Sheet({ children, onHeight, label, className }: { children: React.ReactNode; onHeight: (px: number) => void; label: string; className?: string }) {
   const ref = useRef<HTMLElement>(null)
   const report = useRef(onHeight)
+  const [open, setOpen] = useState(false)
+  const drag = useRef<{ y: number; moved: boolean } | null>(null)
   useLayoutEffect(() => { report.current = onHeight })
   useLayoutEffect(() => {
     const node = ref.current
@@ -44,10 +47,17 @@ export function Sheet({ children, onHeight, label, className }: { children: Reac
     return () => { observer.disconnect(); window.removeEventListener('resize', measure) }
   }, [])
   return <section ref={ref} aria-label={label} className={cx(
-    'sheet-in absolute inset-x-0 bottom-0 z-20 flex max-h-[min(calc(100dvh-76px),76dvh)] flex-col rounded-t-[28px] bg-paper pb-[max(env(safe-area-inset-bottom),14px)] shadow-[0_-1px_0_rgba(16,35,31,0.06),0_-16px_40px_-16px_rgba(16,35,31,0.4)]',
+    'sheet-in sheet-size absolute inset-x-0 bottom-0 z-20 flex flex-col overflow-hidden rounded-t-[28px] bg-paper pb-[max(env(safe-area-inset-bottom),14px)] shadow-[0_-1px_0_rgba(16,35,31,0.06),0_-16px_40px_-16px_rgba(16,35,31,0.4)]',
+    open ? 'max-h-[calc(100dvh-76px)]' : 'max-h-[max(44dvh,330px)]',
     'lg:bottom-auto lg:left-6 lg:right-auto lg:top-[84px] lg:max-h-[calc(100dvh-108px)] lg:w-[420px] lg:rounded-[28px] lg:pb-5 lg:shadow-[0_0_0_1px_rgba(16,35,31,0.06),0_24px_60px_-20px_rgba(16,35,31,0.45)]',
     className)}>
-    <span aria-hidden="true" className="mx-auto mb-2 mt-2.5 block h-1 w-9 shrink-0 rounded-full bg-[#cfcabd] lg:hidden" />
+    <button type="button" aria-expanded={open} aria-label={open ? 'Show more map' : 'Show more'} className="grid h-7 w-full shrink-0 touch-none place-items-center outline-none focus-visible:bg-tide-soft lg:hidden"
+      onPointerDown={event => { drag.current = { y: event.clientY, moved: false }; event.currentTarget.setPointerCapture(event.pointerId) }}
+      onPointerMove={event => { const start = drag.current; if (!start || start.moved) return; const dy = event.clientY - start.y; if (Math.abs(dy) > 18) { start.moved = true; setOpen(dy < 0) } }}
+      onPointerUp={() => { window.setTimeout(() => { drag.current = null }, 0) }}
+      onClick={() => { if (!drag.current?.moved) setOpen(value => !value) }}>
+      <span aria-hidden="true" className="block h-1 w-9 rounded-full bg-[#cfcabd]" />
+    </button>
     {children}
   </section>
 }
