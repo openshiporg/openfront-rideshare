@@ -62,8 +62,8 @@ export default function RiderAccount({ register = false }: { register?: boolean 
     setBusy(false)
   }
 
-  if (identity === undefined) return <RiderPage title="Account"><p className="flex items-center gap-3 text-[16px]"><Spinner />Loading…</p></RiderPage>
-  if (identity) return <RiderPage title="Account">
+  if (identity === undefined) return <RiderPage title="Account" identity={identity}><p className="flex items-center gap-3 text-[16px]"><Spinner />Loading…</p></RiderPage>
+  if (identity) return <RiderPage title="Account" identity={identity}>
     <div className="flex items-center gap-4">
       <span aria-hidden="true" className="grid size-16 shrink-0 place-items-center rounded-full bg-tide-soft text-tide"><Icon.person className="size-8" /></span>
       <div className="min-w-0"><p className="truncate text-[20px] font-bold">{identity.name}</p><p className="truncate text-[15px] text-ink-2">{identity.email}</p></div>
@@ -84,7 +84,7 @@ export default function RiderAccount({ register = false }: { register?: boolean 
   </RiderPage>
 
   const field = 'h-14 w-full rounded-[16px] bg-white ring-1 ring-inset ring-rule px-4 text-[16px] outline-none focus-visible:ring-2 focus-visible:ring-tide'
-  return <RiderPage title={register ? 'Create account' : 'Sign in'}>
+  return <RiderPage title={register ? 'Create account' : 'Sign in'} identity={identity}>
     {register && !signupOpen ? <p className="text-[16px] text-ink-2">New accounts aren’t open right now. <Link href="/account/signin" className="font-semibold text-ink underline underline-offset-2">Sign in</Link></p>
       : <form onSubmit={submit} className="space-y-3">
         <fieldset disabled={busy} className="space-y-3">

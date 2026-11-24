@@ -43,7 +43,7 @@ export default function RiderRides() {
   const past = (items || []).filter(item => !upcoming.includes(item))
 
   return <RiderPage title="My rides">
-    {guest && <Link href="/" className="mb-6 flex min-h-14 items-center justify-between gap-3 rounded-[18px] bg-tide px-4 text-white">
+    {guest && <Link href="/" className="mb-6 flex min-h-14 items-center justify-between gap-3 rounded-[18px] bg-tide px-4 text-white shadow-[0_10px_24px_-14px_rgba(15,92,85,0.9)]">
       <span className="min-w-0 truncate text-[16px] font-semibold">Current ride · <span className="font-mono font-normal">{guest.requestNumber}</span></span><Icon.chevronRight className="size-4 shrink-0" />
     </Link>}
     {items === null || signedIn === null ? <p className="flex items-center gap-3 text-[16px]"><Spinner />Loading rides…</p>
@@ -63,12 +63,12 @@ export default function RiderRides() {
 
 function Section({ title, items, stageOf }: { title: string; items: RequestView[]; stageOf: (item: RequestView) => RideStage }) {
   return <section className="mb-6" aria-label={title}>
-    <h2 className="mb-1 text-[20px] font-bold">{title}</h2>
+    <h2 className="mb-1 text-[12px] font-semibold uppercase tracking-[0.06em] text-ink-3">{title}</h2>
     <ul className="divide-y divide-rule">
       {items.map(item => {
         const href = item.trip ? riderStatusHref(item.trip.confirmationCode, item.requestId) : null
         const body = <>
-          <span className="grid size-12 shrink-0 place-items-center rounded-[14px] bg-tide-soft text-tide"><Icon.pin className="size-5" /></span>
+          <span className="grid size-12 shrink-0 place-items-center rounded-full bg-tide-soft text-tide"><Icon.pin className="size-5" /></span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[16px] font-semibold">{shortPlace(item.dropoffLabel) || 'Ride'}</span>
             <span className="block truncate text-[14px] text-ink-2">{dayAndTime(item.requestedFor || item.createdAt)} · {WORDS[stageOf(item)]}</span>

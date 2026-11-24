@@ -111,7 +111,7 @@ export function RidePanel({ requestId, receipt, identity, fleetName, onInfo, onD
 
   if (!view) return <div className="px-4 pb-4 pt-3">
     {failed ? <div className="space-y-4">
-      <h2 className="display text-[22px] font-bold">Ride not available</h2>
+      <h2 className="display text-[24px] font-bold tracking-[-0.02em]">Ride not available</h2>
       <p className="text-[15px] text-ink-2">Sign in with the account you booked with, or open it in the browser you booked in.</p>
       <div className="grid grid-cols-2 gap-2"><Button tone="secondary" onClick={onDone}>Book a ride</Button><ButtonLinkPrimary href="/account/signin">Sign in</ButtonLinkPrimary></div>
     </div> : <div className="flex items-center gap-3 py-6 text-[16px]"><Spinner />Loading your ride…</div>}
@@ -140,42 +140,44 @@ export function RidePanel({ requestId, receipt, identity, fleetName, onInfo, onD
   const canCancelRequest = ['requested', 'matching'].includes(view.status) && (!view.trip || view.trip.status === 'cancelled')
   const canCancelTrip = Boolean(view.trip && ['driver_assigned', 'driver_en_route', 'driver_arrived'].includes(view.trip.status))
 
-  return <div className="flex min-h-0 flex-col overflow-y-auto px-4 pb-2 pt-2">
+  return <div className="flex min-h-0 flex-col overflow-y-auto px-4 pb-2 pt-2 lg:px-5 lg:pt-5">
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
-        <h2 className="display text-[22px] font-bold leading-7" aria-live="polite">{headline[stage]}</h2>
+        <h2 className="display text-[24px] font-bold leading-8 tracking-[-0.02em]" aria-live="polite">{headline[stage]}</h2>
         {sub[stage] && <p className="mt-1 text-[15px] text-ink-2">{sub[stage]}</p>}
       </div>
-      {stage === 'arrived' && <span className="mt-0.5 shrink-0 rounded-md bg-signal px-2 py-1 text-[14px] font-semibold text-white">Now</span>}
+      {stage === 'arrived' && <span className="mt-1 shrink-0 rounded-full bg-signal px-3 py-1 text-[13px] font-semibold text-white">Now</span>}
     </div>
     {(stage === 'finding' || stage === 'reassigning') && <div className="progress mt-4" role="progressbar" aria-label="Finding a driver"><span /></div>}
 
-    {view.trip && (driver || vehicle) && !['completed', 'cancelled'].includes(stage) && <div className="mt-4 flex items-center gap-3 border-t border-rule pt-4">
-      {driver?.photoUrl ? <img src={driver.photoUrl} alt="" className="size-14 shrink-0 rounded-full object-cover" /> : <span aria-hidden="true" className="grid size-14 shrink-0 place-items-center rounded-full bg-tide-soft text-tide text-[18px] font-semibold">{driver ? initials(driver.publicName) : <Icon.person className="size-6" />}</span>}
+    {view.trip && (driver || vehicle) && !['completed', 'cancelled'].includes(stage) && <div className="mt-4 flex items-center gap-3 rounded-[20px] bg-white p-3.5 shadow-[0_10px_24px_-18px_rgba(16,35,31,0.35)] ring-1 ring-rule">
+      {driver?.photoUrl ? <img src={driver.photoUrl} alt="" className="size-14 shrink-0 rounded-full object-cover ring-2 ring-white" /> : <span aria-hidden="true" className="grid size-14 shrink-0 place-items-center rounded-full bg-tide-soft text-tide text-[18px] font-semibold">{driver ? initials(driver.publicName) : <Icon.person className="size-6" />}</span>}
       <div className="min-w-0 flex-1">
         <p className="truncate text-[17px] font-semibold">{driver?.publicName || 'Your driver'}{driver?.rating != null && <span className="ml-2 inline-flex items-center gap-0.5 text-[14px] font-medium"><Icon.star className="size-3.5" />{driver.rating.toFixed(2)}</span>}</p>
         <p className="truncate text-[14px] text-ink-2">{vehicleName(vehicle) || serviceName}</p>
       </div>
-      {vehicle?.plateMasked && <span className="shrink-0 rounded-md bg-tide-soft px-2.5 py-1.5 font-mono text-[16px] font-bold tracking-wide">{vehicle.plateMasked}</span>}
+      {vehicle?.plateMasked && <span className="shrink-0 rounded-[10px] bg-ink px-2.5 py-1.5 font-mono text-[15px] font-bold tracking-wide text-white">{vehicle.plateMasked}</span>}
     </div>}
 
-    <div className="mt-4 flex gap-3 border-t border-rule pt-4">
-      <RouteMarks className="py-[7px]" />
-      <div className="min-w-0 flex-1 space-y-3 text-[15px]">
-        <p className="truncate">{view.pickupLabel || 'Pickup'}</p>
-        <p className="truncate">{view.dropoffLabel || 'Destination'}</p>
+    <div className="mt-3 rounded-[20px] bg-white ring-1 ring-rule">
+      <div className="flex gap-3 px-4 py-3.5">
+        <RouteMarks className="py-[5px]" />
+        <div className="min-w-0 flex-1 space-y-2.5 text-[15px] font-medium leading-5">
+          <p className="truncate">{view.pickupLabel || 'Pickup'}</p>
+          <p className="truncate">{view.dropoffLabel || 'Destination'}</p>
+        </div>
+      </div>
+      <div className="flex items-center justify-between gap-3 border-t border-rule px-4 py-3 text-[15px]">
+        <span className="min-w-0 truncate text-ink-2">{stage === 'completed' || paid ? (serviceName ? `${serviceName} · fare` : 'Fare') : serviceName ? `${serviceName} · estimate` : 'Fare estimate'}</span>
+        <span className="display shrink-0 text-[18px] font-bold tabular-nums">{fareText || '…'}</span>
       </div>
     </div>
-    <div className="mt-4 flex items-center justify-between gap-3 border-t border-rule pt-4 text-[15px]">
-      <span className="min-w-0 truncate">{stage === 'completed' || paid ? (serviceName ? `${serviceName} · fare` : 'Fare') : serviceName ? `${serviceName} · estimate` : 'Fare estimate'}</span>
-      <span className="shrink-0 font-semibold tabular-nums">{fareText || '—'}</span>
-    </div>
 
-    {card?.enabled && card.status === 'refunded' && <div className="mt-3 flex items-center gap-2 rounded-[16px] bg-white px-4 py-3 text-[15px] ring-1 ring-rule"><Icon.check className="size-5 text-tide" />Refunded{card.amountMinor != null && card.currencyCode ? ` · ${formatMoney(card.amountMinor, card.currencyCode)}` : ''}</div>}
-    {card?.enabled && card.status === 'partially_refunded' && <div className="mt-3 flex items-center gap-2 rounded-[16px] bg-white px-4 py-3 text-[15px] ring-1 ring-rule"><Icon.check className="size-5 text-tide" />Partly refunded</div>}
-    {card?.enabled && card.status === 'captured' && <div className="mt-3 flex items-center gap-2 rounded-[16px] bg-white px-4 py-3 text-[15px] ring-1 ring-rule"><Icon.check className="size-5 text-tide" />{card.savedCard ? `Paid · ${cardName(card.savedCard)}` : 'Paid by card'}</div>}
+    {card?.enabled && card.status === 'refunded' && <div className="mt-3 flex items-center gap-2 rounded-[18px] bg-white px-4 py-3 text-[15px] ring-1 ring-rule"><Icon.check className="size-5 text-tide" />Refunded{card.amountMinor != null && card.currencyCode ? ` · ${formatMoney(card.amountMinor, card.currencyCode)}` : ''}</div>}
+    {card?.enabled && card.status === 'partially_refunded' && <div className="mt-3 flex items-center gap-2 rounded-[18px] bg-white px-4 py-3 text-[15px] ring-1 ring-rule"><Icon.check className="size-5 text-tide" />Partly refunded</div>}
+    {card?.enabled && card.status === 'captured' && <div className="mt-3 flex items-center gap-2 rounded-[18px] bg-white px-4 py-3 text-[15px] ring-1 ring-rule"><Icon.check className="size-5 text-tide" />{card.savedCard ? `Paid · ${cardName(card.savedCard)}` : 'Paid by card'}</div>}
     {card?.enabled && card.status !== 'captured' && card.failure && <p role="alert" className="mt-3 rounded-[16px] bg-[#fbeceb] px-4 py-3 text-[14px] text-alert">Your card was declined.{declineReason(card.failure) ? ` ${declineReason(card.failure)}` : ''} Pay below, or add another card.</p>}
-    {card?.enabled && !isFarePaid(card.status) && card.savedCard && !card.failure && !['cancelled'].includes(stage) && <div className="mt-3 flex items-center gap-2 rounded-[16px] bg-white px-4 py-3 text-[15px] ring-1 ring-rule"><Icon.card className="size-5 shrink-0" /><span className="truncate">{stage === 'completed' ? `Charging ${cardName(card.savedCard)}…` : `${cardName(card.savedCard)} is charged after the ride`}</span></div>}
+    {card?.enabled && !isFarePaid(card.status) && card.savedCard && !card.failure && !['cancelled'].includes(stage) && <div className="mt-3 flex items-center gap-2 rounded-[18px] bg-white px-4 py-3 text-[15px] ring-1 ring-rule"><Icon.card className="size-5 shrink-0" /><span className="truncate">{stage === 'completed' ? `Charging ${cardName(card.savedCard)}…` : `${cardName(card.savedCard)} is charged after the ride`}</span></div>}
     {card?.enabled && card.payable && card.status !== 'captured' && <div className="mt-3 flex items-center justify-between gap-3 rounded-[16px] bg-white ring-1 ring-rule px-4 py-3">
       <span className="flex items-center gap-2 text-[15px]"><Icon.card className="size-5" />Pay by card</span>
       <PayButton tripId={tripId!} onError={setNotice} />
@@ -197,7 +199,7 @@ export function RidePanel({ requestId, receipt, identity, fleetName, onInfo, onD
       {!live && <Button size="lg" className="w-full" onClick={onDone}>{stage === 'completed' ? 'Done' : 'Book another ride'}</Button>}
     </div>
     {canCancelTrip && !signedInOwner && <p className="mt-3 text-[13px] text-ink-2">To cancel after a driver is assigned, <Link href="/account/signin" className="font-semibold underline underline-offset-2">sign in</Link> with the account you booked with, or contact {fleetName}.</p>}
-    <p className="mt-3 text-center font-mono text-[12px] text-ink-3">{tripCode || view.requestNumber}</p>
+    <p className="mt-3 text-center font-mono text-[12px] tracking-wide text-ink-3">{tripCode || view.requestNumber}</p>
 
     {confirming && <CancelConfirm requestId={requestId} proof={proof} tripId={canCancelTrip && signedInOwner ? tripId : null} requestCancellable={canCancelRequest} onClose={() => setConfirming(false)} onCancelled={() => { setConfirming(false); setTick(t => t + 1) }} />}
   </div>
@@ -213,7 +215,7 @@ function declineReason(message: string | null) {
 
 const firstName = (name: string) => name.split(/\s+/)[0] || name
 function ButtonLinkPrimary({ href, children }: { href: string; children: React.ReactNode }) {
-  return <Link href={href} className="press inline-flex h-12 items-center justify-center rounded-[16px] bg-tide px-5 text-[16px] font-semibold text-white">{children}</Link>
+  return <Link href={href} className="press inline-flex h-12 items-center justify-center rounded-full bg-tide px-5 text-[16px] font-semibold text-white">{children}</Link>
 }
 
 function ShareButton({ requestId, code }: { requestId: string; code: string | null }) {

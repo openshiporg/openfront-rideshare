@@ -14,7 +14,7 @@
     "migrate:gen": "keystone build --no-ui && tsx features/keystone/view-order/generate-view-order.ts && keystone prisma migrate dev",
     "migrate": "prisma migrate deploy",
     "test:internal-origin": "node --import tsx --test features/keystone/lib/internal-origin.test.ts",
-    "postinstall": "patch-package"
+    "postinstall": "patch-package && node scripts/copy-maplibre-worker.mjs"
   },
   "dependencies": {
     "@ai-sdk/mcp": "^1.0.13",
@@ -76,7 +76,7 @@
     "graphql-yoga": "^3.1.0",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.511.0",
-    "maplibre-gl": "^5.24.0",
+    "maplibre-gl": "^6.19.0",
     "marked": "^16.1.1",
     "next": "^16.0.10",
     "next-themes": "^0.4.6",
@@ -104,6 +104,7 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
+    "@types/geojson": "^7946.0.16",
     "@types/graphql-upload": "^17.0.0",
     "@types/node": "^20.14.10",
     "@types/node-fetch": "^2.6.12",

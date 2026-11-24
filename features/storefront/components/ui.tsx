@@ -7,12 +7,12 @@ const cx = (...parts: Array<string | false | null | undefined>) => parts.filter(
 
 type Tone = 'primary' | 'secondary' | 'danger' | 'plain'
 const tones: Record<Tone, string> = {
-  primary: 'bg-tide text-white hover:bg-tide-deep disabled:bg-[#a9bcb8]',
+  primary: 'bg-tide text-white shadow-[0_10px_24px_-14px_rgba(15,92,85,0.9)] hover:bg-tide-deep disabled:bg-[#a9bcb8] disabled:shadow-none',
   secondary: 'bg-white text-ink ring-1 ring-inset ring-rule hover:bg-tide-soft disabled:text-ink-3',
   danger: 'bg-white text-alert ring-1 ring-inset ring-rule hover:bg-[#fbeceb]',
   plain: 'bg-transparent text-ink hover:bg-ink/5',
 }
-const sizes = { lg: 'h-14 px-6 text-[17px] rounded-[18px]', md: 'h-12 px-5 text-[16px] rounded-[16px]', sm: 'h-11 px-4 text-[15px] rounded-[14px]' }
+const sizes = { lg: 'h-14 px-6 text-[17px] rounded-full', md: 'h-12 px-5 text-[16px] rounded-full', sm: 'h-11 px-4 text-[15px] rounded-full' }
 const base = 'press inline-flex select-none items-center justify-center gap-2 whitespace-nowrap font-semibold outline-none focus-visible:ring-2 focus-visible:ring-tide focus-visible:ring-offset-2 disabled:cursor-not-allowed'
 
 export const Button = forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement> & { tone?: Tone; size?: keyof typeof sizes }>(
@@ -23,11 +23,6 @@ export const Button = forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<H
 export function ButtonLink({ tone = 'primary', size = 'md', className, ...props }: React.ComponentProps<typeof Link> & { tone?: Tone; size?: keyof typeof sizes }) {
   return <Link className={cx(base, tones[tone], sizes[size], className)} {...props} />
 }
-
-/** Squircle map control (back, menu): 44pt, floating over the map. */
-export const MapButton = forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement>>(function MapButton({ className, type = 'button', ...props }, ref) {
-  return <button ref={ref} type={type} className={cx('press grid size-11 place-items-center rounded-[14px] bg-white text-ink shadow-[0_1px_0_rgba(16,35,31,0.06),0_6px_16px_-6px_rgba(16,35,31,0.35)] outline-none focus-visible:ring-2 focus-visible:ring-tide', className)} {...props} />
-})
 
 /**
  * The paper sheet over the map. Its height is its content (each state sets its own size), it rises in
@@ -49,10 +44,10 @@ export function Sheet({ children, onHeight, label, className }: { children: Reac
     return () => { observer.disconnect(); window.removeEventListener('resize', measure) }
   }, [])
   return <section ref={ref} aria-label={label} className={cx(
-    'sheet-in absolute inset-x-0 bottom-0 z-20 flex max-h-[calc(100dvh-88px)] flex-col rounded-t-[28px] bg-paper pb-[max(env(safe-area-inset-bottom),12px)] shadow-[0_-10px_30px_-12px_rgba(16,35,31,0.35)]',
-    'lg:bottom-auto lg:left-6 lg:right-auto lg:top-[84px] lg:max-h-[calc(100dvh-108px)] lg:w-[420px] lg:rounded-[28px] lg:pb-3 lg:shadow-[0_12px_40px_-12px_rgba(16,35,31,0.4)]',
+    'sheet-in absolute inset-x-0 bottom-0 z-20 flex max-h-[calc(100dvh-76px)] flex-col rounded-t-[28px] bg-paper pb-[max(env(safe-area-inset-bottom),14px)] shadow-[0_-1px_0_rgba(16,35,31,0.06),0_-16px_40px_-16px_rgba(16,35,31,0.4)]',
+    'lg:bottom-auto lg:left-6 lg:right-auto lg:top-[84px] lg:max-h-[calc(100dvh-108px)] lg:w-[420px] lg:rounded-[28px] lg:pb-5 lg:shadow-[0_0_0_1px_rgba(16,35,31,0.06),0_24px_60px_-20px_rgba(16,35,31,0.45)]',
     className)}>
-    <span aria-hidden="true" className="mx-auto mt-2.5 mb-1.5 block h-1 w-10 shrink-0 rounded-full bg-[#cfcabd] lg:hidden" />
+    <span aria-hidden="true" className="mx-auto mb-2 mt-2.5 block h-1 w-9 shrink-0 rounded-full bg-[#cfcabd] lg:hidden" />
     {children}
   </section>
 }

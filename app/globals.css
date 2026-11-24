@@ -119,6 +119,24 @@
   body {
     @apply bg-background text-foreground;
   }
+  .maplibregl-popup-content {
+    @apply bg-transparent! shadow-none! p-0! rounded-none!;
+  }
+  .maplibregl-popup-tip {
+    @apply hidden!;
+  }
+  .maplibregl-ctrl-attrib {
+    @apply bg-background! text-muted-foreground! border-border! rounded-md! border! shadow-sm!;
+  }
+  .maplibregl-ctrl-attrib a {
+    @apply text-muted-foreground!;
+  }
+  .maplibregl-ctrl-attrib a:hover {
+    @apply text-foreground!;
+  }
+  .maplibregl-ctrl-attrib-button {
+    @apply bg-transparent! dark:invert;
+  }
 }
 
 /* Rider app, "Harbor Tide": warm paper sheet, white cards, harbour-teal action, one amber signal for the
@@ -191,5 +209,18 @@ html:has(.rider.fixed) { overflow: hidden; overscroll-behavior: none; }
 /* OpenStreetMap attribution stays readable and rises above the sheet. */
 .rider-map .maplibregl-ctrl-bottom-right { bottom: var(--sheet, 0px); }
 @media (min-width: 1024px) { .rider-map .maplibregl-ctrl-bottom-right { bottom: 0; } }
-.rider-map .maplibregl-ctrl-attrib { font-size: 12px; background: rgba(246, 244, 239, 0.9); }
-.rider-map .maplibregl-ctrl-attrib a { color: #44554f; }
+.rider-map .maplibregl-ctrl-attrib { font-size: 12px; }
+
+/* Place names on the pins, the centre pin for "set on map", and the mapcn controls: all sit in the open map,
+   between the header and the sheet. */
+.rider-marker-label { max-width: 168px; overflow: hidden; text-overflow: ellipsis; border-radius: 9999px; padding: 3px 10px; line-height: 18px; box-shadow: 0 0 0 1px rgba(16, 35, 31, 0.06), 0 4px 12px -4px rgba(16, 35, 31, 0.4); }
+.rider-centre-pin { left: 50%; top: calc(var(--map-top, 72px) + (100% - var(--map-top, 72px) - var(--sheet, 0px)) / 2); }
+.rider-map-controls { right: 12px; bottom: calc(var(--sheet, 0px) + 44px); gap: 8px; }
+.rider-map-controls > div { border-radius: 14px; border-color: rgba(16, 35, 31, 0.08); box-shadow: 0 1px 0 rgba(16, 35, 31, 0.06), 0 8px 20px -8px rgba(16, 35, 31, 0.4); }
+.rider-map-controls button { width: 44px; height: 44px; color: var(--color-ink); border-radius: 0; }
+.rider-map-controls button:hover { background: var(--color-tide-soft); }
+@media (min-width: 1024px) {
+  .rider-centre-pin { left: calc(50% + 224px); }
+  .rider-map-controls { right: 24px; bottom: 44px; }
+  .rider-map-controls button { width: 40px; height: 40px; }
+}

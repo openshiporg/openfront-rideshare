@@ -27,7 +27,7 @@ export function WhenPanel({ when, leadMinutes, onDone, onCancel }: { when: strin
   }, [days, day, earliest])
   const chosen = slots.find(s => s.getTime() === slot) || slots[0]
   return <div className="flex min-h-0 flex-col px-4 pt-2">
-    <h2 className="display text-[22px] font-bold leading-7">Schedule a pickup</h2>
+    <h2 className="display text-[24px] font-bold leading-8 tracking-[-0.02em]">Schedule a pickup</h2>
     <p className="mt-1 text-[14px] text-ink-2">Your driver is booked for this time. You can still leave now instead.</p>
     <div role="radiogroup" aria-label="Day" className="-mx-4 mt-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
       {days.map((d, index) => {
@@ -49,11 +49,11 @@ export function WhenPanel({ when, leadMinutes, onDone, onCancel }: { when: strin
       })}
     </ul>
     {leadMinutes > 15 && <p className="mt-2 text-[13px] text-ink-3">This ride can be scheduled from {dayAndTime(earliest)}.</p>}
-    <div className="mt-4 grid grid-cols-[auto_1fr] gap-2">
-      <Button tone="secondary" size="lg" onClick={() => onDone(null)}>Leave now</Button>
-      <Button size="lg" disabled={!chosen} onClick={() => chosen && onDone(chosen.toISOString())}>{chosen ? `Schedule ${dayAndTime(chosen)}` : 'Schedule'}</Button>
+    <Button size="lg" className="mt-4 w-full" disabled={!chosen} onClick={() => chosen && onDone(chosen.toISOString())}><span className="truncate">{chosen ? `Schedule ${dayAndTime(chosen)}` : 'Schedule'}</span></Button>
+    <div className="mt-2 grid grid-cols-2 gap-2">
+      <Button tone="secondary" onClick={() => onDone(null)}>Leave now</Button>
+      <Button tone="plain" onClick={onCancel}>Close</Button>
     </div>
-    <button type="button" onClick={onCancel} className="press mx-auto mt-1 min-h-11 px-4 text-[14px] font-semibold text-ink-2 outline-none focus-visible:underline">Close</button>
   </div>
 }
 
@@ -63,14 +63,14 @@ export function WhenPanel({ when, leadMinutes, onDone, onCancel }: { when: strin
  */
 export function WhenSwitch({ when, onNow, onSchedule, className }: { when: string | null; onNow: () => void; onSchedule: () => void; className?: string }) {
   const later = Boolean(when)
-  return <div role="radiogroup" aria-label="Pickup time" className={cx('relative grid h-[52px] grid-cols-2 rounded-[14px] bg-[#e9e5da] p-1', className)}>
-    <span aria-hidden="true" className={cx('when-thumb absolute inset-y-1 left-1 w-[calc(50%-4px)] rounded-[11px] bg-white shadow-[0_1px_2px_rgba(16,35,31,0.12),0_2px_8px_-2px_rgba(16,35,31,0.18)]', later && 'translate-x-full')} />
+  return <div role="radiogroup" aria-label="Pickup time" className={cx('relative grid h-[52px] grid-cols-2 rounded-full bg-[#e9e5da] p-1', className)}>
+    <span aria-hidden="true" className={cx('when-thumb absolute inset-y-1 left-1 w-[calc(50%-4px)] rounded-full bg-white shadow-[0_1px_2px_rgba(16,35,31,0.12),0_2px_8px_-2px_rgba(16,35,31,0.18)]', later && 'translate-x-full')} />
     <button type="button" role="radio" aria-checked={!later} onClick={onNow}
-      className={cx('press relative z-10 flex min-w-0 items-center justify-center gap-1.5 rounded-[11px] px-2 text-[14px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-tide', later ? 'text-ink-2' : 'text-ink')}>
+      className={cx('press relative z-10 flex min-w-0 items-center justify-center gap-1.5 rounded-full px-2 text-[14px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-tide', later ? 'text-ink-2' : 'text-ink')}>
       <span aria-hidden="true" className={cx('size-2 shrink-0 rounded-full', later ? 'bg-ink-3/50' : 'bg-tide')} /><span className="truncate">Leave now</span>
     </button>
     <button type="button" role="radio" aria-checked={later} onClick={onSchedule} aria-label={later ? `Scheduled ${dayAndTime(when!)}. Change time` : 'Schedule for later'}
-      className={cx('press relative z-10 flex min-w-0 items-center justify-center gap-1.5 rounded-[11px] px-2 text-[14px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-tide', later ? 'text-ink' : 'text-ink-2')}>
+      className={cx('press relative z-10 flex min-w-0 items-center justify-center gap-1.5 rounded-full px-2 text-[14px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-tide', later ? 'text-ink' : 'text-ink-2')}>
       <Icon.clock className="size-4 shrink-0" /><span className="truncate">{later ? dayAndTime(when!) : 'Schedule'}</span>
     </button>
   </div>

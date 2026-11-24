@@ -1,12 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { gql, QUOTE_FIELDS, SERVICE_FIELDS, whoAmI, type Estimates, type Identity, type LngLat, type Place, type Quote, type Service } from '../lib/api'
 import { cityPoint, drivingRoute, locate, placeAt, rememberPlace, useRecentPlaces, type RoutePath } from '../lib/places'
-import { clock, formatMoney, minutes } from '../lib/format'
-import { storeLogoMark, storeWordmark } from '../lib/store-mark'
+import { clock, formatMoney, minutes, shortPlace } from '../lib/format'
 import { vehicleArt } from '@/features/lib/vehicles'
 import { defaultServiceId, initialFlow, riderFlow } from '../domain/riderFlow'
 import { archiveReceipt, parsePendingRequest, parseRiderReceipt, pendingRequestStorageKey, persistPendingRequest, receiptFromFragment, receiptStorageKey, storedReceipt, type RiderReceipt } from '../domain/riderReceiptStorage'
@@ -15,10 +13,10 @@ import type { QuoteBinding } from '../domain/quoteBinding'
 import { RiderMap } from '../components/RiderMap'
 import { PlanRide } from '../components/PlanRide'
 import { RidePanel, type RideInfo } from '../components/RidePanel'
-import { RiderMenu } from '../components/RiderMenu'
+import { RiderHeader, rememberFleet } from '../components/RiderHeader'
 import { WhenPanel, WhenSwitch } from '../components/WhenPanel'
 import { cardName, useSavedCard } from '../components/SavedCard'
-import { Button, DropoffMark, Icon, MapButton, PickupMark, Sheet, Spinner, VehicleArt, cx } from '../components/ui'
+import { Button, DropoffMark, Icon, PickupMark, RouteMarks, Sheet, Spinner, VehicleArt, cx } from '../components/ui'
 
 type Binding = QuoteBinding<Quote>
 
@@ -32,6 +30,7 @@ export default function RiderApp({ initialRide, initialServiceId }: { initialRid
   const [services, setServices] = useState<Service[] | null>(null)
   const [servicesError, setServicesError] = useState(false)
   const [identity, setIdentity] = useState<Identity>(null)
+  const [identityKnown, setIdentityKnown] = useState(false)
   const [user, setUser] = useState<LngLat | null>(null)
   const [locating, setLocating] = useState(false)
   const [estimates, setEstimates] = useState<{ key: string; value: Estimates } | null>(null)
@@ -49,6 +48,7 @@ export default function RiderApp({ initialRide, initialServiceId }: { initialRid
 
   const fleet = services?.find(s => s.fleet)?.fleet || null
   const fleetName = fleet?.name || 'Rideshare'
+  useEffect(() => { rememberFleet(fleet) }, [fleet])
 
   // Start-up: rides, who is signed in, and any ride this tab already has.
   useEffect(() => {
@@ -56,7 +56,7 @@ export default function RiderApp({ initialRide, initialServiceId }: { initialRid
     gql<{ marketplaceRideshareServices: Service[] }>(`query RiderServices { marketplaceRideshareServices(limit: 12) { ${SERVICE_FIELDS} } }`)
       .then(data => { if (active) setServices(data.marketplaceRideshareServices || []) })
       .catch(() => { if (active) { setServices([]); setServicesError(true) } })
-    whoAmI().then(found => { if (active) setIdentity(found) }).catch(() => {})
+    whoAmI().then(found => { if (active) setIdentity(found) }).catch(() => {}).finally(() => { if (active) setIdentityKnown(true) })
     try {
       const emailed = receiptFromFragment(window.location.hash)
       if (emailed) {
@@ -110,6 +110,11 @@ export default function RiderApp({ initialRide, initialServiceId }: { initialRid
     return true
   }, [])
   useEffect(() => { void findMe() }, [findMe])
+  // The map's locate button: the same fix, without asking twice.
+  const onLocate = useCallback((point: LngLat) => {
+    setUser(point)
+    void placeAt(point).then(place => dispatch({ type: 'located', source: 'gps', place: place ? { ...place, point } : { label: `Current location (${point[1].toFixed(4)}, ${point[0].toFixed(4)})`, name: 'Current location', detail: '', point } }))
+  }, [])
 
   // Route and every ride's price once both ends are known.
   const tripKey = flow.pickup && flow.dropoff ? `${flow.pickup.point.join()};${flow.dropoff.point.join()}` : ''
@@ -148,7 +153,7 @@ export default function RiderApp({ initialRide, initialServiceId }: { initialRid
       binding = { quote: data.marketplaceRideshareQuote, inputs, generation: 1 }
     } catch (cause) {
       inFlight.current = false
-      dispatch({ type: 'requestFailed', error: cause instanceof Error && cause.message !== 'Request failed' ? cause.message : 'The price couldn’t be confirmed. Try again.' })
+      dispatch({ type: 'requestFailed', error: riderReason(cause) || 'The price couldn’t be confirmed. Try again.' })
       return
     }
     // The request intent is saved before it is sent, so a lost answer is recovered, never re-sent.
@@ -228,8 +233,8 @@ export default function RiderApp({ initialRide, initialServiceId }: { initialRid
   // What the map shows in each state.
   const phase = flow.phase.name
   const inRide = phase === 'ride'
-  const mapPickup = inRide ? (rideInfo?.pickup ? { point: rideInfo.pickup } : flow.pickup ? { point: flow.pickup.point } : null) : flow.pickup ? { point: flow.pickup.point } : null
-  const mapDropoff = inRide ? (rideInfo?.dropoff ? { point: rideInfo.dropoff } : flow.dropoff ? { point: flow.dropoff.point } : null) : (phase === 'home' ? null : flow.dropoff ? { point: flow.dropoff.point } : null)
+  const mapPickup = inRide ? (rideInfo?.pickup ? { point: rideInfo.pickup, label: shortPlace(rideInfo.pickupLabel) } : flow.pickup ? { point: flow.pickup.point, label: flow.pickup.name } : null) : flow.pickup ? { point: flow.pickup.point, label: flow.pickup.name } : null
+  const mapDropoff = inRide ? (rideInfo?.dropoff ? { point: rideInfo.dropoff, label: shortPlace(rideInfo.dropoffLabel) } : flow.dropoff ? { point: flow.dropoff.point, label: flow.dropoff.name } : null) : (phase === 'home' ? null : flow.dropoff ? { point: flow.dropoff.point, label: flow.dropoff.name } : null)
   const [rideRoute, setRideRoute] = useState<LngLat[] | null>(null)
   useEffect(() => {
     if (!inRide || !rideInfo?.pickup || !rideInfo.dropoff) { setRideRoute(null); return }
@@ -242,85 +247,89 @@ export default function RiderApp({ initialRide, initialServiceId }: { initialRid
   const near = flow.pickup?.point || user
 
   const tripSeconds = liveEstimates?.durationSeconds ?? route?.durationSeconds ?? null
+  const tripMeters = liveEstimates?.distanceMeters ?? route?.distanceMeters ?? null
+  const tripMiles = tripMeters ? (tripMeters / 1609.344).toFixed(1) : null
+  const selectedPrice = selected && priceOf(selected.id) != null && selected.currencyCode ? formatMoney(priceOf(selected.id), selected.currencyCode) : null
   const dropoffAt = (seconds: number | null) => seconds == null ? null : clock(new Date((flow.when ? Date.parse(flow.when) : Date.now()) + seconds * 1000))
 
   return <div className="rider fixed inset-0 overflow-hidden bg-paper text-ink">
-    <RiderMap user={user} pickup={mapPickup} dropoff={mapDropoff} route={mapRoute} bottom={phase === 'search' ? 0 : sheet} pin={pinField} searching={searching} onPinMove={onPinMove} />
-
-    {/* Top bar over the map. */}
-    <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-start justify-between gap-3 px-4 pt-[max(env(safe-area-inset-top),12px)] lg:px-6 lg:pt-5">
-      <div className="pointer-events-auto">
-        {phase === 'choose' || phase === 'pin'
-          ? <MapButton aria-label="Back" onClick={() => dispatch({ type: 'back' })}><Icon.back className="size-5" /></MapButton>
-          : <Link href="/" aria-label={fleetName} className="press flex h-11 max-w-[60vw] items-center gap-2 rounded-[14px] bg-white pl-2.5 pr-3.5 shadow-[0_1px_0_rgba(16,35,31,0.06),0_6px_16px_-6px_rgba(16,35,31,0.35)] outline-none focus-visible:ring-2 focus-visible:ring-tide">
-            <img alt="" src={`data:image/svg+xml,${encodeURIComponent(storeLogoMark(fleet?.logoIcon))}`} style={{ filter: `hue-rotate(${Number(fleet?.logoColor) || 0}deg)` }} className="h-7 w-6 shrink-0 object-contain" />
-            <span className="display truncate text-[19px] font-bold leading-none">{storeWordmark(fleetName)}</span>
-          </Link>}
-      </div>
-      <div className="pointer-events-auto"><RiderMenu identity={identity} fleetName={fleetName} /></div>
-    </div>
+    <RiderMap user={user} pickup={mapPickup} dropoff={mapDropoff} route={mapRoute} bottom={phase === 'search' ? 0 : sheet} pin={pinField} searching={searching} onPinMove={onPinMove} onLocate={onLocate} />
+    <RiderHeader identity={identityKnown ? identity : undefined} fleet={services === null ? undefined : fleet} className="absolute inset-x-0 top-0" />
 
     {phase === 'search' && <PlanRide field={flow.phase.name === 'search' ? flow.phase.field : 'dropoff'} pickup={flow.pickup} pickupIsGps={flow.pickupSource === 'gps'} dropoff={flow.dropoff} near={near} when={flow.when}
       onNow={() => dispatch({ type: 'setWhen', when: null })} onWhen={() => setWhenOpen(true)} onPick={(field, place) => dispatch({ type: 'pick', field, place })} onField={field => dispatch({ type: 'openSearch', field })}
       onSetOnMap={field => dispatch({ type: 'setOnMap', field })} onBack={() => dispatch({ type: 'back' })} onUseLocation={() => { void findMe(true) }} locating={locating} />}
 
-    {whenOpen && phase !== 'ride' && <div className="fixed inset-0 z-50 flex items-end bg-ink/40 fade-in lg:items-center lg:justify-center" onPointerDown={event => { if (event.target === event.currentTarget) setWhenOpen(false) }}>
-      <div role="dialog" aria-modal="true" aria-label="Schedule a pickup" className="sheet-in w-full rounded-t-[28px] bg-paper pb-[max(env(safe-area-inset-bottom),12px)] pt-4 lg:max-w-[460px] lg:rounded-[28px]">
+    {whenOpen && phase !== 'ride' && <div className="fixed inset-0 z-50 flex items-end bg-ink/45 fade-in lg:items-center lg:justify-center" onPointerDown={event => { if (event.target === event.currentTarget) setWhenOpen(false) }}>
+      <div role="dialog" aria-modal="true" aria-label="Schedule a pickup" className="sheet-in w-full rounded-t-[28px] bg-paper pb-[max(env(safe-area-inset-bottom),12px)] pt-4 lg:max-w-[460px] lg:rounded-[28px] lg:pb-4">
         <WhenPanel when={flow.when} leadMinutes={selected?.advanceBookingMinutes ?? 0} onCancel={() => setWhenOpen(false)} onDone={when => { dispatch({ type: 'setWhen', when }); setWhenOpen(false) }} />
       </div>
     </div>}
 
-    {phase === 'home' && <Sheet key="home" label="Where to" onHeight={setSheet}>
-      <div className="px-4 pb-2 pt-1">
-        <div className="overflow-hidden rounded-[20px] bg-white shadow-[0_1px_0_rgba(16,35,31,0.04)] ring-1 ring-rule">
-          <button type="button" onClick={() => dispatch({ type: 'openSearch', field: 'pickup' })} className="press flex min-h-14 w-full items-center gap-3 px-4 py-2 text-left outline-none focus-visible:bg-tide-soft">
+    {phase === 'home' && <Sheet key="home" label="Get a ride" onHeight={setSheet}>
+      <div className="px-4 pb-2 pt-1 lg:px-5 lg:pt-5">
+        <h1 className="display text-[26px] font-bold leading-8 tracking-[-0.03em] lg:text-[30px] lg:leading-9">Get a ride</h1>
+        {fleet?.publicCity && <p className="mt-0.5 text-[14px] text-ink-2">{fleetName} · {fleet.publicCity}</p>}
+        <div className="mt-4 overflow-hidden rounded-[20px] bg-white shadow-[0_1px_0_rgba(16,35,31,0.04),0_10px_24px_-18px_rgba(16,35,31,0.35)] ring-1 ring-rule">
+          <button type="button" onClick={() => dispatch({ type: 'openSearch', field: 'pickup' })} className="press flex min-h-[60px] w-full items-center gap-3.5 px-4 py-2 text-left outline-none hover:bg-paper/60 focus-visible:bg-tide-soft">
             <PickupMark />
             <span className="min-w-0 flex-1">
-              <span className="block text-[12px] font-semibold text-ink-3">Pickup</span>
+              <span className="block text-[12px] font-semibold uppercase tracking-[0.06em] text-ink-3">Pickup</span>
               <span className="block truncate text-[15px] font-medium">{flow.pickup ? `${flow.pickupSource === 'gps' ? flow.pickup.label : flow.pickup.name}${flow.pickupSource === 'city' ? ' · set your exact spot' : ''}` : locating ? 'Finding your location…' : 'Choose pickup'}</span>
             </span>
             {locating && !flow.pickup ? <Spinner className="size-4 text-tide" /> : <Icon.chevronRight className="size-4 shrink-0 text-ink-3" />}
           </button>
-          <span aria-hidden="true" className="ml-[21px] block h-0 border-t border-dashed border-rule" />
-          <button type="button" onClick={() => dispatch({ type: 'openSearch', field: 'dropoff' })} className="press flex min-h-16 w-full items-center gap-3 px-4 text-left outline-none focus-visible:bg-tide-soft">
+          <span aria-hidden="true" className="ml-[42px] block h-0 border-t border-rule" />
+          <button type="button" onClick={() => dispatch({ type: 'openSearch', field: 'dropoff' })} className="press flex min-h-[68px] w-full items-center gap-3.5 px-4 text-left outline-none hover:bg-paper/60 focus-visible:bg-tide-soft">
             <DropoffMark />
-            <span className="display min-w-0 flex-1 truncate text-[22px] font-bold">Where to?</span>
-            <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-[12px] bg-tide text-white"><Icon.search className="size-[18px]" /></span>
+            <span className="display min-w-0 flex-1 truncate text-[22px] font-bold tracking-[-0.02em]">Where to?</span>
+            <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-full bg-tide text-white"><Icon.search className="size-[18px]" /></span>
           </button>
         </div>
         <WhenSwitch className="mt-3" when={flow.when} onNow={() => dispatch({ type: 'setWhen', when: null })} onSchedule={() => setWhenOpen(true)} />
-        {recents.length > 0 && <ul className="mt-2">
-          {recents.slice(0, 3).map(place => <li key={place.label}>
-            <button type="button" onClick={() => dispatch({ type: 'pick', field: 'dropoff', place })} className="press flex min-h-14 w-full items-center gap-3 rounded-[14px] px-1 py-1.5 text-left outline-none hover:bg-white focus-visible:bg-white">
-              <span className="grid size-10 shrink-0 place-items-center rounded-[12px] bg-tide-soft text-tide"><Icon.history className="size-[18px]" /></span>
-              <span className="min-w-0"><span className="block truncate text-[15px] font-semibold">{place.name}</span><span className="block truncate text-[13px] text-ink-3">{place.detail}</span></span>
-            </button>
-          </li>)}
-        </ul>}
-        {servicesError && <p role="alert" className="mt-2 text-[14px] text-alert">Rides are unavailable right now. Try again shortly.</p>}
+        {recents.length > 0 && <>
+          <h2 className="mt-5 text-[12px] font-semibold uppercase tracking-[0.06em] text-ink-3">Recent</h2>
+          <ul className="mt-1 divide-y divide-rule">
+            {recents.slice(0, 3).map(place => <li key={place.label}>
+              <button type="button" onClick={() => dispatch({ type: 'pick', field: 'dropoff', place })} className="press -mx-2 flex min-h-[60px] w-[calc(100%+16px)] items-center gap-3 rounded-[14px] px-2 py-1.5 text-left outline-none hover:bg-white focus-visible:bg-white">
+                <span className="grid size-10 shrink-0 place-items-center rounded-full bg-tide-soft text-tide"><Icon.history className="size-[18px]" /></span>
+                <span className="min-w-0 flex-1"><span className="block truncate text-[15px] font-semibold">{place.name}</span><span className="block truncate text-[13px] text-ink-3">{place.detail}</span></span>
+                <Icon.chevronRight className="size-4 shrink-0 text-ink-3" />
+              </button>
+            </li>)}
+          </ul>
+        </>}
+        {servicesError && <p role="alert" className="mt-3 rounded-[14px] bg-[#fbeceb] px-4 py-3 text-[14px] text-alert">Rides are unavailable right now. Try again shortly.</p>}
       </div>
     </Sheet>}
 
     {phase === 'pin' && <Sheet key="pin" label="Set location on map" onHeight={setSheet}>
-      <div className="px-4 pb-2 pt-2">
-        <h2 className="display text-[22px] font-bold">{pinField === 'pickup' ? 'Set your pickup spot' : 'Set your destination'}</h2>
-        <p className="mt-0.5 text-[14px] text-ink-2">Drag the map to move the pin</p>
-        <div className="mt-3 flex min-h-14 items-center gap-3 rounded-[16px] bg-white px-4 ring-1 ring-rule">
+      <div className="px-4 pb-2 pt-1 lg:px-5 lg:pt-4">
+        <SheetTitle onBack={() => dispatch({ type: 'back' })}>{pinField === 'pickup' ? 'Set your pickup spot' : 'Set your destination'}</SheetTitle>
+        <p className="mt-1 text-[14px] text-ink-2">Drag the map to move the pin</p>
+        <div className="mt-4 flex min-h-[60px] items-center gap-3.5 rounded-[18px] bg-white px-4 ring-1 ring-rule">
           {pinField === 'pickup' ? <PickupMark /> : <DropoffMark />}
           <span className="min-w-0 flex-1 truncate text-[16px] font-medium">{pinBusy || !pinPlace ? 'Finding address…' : pinPlace.label}</span>
-          {pinBusy && <Spinner className="size-4" />}
+          {pinBusy && <Spinner className="size-4 text-tide" />}
         </div>
         <Button size="lg" className="mt-3 w-full" disabled={!pinPlace || pinBusy} onClick={() => pinPlace && pinField && dispatch({ type: 'pick', field: pinField, place: pinPlace })}>{pinField === 'pickup' ? 'Confirm pickup' : 'Confirm destination'}</Button>
       </div>
     </Sheet>}
 
     {(phase === 'choose' || phase === 'requesting') && <Sheet key="choose" label="Choose a ride" onHeight={setSheet}>
-      <div className="flex items-baseline justify-between gap-3 px-4 pt-1">
-        <h2 className="display truncate text-[22px] font-bold">{phase === 'requesting' ? `Requesting ${selected?.title || 'your ride'}…` : 'Choose a ride'}</h2>
-        {tripSeconds != null && <span className="shrink-0 text-[13px] font-semibold text-ink-2">{minutes(tripSeconds)} trip</span>}
+      <div className="px-4 pt-1 lg:px-5 lg:pt-4">
+        <SheetTitle onBack={phase === 'choose' ? () => dispatch({ type: 'back' }) : undefined} aside={tripSeconds != null ? <>{minutes(tripSeconds)}{tripMiles && <span className="hidden min-[360px]:inline"> · {tripMiles} mi</span>}</> : null}>{phase === 'requesting' ? 'Requesting your ride…' : 'Choose a ride'}</SheetTitle>
+        {/* The trip, one tap from changing either end. */}
+        <button type="button" disabled={phase === 'requesting'} onClick={() => dispatch({ type: 'back' })} aria-label="Change pickup or destination" className="press mt-3 hidden w-full items-stretch gap-3 rounded-[16px] bg-white px-3.5 py-2.5 lg:flex text-left outline-none ring-1 ring-rule hover:ring-[#cfc9ba] focus-visible:ring-2 focus-visible:ring-tide">
+          <RouteMarks className="py-[5px]" />
+          <span className="min-w-0 flex-1 space-y-1.5 text-[14px] font-medium leading-5">
+            <span className="block truncate">{flow.pickup ? (flow.pickupSource === 'gps' ? flow.pickup.label : flow.pickup.name) : 'Pickup'}</span>
+            <span className="block truncate">{flow.dropoff?.name || 'Destination'}</span>
+          </span>
+        </button>
       </div>
-      <RideTiles count={rides.length}>
-        {services === null && <li className="col-span-2 flex items-center gap-3 py-6 text-[15px]"><Spinner className="size-4 text-tide" />Loading rides…</li>}
+      <RideList count={rides.length}>
+        {services === null && <li className="flex items-center gap-3 py-6 text-[15px]"><Spinner className="size-4 text-tide" />Loading rides…</li>}
         {rides.map((service, index) => {
           const price = priceOf(service.id)
           const bookable = Boolean(service.readiness?.bookingEnabled)
@@ -328,39 +337,42 @@ export default function RiderApp({ initialRide, initialServiceId }: { initialRid
           const at = dropoffAt(tripSeconds)
           return <li key={service.id} className="tile-in" style={{ animationDelay: `${index * 40}ms` }}>
             <button type="button" role="radio" aria-checked={active} disabled={!bookable || phase === 'requesting'} onClick={() => dispatch({ type: 'selectService', serviceId: service.id })}
-              className={cx('press flex h-full min-h-[104px] w-full flex-col rounded-[20px] px-3 pb-2.5 pt-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-tide focus-visible:ring-offset-2 focus-visible:ring-offset-paper',
-                active ? 'bg-tide text-white shadow-[0_8px_20px_-10px_rgba(15,92,85,0.8)]' : 'bg-white text-ink ring-1 ring-inset ring-rule hover:ring-[#cfc9ba]', !bookable && 'opacity-50')}>
-              <span className="flex items-start justify-between gap-2">
+              className={cx('press flex min-h-[72px] w-full items-center gap-3 rounded-[18px] py-2.5 pl-3 pr-4 text-left outline-none focus-visible:ring-2 focus-visible:ring-tide focus-visible:ring-offset-2 focus-visible:ring-offset-paper',
+                active ? 'bg-white shadow-[0_10px_24px_-16px_rgba(15,92,85,0.7)] ring-2 ring-inset ring-tide' : 'bg-white/70 ring-1 ring-inset ring-rule hover:bg-white hover:ring-[#cfc9ba]', !bookable && 'opacity-50')}>
+              <span className={cx('grid h-12 w-16 shrink-0 place-items-center rounded-[14px]', active ? 'bg-tide text-white' : 'bg-tide-soft text-tide-deep')}>
                 <VehicleArt src={vehicleArt(service.category, { seats: service.passengerCapacity, wheelchair: service.wheelchairAccessible })} className="h-8 w-11" />
-                <span className={cx('display text-[18px] font-bold leading-6 tabular-nums', active ? 'text-white' : 'text-ink')}>{price != null && service.currencyCode ? formatMoney(price, service.currencyCode) : liveEstimates ? '—' : <span className={cx('inline-block h-4 w-12 animate-pulse rounded motion-reduce:animate-none', active ? 'bg-white/30' : 'bg-tide-soft')} />}</span>
               </span>
-              <span className="mt-auto pt-1.5 text-[15px] font-semibold leading-5 [overflow-wrap:anywhere] line-clamp-2">{service.title}</span>
-              <span className={cx('mt-1 flex min-w-0 items-center gap-2 text-[12px] font-medium', active ? 'text-white/85' : 'text-ink-3')}>
-                <span className="inline-flex shrink-0 items-center gap-0.5"><Icon.person className="size-3.5" />{service.passengerCapacity}</span>
-                {service.wheelchairAccessible && <Icon.wheelchair className="size-3.5 shrink-0" />}
-                <span className="truncate">{bookable ? (at ? `Arrive ${at}` : service.description || '') : service.readiness?.reason || 'Not available now'}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[16px] font-semibold leading-5 [overflow-wrap:anywhere] line-clamp-2">{service.title}</span>
+                <span className="mt-1 flex min-w-0 items-start gap-2 text-[13px] leading-[18px] text-ink-2">
+                  <span className="inline-flex h-[18px] shrink-0 items-center gap-0.5 font-medium"><Icon.person className="size-3.5" />{service.passengerCapacity}</span>
+                  {service.wheelchairAccessible && <Icon.wheelchair className="mt-0.5 size-3.5 shrink-0" />}
+                  <span className={bookable ? 'truncate' : 'line-clamp-2 text-left'}>{bookable ? (at ? `Arrive ${at}` : service.description || '') : service.readiness?.reason || 'Not available now'}</span>
+                </span>
               </span>
+              <span className="display shrink-0 text-[19px] font-bold leading-6 tabular-nums">{price != null && service.currencyCode ? formatMoney(price, service.currencyCode) : liveEstimates ? '…' : <span className="inline-block h-4 w-14 animate-pulse rounded bg-tide-soft motion-reduce:animate-none" />}</span>
             </button>
           </li>
         })}
-      </RideTiles>
-      <div className="mt-2 px-4 pt-1">
+      </RideList>
+      <div className="mt-2 border-t border-rule px-4 pt-3 lg:px-5">
         <WhenSwitch when={flow.when} onNow={() => dispatch({ type: 'setWhen', when: null })} onSchedule={() => setWhenOpen(true)} />
-        <p className="mt-2 flex min-h-6 items-center gap-2 text-[13px] text-ink-2"><Icon.card className="size-4 shrink-0" /><span className="truncate">{saved.card ? `${cardName(saved.card)} · charged after the ride` : identity ? 'Card, after your driver is assigned' : 'Pay after your driver is assigned'}</span></p>
-        {flow.error && <p role="alert" className="pb-1 text-[14px] text-alert">{flow.error}</p>}
-        <Button size="lg" className="mt-2 w-full" disabled={!selected || phase === 'requesting' || !selected.readiness?.bookingEnabled} onClick={() => void request()}>
+        <p className="mt-2.5 flex min-h-6 items-center gap-2 text-[13px] font-medium text-ink-2"><Icon.card className="size-4 shrink-0" /><span className="truncate">{saved.card ? `${cardName(saved.card)} · charged after the ride` : identity ? 'Card, after your driver is assigned' : 'Pay after your driver is assigned'}</span></p>
+        {flow.error && <p role="alert" className="mt-2 rounded-[14px] bg-[#fbeceb] px-3.5 py-2.5 text-[14px] text-alert">{flow.error}</p>}
+        <Button size="lg" className="mt-2.5 w-full" disabled={!selected || phase === 'requesting' || !selected.readiness?.bookingEnabled} onClick={() => void request()}>
           {phase === 'requesting' ? <><Spinner className="size-5" />Requesting…</> : <>
-            {/* The chosen tile already names the ride; narrow phones get the short verb so the button never truncates. */}
+            {/* The chosen row already names the ride; narrow phones get the short verb so the button never truncates. */}
             <span className="hidden truncate min-[380px]:inline">{`${flow.when ? 'Schedule' : 'Request'} ${selected?.title || 'ride'}`}</span>
             <span className="min-[380px]:hidden">{flow.when ? 'Schedule ride' : 'Request ride'}</span>
+            {selectedPrice && <span className="ml-1 hidden shrink-0 font-medium tabular-nums text-white/75 min-[380px]:inline">{selectedPrice}</span>}
           </>}
         </Button>
       </div>
     </Sheet>}
 
     {phase === 'unconfirmed' && <Sheet key="unconfirmed" label="Request status" onHeight={setSheet}>
-      <div className="px-4 pb-2 pt-2">
-        <h2 className="display text-[22px] font-bold">Checking your request</h2>
+      <div className="px-4 pb-2 pt-2 lg:px-5 lg:pt-5">
+        <h2 className="display text-[24px] font-bold leading-8 tracking-[-0.02em]">Checking your request</h2>
         <p className="mt-1 text-[15px] text-ink-2">The connection dropped before we heard back. Check it before requesting again, so you aren’t booked twice.</p>
         <Button size="lg" className="mt-4 w-full" disabled={resolving || !pendingBinding} onClick={() => void resolvePending()}>{resolving ? <><Spinner className="size-5" />Checking…</> : 'Check request'}</Button>
       </div>
@@ -373,16 +385,25 @@ export default function RiderApp({ initialRide, initialServiceId }: { initialRid
   </div>
 }
 
-/** The ride tiles. All of them fit on a phone; when a short screen (or a long list) can't show them all, the
- * list scrolls, fades at the cut edge and says how many more there are, so a tile is never silently clipped. */
-function RideTiles({ count, children }: { count: number; children: React.ReactNode }) {
+/** A sheet's title row: an inline back arrow when the step has one, the title, and a quiet fact at the right. */
+function SheetTitle({ children, onBack, aside }: { children: React.ReactNode; onBack?: () => void; aside?: React.ReactNode }) {
+  return <div className="flex min-h-11 items-center gap-1">
+    {onBack && <button type="button" aria-label="Back" onClick={onBack} className="press -ml-2.5 grid size-11 shrink-0 place-items-center rounded-full outline-none hover:bg-ink/5 focus-visible:ring-2 focus-visible:ring-tide"><Icon.back className="size-[22px]" /></button>}
+    <h2 className="display min-w-0 flex-1 truncate text-[24px] font-bold leading-8 tracking-[-0.02em]">{children}</h2>
+    {aside && <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[13px] font-semibold tabular-nums text-ink-2 ring-1 ring-rule">{aside}</span>}
+  </div>
+}
+
+/** The ride list. All of it fits on a phone; when a short screen (or a long list) can't show every ride, the
+ * list scrolls, fades at the cut edge and says how many more there are, so a ride is never silently clipped. */
+function RideList({ count, children }: { count: number; children: React.ReactNode }) {
   const ref = useRef<HTMLUListElement>(null)
   const [hidden, setHidden] = useState(0)
   useLayoutEffect(() => {
     const list = ref.current
     if (!list) return
     const measure = () => {
-      // Tiles cut by the list's edge count as hidden, even when partly in view.
+      // Rows cut by the list's edge count as hidden, even when partly in view.
       const bottom = list.getBoundingClientRect().bottom + 2
       setHidden(Array.from(list.children).filter(item => item.getBoundingClientRect().bottom > bottom).length)
     }
@@ -393,11 +414,17 @@ function RideTiles({ count, children }: { count: number; children: React.ReactNo
     return () => { observer.disconnect(); list.removeEventListener('scroll', measure) }
   }, [count])
   return <div className="relative flex min-h-0 shrink flex-col">
-    <ul ref={ref} role="radiogroup" aria-label="Rides" className={cx('mt-3 grid max-h-[48dvh] min-h-[112px] shrink grid-cols-2 [@media(max-height:700px)]:max-h-[31dvh] gap-2 overflow-y-auto overscroll-contain px-4 pb-1', hidden > 0 && '[mask-image:linear-gradient(to_bottom,#000_calc(100%-28px),transparent)]')}>{children}</ul>
+    <ul ref={ref} role="radiogroup" aria-label="Rides" className={cx('mt-3 grid max-h-[44dvh] min-h-[80px] shrink grid-cols-1 gap-2 overflow-y-auto overscroll-contain px-4 pb-1 [@media(max-height:700px)]:max-h-[27dvh] lg:px-5', hidden > 0 && '[mask-image:linear-gradient(to_bottom,#000_calc(100%-28px),transparent)]')}>{children}</ul>
     {hidden > 0 && <button type="button" onClick={() => ref.current?.scrollBy({ top: ref.current.clientHeight * 0.8, behavior: reduced() ? 'auto' : 'smooth' })}
       className="press absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 flex min-h-11 items-center rounded-full bg-white px-3 text-[13px] font-semibold text-ink shadow-[0_2px_8px_-2px_rgba(16,35,31,0.35)] ring-1 ring-rule">
       {hidden} more {hidden === 1 ? 'ride' : 'rides'}<Icon.chevronDown className="ml-1 inline size-3.5" />
     </button>}
   </div>
+}
+/** A refusal written for the rider is shown as is; a technical fault from the server never is. */
+function riderReason(cause: unknown) {
+  const text = cause instanceof Error ? cause.message.trim() : ''
+  if (!text || text === 'Request failed' || text.length > 180 || /prisma|transaction|database|query|sql|exception|internal|econn|fetch failed|timeout|undefined|null\b/i.test(text)) return ''
+  return text
 }
 const reduced = () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
